@@ -1,0 +1,1228 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NBL Business Analyzer</title>
+  <meta name="theme-color" content="#35164E" />
+  <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
+  <link rel="stylesheet" href="styles.css?v=77" />
+</head>
+<body>
+
+  <div class="cloud-login-overlay" id="cloudLoginOverlay">
+    <div class="cloud-login-card">
+      <img class="cloud-login-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
+      <span class="eyebrow">NBL Cloud</span>
+      <h1>NBL Business Analyzer</h1>
+      <p>Sign in with your NBL account to access the online workspace.</p>
+      <form id="cloudLoginForm">
+        <div class="form-field"><label>Email</label><input id="cloudLoginEmail" type="email" autocomplete="username" required placeholder="you@company.com"></div>
+        <div class="form-field"><label>Password</label><input id="cloudLoginPassword" type="password" autocomplete="current-password" required></div>
+        <div class="cloud-login-error hidden" id="cloudLoginError"></div>
+        <button class="button primary big full" id="cloudLoginBtn" type="submit">Sign In</button>
+      </form>
+      <small>Access is controlled by Nashbox Logistics. Your password is handled by Supabase Auth and is not stored in the NBL application.</small>
+    </div>
+  </div>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
+        <div class="app-name">NBL Business Analyzer</div>
+        <div class="app-version">Version 77 &bull; Online Bridge</div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-group" data-nav-group="admin">
+          <button type="button" class="nav-group-toggle" aria-expanded="true"><span class="nav-group-title">Admin</span><span class="nav-group-chevron" aria-hidden="true">▾</span></button>
+          <div class="nav-group-items">
+            <button class="nav-btn nav-btn-child active protected-nav" data-screen="drivers">Driver Pay <em class="nav-lock">🔒</em></button>
+            <button class="nav-btn nav-btn-child protected-nav" data-screen="summary">Settlement <em class="nav-lock">🔒</em></button>
+            <button class="nav-btn nav-btn-child" data-screen="ivmr">IVMR</button>
+            <div class="nav-subgroup">
+              <div class="nav-subgroup-label">HR</div>
+              <button class="nav-btn nav-btn-grandchild" data-screen="hr">Recruitment</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="nav-group" data-nav-group="operations">
+          <button type="button" class="nav-group-toggle" aria-expanded="true"><span class="nav-group-title">Operations</span><span class="nav-group-chevron" aria-hidden="true">▾</span></button>
+          <div class="nav-group-items">
+            <button class="nav-btn nav-btn-child" data-screen="meetings">Meetings</button>
+            <button class="nav-btn nav-btn-child" data-screen="maintenance">Maintenance</button>
+            <button class="nav-btn nav-btn-child" data-screen="motive">Motive</button>
+            <button class="nav-btn nav-btn-child" data-screen="audit">Audit</button>
+          </div>
+        </div>
+
+        <div class="nav-standalone">
+          <button class="nav-btn" data-screen="revenue">Revenue Finder</button>
+          <button class="nav-btn" data-screen="dispatch">Dispatch</button>
+        </div>
+      </nav>
+      <div class="sidebar-bottom">
+
+        <div class="cloud-status" id="cloudStatus"><span class="cloud-dot"></span><div><strong>NBL Cloud</strong><small>Checking session…</small></div></div>
+        <button class="primary full" id="cloudSyncBtn" type="button">Cloud Sync</button>
+        <button class="secondary full subtle hidden" id="cloudSignOutBtn" type="button">Sign Out</button>
+        <div class="folder-status" id="folderStatus"><span class="dot"></span><div><strong>NBL business data folder</strong><small>Not selected</small></div></div>
+        <button class="secondary full" id="chooseFolderBtn">Choose Data Folder</button>
+        <button class="secondary full subtle" id="refreshFolderBtn" disabled>Refresh Statements</button>
+        <div class="finance-lock-status locked" id="financeLockStatus"><span class="lock-dot"></span><div><strong>Finance Access</strong><small>Locked</small></div></div>
+        <button class="secondary full finance-lock-btn" id="financeSecurityBtn">Finance Security</button>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <h1 id="pageTitle">Driver Pay</h1>
+          <p id="fileMeta">Choose your NBL business data folder to begin.</p>
+        </div>
+        <div class="actions">
+          <label class="button primary file-button">Upload Statement<input id="fileInput" type="file" accept=".csv,text/csv" hidden></label>
+          <button class="button secondary" id="saveBtn" disabled>Save Report</button>
+          <button class="button dark" id="exportBtn" disabled>Export Excel</button>
+        </div>
+      </header>
+
+      <section class="content">
+        <div id="alertArea"></div>
+        <div id="emptyState" class="empty-state">
+          <div class="upload-icon">↥</div>
+          <h2>Connect your NBL workspace</h2>
+          <p id="emptyStateText">Sign in to NBL Cloud for the shared online workspace. You can also connect your existing local NBL data folder for migration, backup, and local report storage.</p>
+          <div class="empty-actions">
+            <button class="button secondary big" id="emptyChooseFolderBtn">Choose Data Folder</button>
+            <label class="button primary file-button big">Upload Settlement CSV<input type="file" id="emptyFileInput" accept=".csv,text/csv" hidden></label>
+          </div>
+        </div>
+
+        <div id="financeLockedState" class="finance-locked-state hidden">
+          <div class="finance-lock-card">
+            <div class="finance-lock-icon">🔒</div>
+            <h2>Finance modules are locked</h2>
+            <p>Driver Pay and Settlement require your finance access code or device authentication.</p>
+            <button class="button primary big" id="unlockFinanceBtn">Unlock Finance</button>
+          </div>
+        </div>
+
+        <div id="driversScreen" class="screen hidden">
+          <div class="date-selector-bar">
+            <div class="selector-field"><label>Pay Date</label><select id="payDateSelect"></select></div>
+            <div class="selector-field"><label>Settlement Date</label><select id="driverSettlementDateSelect"></select></div>
+            <div class="statement-source"><span>Statement</span><strong id="selectedStatementSource">—</strong></div>
+          </div>
+
+          <div class="payroll-toolbar">
+            <div>
+              <span class="eyebrow">Payroll Configuration</span>
+              <h2>Flexible Driver Payroll</h2>
+              <p>Each driver can use a day rate, mileage + D&H, or hybrid pay plan. Weekly minimums and pay-period adjustments are applied per driver.</p>
+            </div>
+            <div class="payroll-toolbar-actions"><button class="button secondary" id="refreshHosWorkDaysBtn" type="button">Refresh Workdays from Motive</button><button class="button secondary" id="managePayProfilesBtn" type="button">Manage Pay Profiles</button><small id="payrollHosStatus" class="payroll-hos-status">Motive HOS workdays not loaded for this pay period.</small></div>
+          </div>
+          <div class="rate-panel payroll-default-rates dynamic-dh-rate-panel">
+            <div class="mileage-default-field"><label>Default pay per mile</label><div class="input-prefix"><span>$</span><input id="mileageRate" type="number" step="0.01" value="0.65"></div></div>
+            <div class="dh-mapping-panel">
+              <div class="dh-mapping-heading"><div><label>D&amp;H payout mapping</label><p>The app detects the actual D&amp;H values in the selected settlement. Assign the driver payout for each value.</p></div><button class="button secondary" id="saveDhMappingsBtn" type="button">Save D&amp;H Payouts</button></div>
+              <div id="dhValueMappings" class="dh-value-mappings"></div>
+            </div>
+            <input id="singleRate" type="hidden" value="8.00"><input id="doubleRate" type="hidden" value="15.00">
+          </div>
+          <div class="panel payroll-overview-panel">
+            <div class="panel-heading"><div><h2>Driver Payroll</h2><p>Drivers are grouped by pay method. Open or close either group using the dropdown header.</p></div><div class="total-pay"><span>Total Driver Pay</span><strong id="totalDriverPay">$0.00</strong></div></div>
+            <div class="payroll-group-list" id="driverPayrollGroups"></div>
+          </div>
+        </div>
+
+        <div id="summaryScreen" class="screen hidden">
+          <div class="settlement-tab-bar" role="tablist" aria-label="Settlement module views">
+            <button type="button" class="settlement-tab active" id="settlementSummaryTab" data-settlement-tab="summary">Settlement Summary</button>
+            <button type="button" class="settlement-tab" id="settlementAnalysisTab" data-settlement-tab="analysis">Settlement Analysis</button>
+          </div>
+
+          <div id="settlementSummaryPanel" class="settlement-subpanel">
+            <div class="latest-summary-heading">
+              <div>
+                <span>Most Recent Settlement</span>
+                <h2 id="latestSettlementDate">—</h2>
+                <p id="latestStatementSource">—</p>
+              </div>
+            </div>
+            <div class="summary-grid" id="summaryCards"></div>
+            <div class="panel latest-detail-panel">
+              <div class="panel-heading"><div><h2>Most Recent Statement Metrics</h2><p>Automatically pulled from the newest settlement statement in the Statements folder.</p></div></div>
+              <div class="latest-detail-grid" id="latestDetailGrid"></div>
+            </div>
+            <div class="panel settlement-history-panel">
+              <div class="panel-heading"><div><h2>Settlement History</h2><p>All settlement statements currently stored in your NBL business data folder.</p></div><div class="history-count" id="historyCount">0 statements</div></div>
+              <div class="table-wrap"><table id="settlementHistoryTable" class="summary-history-table"><thead></thead><tbody></tbody></table></div>
+            </div>
+          </div>
+
+          <div id="settlementAnalysisPanel" class="settlement-subpanel hidden">
+            <div class="settlement-analysis-toolbar">
+              <div>
+                <span class="eyebrow">Deeper Settlement Analysis</span>
+                <h2>Mileage Breakdown</h2>
+                <p>Review linehaul miles by tractor domicile and spot miles by client for a selected settlement week.</p>
+              </div>
+              <div class="selector-field settlement-analysis-date"><label>Settlement Date</label><select id="settlementAnalysisDateSelect"></select></div>
+            </div>
+
+            <div class="summary-grid settlement-analysis-cards" id="settlementAnalysisCards"></div>
+            <div id="settlementAnalysisNotice" class="settlement-analysis-notice hidden"></div>
+
+            <div class="settlement-analysis-grid">
+              <div class="panel settlement-analysis-panel">
+                <div class="panel-heading"><div><h2>Linehaul Miles by Domicile</h2><p>Domicile is matched from the tractor master. If a tractor has no master domicile, the settlement domicile/category value is used when available.</p></div><div class="history-count" id="linehaulDomicileCount">0 domiciles</div></div>
+                <div id="linehaulDomicileBars" class="analysis-bars"></div>
+                <div class="table-wrap"><table id="linehaulDomicileTable" class="analysis-table"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
+              </div>
+
+              <div class="panel settlement-analysis-panel">
+                <div class="panel-heading"><div><h2>Spot Miles by Client</h2><p>Spot activity is grouped by the customer/spot name carried in the settlement statement.</p></div><div class="history-count" id="spotClientCount">0 clients</div></div>
+                <div id="spotClientBars" class="analysis-bars"></div>
+                <div class="table-wrap"><table id="spotClientTable" class="analysis-table"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="maintenanceScreen" class="screen hidden">
+          <div class="maintenance-toolbar">
+            <div>
+              <span class="eyebrow">Fleet Maintenance</span>
+              <h2>Preventive Maintenance Planner</h2>
+              <p>Weekly mileage is calculated from the settlement statements in your data folder. Motive mileage provides the odometer baseline.</p>
+            </div>
+            <div class="maintenance-actions">
+              <label class="button secondary file-button">Import Tractor Spreadsheet<input id="tractorImportInput" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden></label>
+              <button class="button secondary" id="downloadTractorTemplateBtn">Download Import Template</button>
+              <button class="button secondary" id="addTractorBtn">+ Add Tractor</button>
+              <button class="button primary" id="recordMaintenanceBtn">Record Maintenance</button>
+            </div>
+          </div>
+
+          <div class="summary-grid" id="maintenanceCards"></div>
+
+          <div class="panel maintenance-status-panel">
+            <div class="panel-heading">
+              <div><h2>PM Status by Tractor</h2><p>PM1 interval: 25,000 miles • PM2 interval: 100,000 miles. Overdue equipment is highlighted in red.</p></div>
+              <div class="history-count" id="tractorCount">0 tractors</div>
+            </div>
+            <div class="table-wrap">
+              <table id="maintenanceStatusTable" class="maintenance-table"><thead></thead><tbody></tbody></table>
+            </div>
+          </div>
+
+          <div class="panel maintenance-history-panel">
+            <div class="panel-heading">
+              <div><h2>Maintenance History</h2><p>PM1, PM2 and other repair work recorded for the fleet.</p></div>
+              <div class="selector-field compact"><label>Tractor</label><select id="maintenanceHistoryFilter"><option value="all">All tractors</option></select></div>
+            </div>
+            <div class="table-wrap">
+              <table id="maintenanceHistoryTable" class="maintenance-history-table"><thead></thead><tbody></tbody></table>
+            </div>
+          </div>
+
+          <div class="panel mmr-panel">
+            <div class="panel-heading">
+              <div><h2>Monthly Maintenance Record PDFs</h2><p>Generate FedEx U.S. Monthly Maintenance Record (MGBA-355) pages from the tractor and maintenance data entered above.</p></div>
+            </div>
+            <div class="mmr-controls">
+              <div class="form-field"><label>Maintenance Month</label><input id="mmrMonthInput" type="month"></div>
+              <div class="form-field"><label>Service Provider Company</label><input id="mmrCompanyInput" value="Nashbox Logistics Inc."></div>
+              <div class="form-field"><label>Authorized Officer / Business Contact</label><input id="mmrOfficerInput" placeholder="e.g. Anthony Prather"></div>
+              <div class="form-field"><label>Date Completed</label><input id="mmrCompletedDateInput" type="date"></div>
+            </div>
+            <div class="mmr-actions">
+              <button class="button primary" id="generateAllMmrBtn">Generate PDFs by Domicile</button>
+              <button class="button secondary" id="downloadLastMmrBtn" disabled>Download Last Generated PDF</button>
+              <span class="mmr-note">Creates one separate PDF per domicile, with one MGBA-355 page for each tractor assigned to that domicile. Individual tractor PDFs can also be generated from the PM Status table. Copies are saved under Maintenance/MMR when folder permission is available.</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="meetingsScreen" class="screen hidden">
+          <div class="meeting-toolbar">
+            <div>
+              <span class="eyebrow">Operations Meetings</span>
+              <h2>Meeting & Inspection Tracker</h2>
+              <p>Track truck inspection issues and management meeting action items in one place.</p>
+            </div>
+            <div class="meeting-toolbar-actions">
+              <button class="button dark" id="exportMeetingsBtn" disabled>Export Meetings Excel</button>
+            </div>
+          </div>
+
+          <div class="summary-grid" id="meetingCards"></div>
+
+          <div class="panel meeting-panel">
+            <div class="panel-heading">
+              <div><h2>Truck Inspection Reports</h2><p>Record tractor issues found during inspections and track whether they have been addressed.</p></div>
+              <div class="panel-heading-actions">
+                <button class="button secondary" id="resetInspectionWidthsBtn" title="Restore the default column widths">Reset Column Widths</button>
+                <button class="button primary" id="addInspectionBtn">+ Add Inspection Report</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table id="inspectionTable" class="meeting-table inspection-table"><thead></thead><tbody></tbody></table>
+            </div>
+          </div>
+
+          <div class="panel meeting-panel management-panel">
+            <div class="panel-heading">
+              <div><h2>Management Meeting Items</h2><p>Track discussion topics, responsibilities, due dates and completion status.</p></div>
+              <div class="panel-heading-actions">
+                <button class="button secondary" id="resetManagementWidthsBtn" title="Restore the default column widths">Reset Column Widths</button>
+                <button class="button primary" id="addManagementItemBtn">+ Add Meeting Item</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table id="managementMeetingTable" class="meeting-table management-meeting-table"><thead></thead><tbody></tbody></table>
+            </div>
+          </div>
+        </div>
+
+        <div id="hrScreen" class="screen hidden">
+          <div class="hr-toolbar">
+            <div>
+              <span class="eyebrow">Admin / Human Resources</span>
+              <h2>Recruitment</h2>
+              <p>Manage the driver recruiting pipeline and group drivers by In Progress, Hired, Rejected, or Terminated status.</p>
+            </div>
+            <button class="button primary" id="addRecruitmentCandidateBtn">+ Add Candidate</button>
+          </div>
+
+          <div id="hrRecruitmentPanel" class="hr-subpanel">
+            <div class="summary-grid" id="recruitmentCards"></div>
+            <div class="panel hr-recruitment-panel">
+              <div class="panel-heading">
+                <div>
+                  <h2>Recruitment Pipeline</h2>
+                  <p>Drivers are grouped by Recruitment Status. Name stays frozen; click a header to sort, drag a column edge to resize, use the grip to rearrange workflow columns, or double-click a row to edit.</p>
+                </div>
+                <div class="hr-recruitment-controls">
+                  <input id="recruitmentSearchInput" type="search" placeholder="Search candidates..." aria-label="Search recruitment candidates">
+                  <select id="recruitmentStatusFilter" aria-label="Filter recruitment status">
+                    <option value="">All Statuses</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Hired">Hired</option>
+                    <option value="Rejected">Rejected</option>
+                    <option value="Terminated">Terminated</option>
+                  </select>
+                  <button type="button" class="button secondary" id="exportRecruitmentExcelBtn" title="Export the complete recruitment list to Excel">Export Recruitment List</button>
+                  <button type="button" class="button secondary hr-reset-layout-btn" id="resetRecruitmentLayoutBtn" title="Restore the default recruitment column widths and order">Reset Columns</button>
+                  <div class="history-count" id="recruitmentCandidateCount">0 candidates</div>
+                </div>
+              </div>
+              <div class="table-wrap hr-recruitment-table-wrap">
+                <table id="recruitmentTable" class="hr-recruitment-table"><thead></thead><tbody></tbody></table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="auditScreen" class="screen hidden">
+          <div class="audit-toolbar">
+            <div>
+              <span class="eyebrow">Technology &amp; Systems Compliance</span>
+              <h2>Compliance Audit</h2>
+              <p>Run the NBL compliance checklist, track findings to closure, and convert issues into Management Meeting action items.</p>
+            </div>
+            <button class="button primary" id="startNewAuditBtn">+ Run New Audit</button>
+          </div>
+
+          <div class="summary-grid" id="auditCards"></div>
+
+          <div class="audit-tab-bar">
+            <button class="audit-tab active" data-audit-tab="dashboard">Dashboard</button>
+            <button class="audit-tab" data-audit-tab="new">Run New Audit</button>
+            <button class="audit-tab" data-audit-tab="findings">Open Findings <span id="auditOpenFindingBadge">0</span></button>
+            <button class="audit-tab" data-audit-tab="history">Audit History</button>
+          </div>
+
+          <div id="auditDashboardTab" class="audit-tab-panel">
+            <div class="panel audit-panel">
+              <div class="panel-heading">
+                <div><h2>Most Recent Audit by Category</h2><p>Pass / Fail / Check results from the latest completed audit.</p></div>
+                <div class="history-count" id="auditLatestMeta">No audits</div>
+              </div>
+              <div class="table-wrap"><table id="auditCategorySummaryTable" class="audit-table"><thead></thead><tbody></tbody></table></div>
+            </div>
+            <div class="panel audit-panel">
+              <div class="panel-heading"><div><h2>Current Open Findings</h2><p>Issues from completed audits that still require corrective action.</p></div></div>
+              <div class="table-wrap"><table id="auditDashboardFindingsTable" class="audit-table"><thead></thead><tbody></tbody></table></div>
+            </div>
+          </div>
+
+          <div id="auditNewTab" class="audit-tab-panel hidden">
+            <form id="auditNewForm">
+              <div class="panel audit-panel audit-header-panel">
+                <div class="panel-heading">
+                  <div><h2>Run New Audit</h2><p>Every checklist item must be marked Pass, Fail, or Check before the audit can be saved.</p></div>
+                </div>
+                <div class="audit-new-header">
+                  <div class="form-field"><label>Audit Date</label><input id="auditDateInput" type="date" required></div>
+                  <div class="form-field"><label>Auditor</label><input id="auditAuditorInput" type="text" required placeholder="Auditor name"></div>
+                </div>
+              </div>
+              <div id="auditChecklistContainer" class="audit-checklist"></div>
+              <div class="audit-save-bar">
+                <span>Fail and Check items will automatically become open findings.</span>
+                <div>
+                  <button type="button" class="button secondary" id="cancelAuditBtn">Cancel</button>
+                  <button type="submit" class="button primary">Save Completed Audit</button>
+                </div>
+              </div>
+            </form>
+          </div>
+
+          <div id="auditFindingsTab" class="audit-tab-panel hidden">
+            <div class="panel audit-panel">
+              <div class="panel-heading">
+                <div><h2>Open Findings &amp; Corrective Actions</h2><p>Send any finding to Management Meeting Items, assign responsibility, and track it until closed.</p></div>
+                <div class="history-count" id="auditFindingCount">0 open</div>
+              </div>
+              <div class="table-wrap"><table id="auditFindingsTable" class="audit-table audit-findings-table"><thead></thead><tbody></tbody></table></div>
+            </div>
+          </div>
+
+          <div id="auditHistoryTab" class="audit-tab-panel hidden">
+            <div class="panel audit-panel">
+              <div class="panel-heading">
+                <div><h2>Audit History</h2><p>One row per completed audit. Select an audit to review its full checklist and comments.</p></div>
+                <div class="history-count" id="auditHistoryCount">0 audits</div>
+              </div>
+              <div class="table-wrap"><table id="auditHistoryTable" class="audit-table"><thead></thead><tbody></tbody></table></div>
+            </div>
+            <div class="panel audit-panel hidden" id="auditHistoryDetailPanel">
+              <div class="panel-heading"><div><h2 id="auditHistoryDetailTitle">Audit Details</h2><p id="auditHistoryDetailMeta"></p></div></div>
+              <div class="table-wrap"><table id="auditHistoryDetailTable" class="audit-table"><thead></thead><tbody></tbody></table></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="revenueScreen" class="screen hidden">
+          <div class="revenue-toolbar">
+            <div>
+              <span class="eyebrow">Revenue Recovery</span>
+              <h2>Revenue Finder</h2>
+              <p>Scans all stored settlement statements for possible broken legs and missing FedEx revenue items. Results are review flags, not confirmed billing errors.</p>
+            </div>
+            <div class="history-count" id="revenueScanMeta">0 statements scanned</div>
+          </div>
+
+          <div class="summary-grid" id="revenueFinderCards"></div>
+
+          <div class="panel revenue-panel">
+            <div class="panel-heading">
+              <div><h2>Broken Legs</h2><p>Possible dispatch sequences that do not return to the starting station within the connected date block available in the settlement history.</p></div>
+              <div class="history-count" id="brokenLegCount">0 flags</div>
+            </div>
+            <div class="table-wrap">
+              <table id="brokenLegsTable" class="revenue-table broken-legs-table"><thead></thead><tbody></tbody></table>
+            </div>
+          </div>
+
+          <div class="panel revenue-panel">
+            <div class="panel-heading">
+              <div><h2>Missing Fuel Supplement</h2><p>Linehaul or spot movements with a zero fuel supplement. Where possible, the tool estimates a reference rate from comparable paid movements in the stored statements.</p></div>
+              <div class="history-count" id="missingFuelCount">0 flags</div>
+            </div>
+            <div class="table-wrap">
+              <table id="missingFuelTable" class="revenue-table missing-fuel-table"><thead></thead><tbody></tbody></table>
+            </div>
+          </div>
+
+          <div class="panel revenue-panel">
+            <div class="panel-heading">
+              <div><h2>Missing D&amp;H Payment</h2><p>Linehaul trips where the D&amp;H field is zero or blank. Expected D&amp;H is inferred from comparable paid legs when available.</p></div>
+              <div class="history-count" id="missingDhCount">0 flags</div>
+            </div>
+            <div class="table-wrap">
+              <table id="missingDhTable" class="revenue-table missing-dh-table"><thead></thead><tbody></tbody></table>
+            </div>
+          </div>
+        </div>
+
+
+        <div id="dispatchScreen" class="screen hidden">
+          <div class="dispatch-toolbar">
+            <div>
+              <span class="eyebrow" id="dispatchLocationEyebrow">Dispatch Operations</span>
+              <h2>Weekly Dispatch Revenue &amp; Coverage Planner</h2>
+              <p>Plan each operating location independently, move drivers between runs, and use route economics to maximize coverage and revenue while reducing declines.</p>
+            </div>
+            <div class="dispatch-toolbar-actions">
+              <div class="dispatch-potential" id="dispatchPotential">Best possible: —</div>
+              <button class="button primary" id="optimizeDispatchBtn">Optimize Revenue &amp; Coverage</button>
+              <button class="button secondary" id="addDispatchRunBtn">+ Add Run</button>
+              <button class="button secondary" id="manageDispatchDriversBtn">Manage Drivers</button>
+              <button class="button secondary" id="manageDispatchTractorsBtn">Manage Tractors</button>
+              <button class="button secondary" id="exportDispatchExcelBtn">Export Team Schedule Excel</button>
+              <button class="button dark" id="exportDispatchPdfBtn">Export Run Coverage PDF</button>
+              <button class="button secondary" id="resetDispatchBtn">Reset Location Plan</button>
+            </div>
+          </div>
+
+          <div class="dispatch-location-bar">
+            <div class="dispatch-location-tabs" id="dispatchLocationTabs"></div>
+            <div class="dispatch-location-actions">
+              <button class="button secondary" id="addDispatchLocationBtn">+ Add Location</button>
+              <button class="button secondary" id="editDispatchLocationBtn">Edit Location</button>
+              <button class="button danger-outline" id="deleteDispatchLocationBtn">Delete Location</button>
+            </div>
+          </div>
+
+          <div class="panel dispatch-plan-panel">
+            <div class="dispatch-plan-heading">
+              <div>
+                <span class="eyebrow">Scenario Memory</span>
+                <h2>Saved Dispatch Tables</h2>
+                <p>Save multiple coverage configurations for this location, load any saved version back onto the planning board, and export every saved table in one team-facing PDF with one configuration per page.</p>
+              </div>
+              <div class="dispatch-plan-controls">
+                <select id="dispatchSavedPlanSelect" aria-label="Saved dispatch table"></select>
+                <button class="button primary" id="saveDispatchPlanBtn">Save Current as New</button>
+                <button class="button secondary" id="loadDispatchPlanBtn">Load</button>
+                <button class="button secondary" id="updateDispatchPlanBtn">Update Saved</button>
+                <button class="button secondary" id="renameDispatchPlanBtn">Rename</button>
+                <button class="button danger-outline" id="deleteDispatchPlanBtn">Delete</button>
+                <button class="button dark" id="exportAllDispatchPlansPdfBtn">Export All Plans PDF</button>
+              </div>
+            </div>
+            <div class="dispatch-plan-meta" id="dispatchPlanMeta">No saved dispatch tables yet.</div>
+          </div>
+
+          <div class="summary-grid dispatch-summary-grid" id="dispatchCards"></div>
+
+          <div class="panel dispatch-driver-panel">
+            <div class="panel-heading">
+              <div><h2 id="dispatchDriverPanelTitle">Drivers Assigned to This Location</h2><p>Only drivers assigned to the selected dispatch location appear in this pool. Use <strong>Manage Drivers</strong> to import drivers from settlement statements, add new drivers, or move drivers between locations.</p></div>
+              <div class="dispatch-save-state" id="dispatchSaveState">Saved locally</div>
+            </div>
+            <div class="dispatch-driver-pool" id="dispatchDriverPool"></div>
+          </div>
+
+          <div class="panel dispatch-tractor-panel">
+            <div class="panel-heading">
+              <div><h2 id="dispatchTractorPanelTitle">Tractors Assigned to This Location</h2><p>Tractors are pulled from Motive and assigned to a dispatch location for weekly capacity planning. Use <strong>Manage Tractors</strong> to add Motive tractors or move them between locations.</p></div>
+              <div class="dispatch-motive-state" id="dispatchMotiveState">Motive fleet: —</div>
+            </div>
+            <div class="dispatch-tractor-pool" id="dispatchTractorPool"></div>
+          </div>
+
+          <div class="panel dispatch-board-panel">
+            <div class="panel-heading">
+              <div><h2>Run Coverage Chart</h2><p>Runs shown here belong to the selected location. Use <strong>Add Run</strong> or <strong>Edit Run</strong> to manage the location's route list and economics.</p></div>
+              <div class="dispatch-legend"><span><i class="legend-dot covered"></i> Covered</span><span><i class="legend-dot open"></i> Open</span><span><i class="legend-dot primary"></i> Primary assignment</span></div>
+            </div>
+            <div class="dispatch-board-wrap">
+              <div class="dispatch-board" id="dispatchBoard"></div>
+            </div>
+          </div>
+
+          <div class="panel dispatch-economics-panel">
+            <div class="panel-heading">
+              <div><h2>Route Economics</h2><p>Revenue is calculated from miles per run × pay per mile × covered days. Lost revenue represents scheduled run-days that are currently uncovered.</p></div>
+            </div>
+            <div class="table-wrap">
+              <table id="dispatchEconomicsTable" class="dispatch-economics-table"><thead></thead><tbody></tbody></table>
+            </div>
+            <div class="dispatch-driver-economics-heading"><h3>Driver Pay &amp; Utilization</h3><p>Weekly pay is entered per driver. Assigned days and route revenue reflect the selected location, while schedule conflicts are checked across all locations.</p></div>
+            <div class="table-wrap">
+              <table id="dispatchDriverEconomicsTable" class="dispatch-economics-table"><thead></thead><tbody></tbody></table>
+            </div>
+          </div>
+
+          <div class="panel dispatch-gaps-panel">
+            <div class="panel-heading">
+              <div><h2>Coverage Gaps by Day</h2><p>See where additional driver coverage is still required at the selected location.</p></div>
+            </div>
+            <div class="dispatch-gap-strip" id="dispatchGapStrip"></div>
+          </div>
+
+          <div class="panel dispatch-opportunity-panel">
+            <div class="panel-heading">
+              <div><h2>Revenue Opportunities / Decline Risk</h2><p>Open run-days are ranked by potential daily revenue so the highest-value coverage gaps are easiest to address first.</p></div>
+            </div>
+            <div class="dispatch-opportunity-list" id="dispatchOpportunityList"></div>
+          </div>
+        </div>
+
+        <div id="ivmrScreen" class="screen hidden">
+          <div class="ivmr-toolbar">
+            <div>
+              <span class="eyebrow">Mileage Compliance</span>
+              <h2>Individual Vehicle Mileage Records (IVMR)</h2>
+              <p>Pull Motive IFTA mileage for a reporting period, rebuild the same stop/state segment structure used in the supplied Mileage Reports, populate Origin / Destination from the IVMR location master, reconstruct Highway / Route Traveled from dense Motive history, and generate a FedEx Ground FL-001 IVMR PDF for each tractor.</p>
+            </div>
+            <div class="ivmr-toolbar-actions">
+              <button class="button primary" id="loadIvmrBtn">Load Motive IFTA Data</button>
+              <button class="button secondary" id="buildIvmrRoutesBtn" disabled>Build Routes from Motive History</button>
+              <button class="button secondary" id="manageIvmrLocationsBtn">Manage IVMR Locations</button>
+              <button class="button secondary hidden" id="cancelIvmrRoutesBtn">Stop Route Build</button>
+              <button class="button dark" id="exportAllIvmrBtn" disabled>Export All Tractor PDFs</button>
+            </div>
+          </div>
+
+          <div class="panel ivmr-filter-panel">
+            <div class="ivmr-filter-grid ivmr-filter-grid-v21">
+              <div class="form-field"><label>Reporting Start Date</label><input id="ivmrStartDate" type="date"></div>
+              <div class="form-field"><label>Reporting End Date</label><input id="ivmrEndDate" type="date"></div>
+              <div class="form-field"><label>Tractor Detail Filter</label><select id="ivmrTractorFilter"><option value="all">All tractors</option></select></div>
+              <div class="form-field"><label>IC/ISP Entity Name</label><input id="ivmrEntityName" type="text" value="Nashbox Logistics Inc."></div>
+              <div class="form-field"><label>IC/ISP Entity Number</label><input id="ivmrEntityNumber" type="text" placeholder="Enter entity number"></div>
+              <div class="ivmr-source-note" id="ivmrSourceNote">Connect Motive and choose a reporting period to load IFTA mileage. NBL converts the underlying IFTA fragments into Mileage Report-style segments and fills the last two FL-001 columns from the location master and Motive history.</div>
+            </div>
+          </div>
+
+          <div class="panel ivmr-location-panel" id="ivmrLocationPanel">
+            <div class="panel-heading">
+              <div><h2>Origin / Destination Location Master</h2><p>Recognized FedEx spot, facility and city locations used to populate the FL-001 Origin / Destination / City Spot Number / City column. GPS proximity is checked first; Motive location descriptions are a secondary match.</p></div>
+              <div class="row-actions"><span class="history-count" id="ivmrLocationCount">0 locations</span><button class="button primary compact" id="addIvmrLocationBtn">Add Location</button></div>
+            </div>
+            <div class="table-wrap"><table id="ivmrLocationTable" class="ivmr-detail-table"><thead></thead><tbody></tbody></table></div>
+          </div>
+
+          <div class="panel ivmr-history-test-panel">
+            <div class="panel-heading">
+              <div>
+                <span class="eyebrow">Diagnostic</span>
+                <h2>Motive Tractor History Test</h2>
+                <p>Inspect the raw Motive history before rebuilding Highway / Route Traveled. Tractor 337839 is preloaded because its normal weekday route is Clarksville ↔ Knoxville.</p>
+              </div>
+              <div class="history-count" id="ivmrHistoryTestStatus">Not run</div>
+            </div>
+            <div class="ivmr-history-test-controls">
+              <div class="form-field"><label>Tractor Number</label><input id="ivmrHistoryTractor" type="text" value="337839"></div>
+              <div class="form-field"><label>History Start Date</label><input id="ivmrHistoryStart" type="date" value="2026-09-01"></div>
+              <div class="form-field"><label>History End Date</label><input id="ivmrHistoryEnd" type="date" value="2026-09-11"></div>
+              <div class="ivmr-history-test-actions">
+                <button class="button primary" id="runIvmrHistoryTestBtn">Run Motive History Test</button>
+                <button class="button secondary" id="downloadIvmrHistoryJsonBtn" disabled>Download Diagnostic JSON</button>
+              </div>
+            </div>
+            <div class="ivmr-history-test-note" id="ivmrHistoryTestNote">This does not change IVMR data. It only reads Motive history and shows what NBL actually receives.</div>
+            <div class="summary-grid ivmr-history-summary" id="ivmrHistoryCards"></div>
+            <div class="ivmr-history-results hidden" id="ivmrHistoryResults">
+              <div class="panel-heading compact"><div><h3>History by Date</h3><p>Point count, odometer movement, approximate GPS distance and first/last Motive locations.</p></div></div>
+              <div class="table-wrap"><table id="ivmrHistoryDayTable" class="ivmr-detail-table"><thead></thead><tbody></tbody></table></div>
+              <div class="panel-heading compact ivmr-history-raw-heading"><div><h3>Driving Period Fallback</h3><p>If Motive rejects breadcrumb history, this uses Motive driving periods to verify actual tractor movement, origin, destination and distance for the same date range.</p></div></div>
+              <div class="table-wrap"><table id="ivmrDrivingPeriodsTable" class="ivmr-detail-table"><thead></thead><tbody></tbody></table></div>
+              <div class="panel-heading compact ivmr-history-raw-heading"><div><h3>Raw Motive Sample</h3><p>A sample spread across the requested period so we can verify timestamp, coordinates, speed, odometer, type and any Motive description.</p></div></div>
+              <div class="table-wrap"><table id="ivmrHistoryRawTable" class="ivmr-detail-table"><thead></thead><tbody></tbody></table></div>
+            </div>
+          </div>
+
+          <div id="ivmrRouteProgress" class="panel ivmr-route-progress hidden"></div>
+
+          <div class="summary-grid" id="ivmrCards"></div>
+
+          <div class="panel ivmr-fleet-panel">
+            <div class="panel-heading">
+              <div><h2>IVMR by Tractor</h2><p>One row per tractor with beginning/ending odometer, total IVMR miles and mileage by jurisdiction. Use the PDF button to generate an individual tractor report on the FedEx Ground FL-001 form.</p></div>
+              <div class="history-count" id="ivmrTractorCount">0 tractors</div>
+            </div>
+            <div class="table-wrap">
+              <table id="ivmrTractorTable" class="ivmr-table"><thead></thead><tbody></tbody></table>
+            </div>
+          </div>
+
+          <div class="panel ivmr-detail-panel">
+            <div class="panel-heading">
+              <div><h2>Mileage Report Segment Detail</h2><p>Mileage Report-style segment rows built from the underlying Motive IFTA fragments, with the same Origin / Destination and Highway / Route fields used on the FL-001 form.</p></div>
+              <div class="history-count" id="ivmrTripCount">0 rows</div>
+            </div>
+            <div class="table-wrap">
+              <table id="ivmrDetailTable" class="ivmr-detail-table"><thead></thead><tbody></tbody></table>
+            </div>
+          </div>
+
+          <div class="panel ivmr-domicile-panel">
+            <div class="panel-heading">
+              <div><h2>Domicile Validation</h2><p>Every tractor must exist in the tractor master and have a domicile before its final IVMR PDF can be exported.</p></div>
+              <div class="history-count" id="ivmrMissingDomicileCount">0 missing</div>
+            </div>
+            <div class="table-wrap">
+              <table id="ivmrDomicileTable" class="ivmr-domicile-table"><thead></thead><tbody></tbody></table>
+            </div>
+          </div>
+        </div>
+
+        <div id="motiveScreen" class="screen hidden">
+          <div class="motive-toolbar">
+            <div>
+              <span class="eyebrow">Fleet Integration</span>
+              <h2>Motive Connection</h2>
+              <p>Connect NBL Business Analyzer to Motive to view fleet data and update maintenance odometers from Motive readings.</p>
+            </div>
+            <div class="motive-toolbar-actions">
+              <button class="button secondary" id="testMotiveBtn" disabled>Test Connection</button>
+              <button class="button primary" id="refreshMotiveBtn" disabled>Refresh Motive Fleet</button>
+            </div>
+          </div>
+
+          <div class="summary-grid" id="motiveCards"></div>
+
+          <div class="panel motive-connection-panel">
+            <div class="panel-heading">
+              <div><h2>API Connection</h2><p>The API key is stored on this computer by the local launcher and is never written into the NBL data folder.</p></div>
+              <span class="status-pill baseline" id="motiveConnectionPill">Not Connected</span>
+            </div>
+            <div class="motive-connect-grid">
+              <div class="form-field motive-key-field"><label>Motive API Key</label><input id="motiveApiKeyInput" type="password" autocomplete="off" placeholder="Paste a Motive API key"></div>
+              <div class="motive-connect-actions">
+                <button class="button primary" id="saveMotiveKeyBtn">Save &amp; Test</button>
+                <button class="button secondary" id="disconnectMotiveBtn" disabled>Disconnect</button>
+              </div>
+            </div>
+            <div class="motive-security-note" id="motiveBackendNote">Use the included <strong>Start NBL Business Analyzer</strong> launcher for Motive integration.</div>
+            <div class="motive-test-results" id="motiveTestResults"></div>
+          </div>
+
+          <div class="panel motive-fleet-panel">
+            <div class="panel-heading">
+              <div><h2>Motive Fleet</h2><p>Current or last-known Motive readings. True odometer is preferred when Motive provides it.</p></div>
+              <div class="motive-fleet-actions">
+                <span class="history-count" id="motiveFleetCount">0 vehicles</span>
+                <button class="button dark" id="syncMotiveMaintenanceBtn" disabled>Update Maintenance Odometers</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table id="motiveFleetTable" class="motive-table"><thead></thead><tbody></tbody></table>
+            </div>
+          </div>
+        </div>
+
+      </section>
+    </main>
+  </div>
+
+
+
+  <div class="modal-backdrop hidden" id="ivmrLocationModal">
+    <div class="modal-card wide">
+      <div class="modal-heading"><div><span class="eyebrow">IVMR Location Master</span><h2 id="ivmrLocationModalTitle">Add Location</h2></div><button class="icon-btn" data-close-modal="ivmrLocationModal">×</button></div>
+      <form id="ivmrLocationForm">
+        <input type="hidden" id="ivmrLocationEditId">
+        <div class="form-grid two">
+          <div class="form-field"><label>Spot / Location Name</label><input id="ivmrLocationSpotInput" placeholder="e.g. 419 or HUNTINGBURG EXPRESS"></div>
+          <div class="form-field"><label>City</label><input id="ivmrLocationCityInput" required placeholder="e.g. Clarksville"></div>
+        </div>
+        <div class="form-grid two">
+          <div class="form-field"><label>State</label><input id="ivmrLocationStateInput" maxlength="2" required placeholder="TN"></div>
+          <div class="form-field"><label>Match Radius (miles)</label><input id="ivmrLocationRadiusInput" type="number" min="0.5" step="0.5" value="8"></div>
+        </div>
+        <div class="form-grid two">
+          <div class="form-field"><label>Latitude <span class="optional-label">Optional</span></label><input id="ivmrLocationLatInput" type="number" step="0.000001" placeholder="36.568700"></div>
+          <div class="form-field"><label>Longitude <span class="optional-label">Optional</span></label><input id="ivmrLocationLonInput" type="number" step="0.000001" placeholder="-87.239200"></div>
+        </div>
+        <div class="form-field"><label>Motive Description Aliases <span class="optional-label">Optional</span></label><input id="ivmrLocationAliasesInput" placeholder="Comma-separated, e.g. Clarksville, Clarksville TN"><div class="form-note">Used only when GPS proximity does not identify a configured location.</div></div>
+        <div class="form-note" id="ivmrLocationPreview">Display format: Spot / Location Name - City</div>
+        <div class="modal-actions"><button type="button" class="button secondary" data-close-modal="ivmrLocationModal">Cancel</button><button type="submit" class="button primary">Save Location</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="financeSecurityModal">
+    <div class="modal-card finance-security-card">
+      <div class="modal-heading"><div><span class="eyebrow">Protected Modules</span><h2 id="financeSecurityTitle">Finance Access</h2></div><button class="icon-btn" data-close-modal="financeSecurityModal">×</button></div>
+      <div id="financeSecuritySetup" class="finance-security-section hidden">
+        <p class="security-intro">Create a 4–10 digit code to protect Driver Pay, Settlement, and full SSN reveal in HR. This code is stored only in this browser.</p>
+        <form id="financeSetupForm">
+          <div class="form-field"><label>Create Access Code</label><input id="financeNewCode" type="password" inputmode="numeric" pattern="[0-9]{4,10}" minlength="4" maxlength="10" autocomplete="new-password" required placeholder="4–10 digits"></div>
+          <div class="form-field"><label>Confirm Access Code</label><input id="financeConfirmCode" type="password" inputmode="numeric" pattern="[0-9]{4,10}" minlength="4" maxlength="10" autocomplete="new-password" required placeholder="Re-enter code"></div>
+          <div class="security-error hidden" id="financeSetupError"></div>
+          <div class="modal-actions"><button type="submit" class="button primary">Set Access Code</button></div>
+        </form>
+      </div>
+      <div id="financeSecurityUnlock" class="finance-security-section hidden">
+        <p class="security-intro">Enter your finance access code to open Driver Pay and Settlement. The same code is also used to reveal full SSNs in HR.</p>
+        <form id="financeUnlockForm">
+          <div class="form-field"><label>Access Code</label><input id="financeUnlockCode" type="password" inputmode="numeric" maxlength="10" autocomplete="current-password" required placeholder="Enter code"></div>
+          <div class="security-error hidden" id="financeUnlockError"></div>
+          <div class="finance-unlock-actions">
+            <button type="submit" class="button primary">Unlock</button>
+            <button type="button" class="button secondary hidden" id="deviceUnlockBtn">Use Touch ID / Windows Hello</button>
+          </div>
+        </form>
+      </div>
+      <div id="financeSecurityManage" class="finance-security-section hidden">
+        <div class="security-status-row"><span class="status-pill yes">Unlocked</span><span>Driver Pay and Settlement are available. The same access code protects full SSN reveal in HR.</span></div>
+        <div class="security-manage-actions">
+          <button class="button dark" id="lockFinanceNowBtn" type="button">Lock Finance Now</button>
+          <button class="button secondary" id="changeFinanceCodeBtn" type="button">Change Access Code</button>
+          <button class="button secondary" id="enableDeviceUnlockBtn" type="button">Enable Device Unlock</button>
+        </div>
+        <p class="security-device-note" id="deviceUnlockNote"></p>
+      </div>
+      <div class="security-footnote">This is an app-level privacy lock. The underlying files in your selected local data folder are not encrypted by this feature.</div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="ssnAccessModal">
+    <div class="modal-card finance-security-card">
+      <div class="modal-heading"><div><span class="eyebrow">Protected HR Data</span><h2>Reveal Full SSN</h2></div><button class="icon-btn" data-close-modal="ssnAccessModal">×</button></div>
+      <p class="security-intro">Enter the same Finance Access Code used for Driver Pay and Settlement.</p>
+      <form id="ssnAccessForm">
+        <div class="form-field"><label>Finance Access Code</label><input id="ssnAccessCode" type="password" inputmode="numeric" maxlength="10" autocomplete="current-password" required placeholder="Enter code"></div>
+        <div class="security-error hidden" id="ssnAccessError"></div>
+        <div class="modal-actions"><button type="button" class="button secondary" data-close-modal="ssnAccessModal">Cancel</button><button type="submit" class="button primary">Reveal SSN</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="dispatchScheduleModal">
+    <div class="modal-card">
+      <div class="modal-heading"><div><span class="eyebrow">Dispatch Driver</span><h2 id="dispatchScheduleModalTitle">Edit Driver Schedule / Pay</h2></div><button class="icon-btn" data-close-modal="dispatchScheduleModal">×</button></div>
+      <form id="dispatchScheduleForm">
+        <input type="hidden" id="dispatchScheduleDriverId">
+        <div class="form-field"><label>Driver</label><input id="dispatchScheduleDriverName" type="text" readonly></div>
+        <div class="form-grid two">
+          <div class="form-field"><label>FedEx ID <span class="optional-label">Optional</span></label><input id="dispatchDriverFedexIdInput" type="text" inputmode="numeric" placeholder="e.g. 3556668"></div>
+          <div class="form-field"><label>Dispatch Location</label><select id="dispatchDriverLocationInput" required></select></div>
+        </div>
+        <div class="form-field"><label>Driver Pay Per Week <span class="optional-label">Optional</span></label><input id="dispatchDriverWeeklyPayInput" type="number" min="0" step="0.01" placeholder="e.g. 1200"></div>
+        <div class="form-field"><label>Available Workdays</label>
+          <div class="dispatch-day-checkboxes" id="dispatchScheduleDays">
+            <label><input type="checkbox" value="0"> Sun</label>
+            <label><input type="checkbox" value="1"> Mon</label>
+            <label><input type="checkbox" value="2"> Tue</label>
+            <label><input type="checkbox" value="3"> Wed</label>
+            <label><input type="checkbox" value="4"> Thu</label>
+            <label><input type="checkbox" value="5"> Fri</label>
+            <label><input type="checkbox" value="6"> Sat</label>
+          </div>
+        </div>
+        <div class="form-note">Changing availability does not remove existing assignments. If the new schedule conflicts with assignments already on the chart, NBL Business Analyzer will warn you and let you decide whether to keep them.</div>
+        <div class="modal-actions"><button type="button" class="button secondary" data-close-modal="dispatchScheduleModal">Cancel</button><button type="submit" class="button primary">Save Driver</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="recruitmentCandidateModal">
+    <div class="modal-card extra-wide">
+      <div class="modal-heading"><div><span class="eyebrow">HR Recruitment</span><h2 id="recruitmentCandidateModalTitle">Add Candidate</h2></div><button class="icon-btn" data-close-modal="recruitmentCandidateModal">×</button></div>
+      <form id="recruitmentCandidateForm">
+        <input type="hidden" id="recruitmentCandidateId">
+        <div class="hr-application-upload" id="recruitmentApplicationUploadPanel">
+          <div class="hr-application-upload-copy">
+            <strong id="recruitmentApplicationUploadTitle">Import Candidate Application</strong>
+            <span id="recruitmentApplicationUploadHelp">Upload a FedEx / First Advantage application PDF and NBL will prefill every supported field it can read. You can review or change anything before saving.</span>
+          </div>
+          <label class="button secondary hr-application-file-button" id="recruitmentApplicationPdfButton" for="recruitmentApplicationPdfInput">Choose PDF</label>
+          <input id="recruitmentApplicationPdfInput" class="hr-hidden-file-input" type="file" accept="application/pdf,.pdf">
+          <div class="hr-application-parse-status" id="recruitmentApplicationParseStatus">No application selected.</div>
+        </div>
+        <div class="form-grid three">
+          <div class="form-field"><label>Name</label><input id="recruitmentNameInput" type="text" required placeholder="Candidate name"></div>
+          <div class="form-field"><label>Email</label><input id="recruitmentEmailInput" type="email" placeholder="name@example.com"></div>
+          <div class="form-field"><label>Phone</label><input id="recruitmentPhoneInput" type="tel" placeholder="Phone number"></div>
+        </div>
+        <div class="hr-profile-fields-heading"><strong>Driver Profile Details</strong><span>These fields are stored in the candidate profile and do not appear as Recruitment table columns.</span></div>
+        <div class="form-grid three">
+          <div class="form-field"><label>Date of Birth</label><input id="recruitmentDobInput" type="date"></div>
+          <div class="form-field"><label>CDL Number</label><input id="recruitmentCdlNumberInput" type="text" placeholder="Commercial driver's license number"></div>
+          <div class="form-field"><label>CDL Issuing State</label><input id="recruitmentCdlIssuingStateInput" type="text" maxlength="32" placeholder="e.g. TN or South Carolina"></div>
+        </div>
+        <div class="form-grid two">
+          <div class="form-field"><label>CDL Expiry</label><input id="recruitmentCdlExpiryInput" type="date"></div>
+          <div class="form-field"><label>SSN</label><div class="hr-ssn-control"><input id="recruitmentSsnInput" type="text" inputmode="numeric" autocomplete="off" maxlength="11" placeholder="XXX-XX-1234"><button type="button" class="button secondary hr-ssn-reveal-btn" id="recruitmentSsnRevealBtn" disabled>Reveal</button></div><div class="hr-field-help">Masked by default. Reveal uses the same Finance Access Code as Driver Pay and Settlement. Older records that only stored the last four digits can be securely updated after unlocking.</div></div>
+        </div>
+        <div class="form-grid three">
+          <div class="form-field"><label>Location / Domicile</label><input id="recruitmentDomicileInput" type="text" placeholder="Nashville, Spartanburg, etc."></div>
+          <div class="form-field"><label>FedEx ID <span class="optional-label">Optional until assigned</span></label><input id="recruitmentFedexIdInput" type="text" placeholder="FedEx ID"></div>
+          <div class="form-field"><label>Date Added</label><input id="recruitmentDateAddedInput" type="date" required></div>
+        </div>
+        <div class="form-grid three">
+          <div class="form-field"><label>Shift</label><select id="recruitmentShiftInput"><option value="Day">Day</option><option value="Night">Night</option></select></div>
+          <div class="form-field"><label>Type</label><select id="recruitmentTypeInput"><option value="Full Time">Full Time</option><option value="Part Time">Part Time</option></select></div>
+          <div class="form-field"><label>Doubles</label><select id="recruitmentDoublesInput"><option value="No">No</option><option value="Yes">Yes</option></select></div>
+        </div>
+        <div class="form-grid three">
+          <div class="form-field"><label>Recruitment Status</label><select id="recruitmentStatusInput"><option value="In Progress">In Progress</option><option value="Hired">Hired</option><option value="Rejected">Rejected</option><option value="Terminated">Terminated</option></select></div>
+          <div class="form-field"><label>Screening Interview</label><input id="recruitmentScreeningInterviewInput" type="date"></div>
+          <div class="form-field"><label>FADV Status</label><select id="recruitmentFadvStatusInput"><option value="In Progress">In Progress</option><option value="Complete">Complete</option><option value="Stuck">Stuck</option></select></div>
+        </div>
+        <div class="form-grid two">
+          <div class="form-field"><label>Ops Interview</label><input id="recruitmentOpsInterviewInput" type="date"></div>
+        </div>
+        <div class="form-field"><label>Notes</label><textarea id="recruitmentNotesInput" placeholder="Add recruitment notes, follow-up details, concerns, or other information"></textarea></div>
+        <div class="form-grid two">
+          <div class="form-field"><label>Equipment Fam</label><select id="recruitmentEquipmentFamInput"><option value="No">No</option><option value="Sent">Sent</option><option value="Yes">Yes</option></select></div>
+          <div class="form-field"><label>Road Test</label><select id="recruitmentRoadTestInput"><option value="Not Scheduled">Not Scheduled</option><option value="Scheduled">Scheduled</option><option value="Pass">Pass</option><option value="Fail">Fail</option></select></div>
+        </div>
+        <div class="form-grid two">
+          <div class="form-field"><label>Drug Test</label><select id="recruitmentDrugTestInput"><option value="Not Taken">Not Taken</option><option value="Taken">Taken</option><option value="Pass">Pass</option><option value="Fail">Fail</option></select></div>
+          <div class="form-field"><label>Offer Letter</label><select id="recruitmentOfferLetterInput"><option value="Not Sent">Not Sent</option><option value="Sent">Sent</option><option value="Accepted">Accepted</option><option value="Declined">Declined</option></select></div>
+        </div>
+        <div class="form-grid two">
+          <div class="form-field"><label>Start Date</label><input id="recruitmentStartDateInput" type="date"></div>
+          <div class="form-note hr-days-note">Days in Process is calculated automatically from Date Added. It stops when a driver is marked Hired, Rejected, or Terminated.</div>
+        </div>
+        <div class="modal-actions"><button type="button" class="button secondary" data-close-modal="recruitmentCandidateModal">Cancel</button><button type="submit" class="button primary">Save Candidate</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="recruitmentApplicationMismatchModal">
+    <div class="modal-card">
+      <div class="modal-heading"><div><span class="eyebrow">First Advantage Import</span><h2>Candidate Name Does Not Match</h2></div><button class="icon-btn" data-reject-recruitment-application>×</button></div>
+      <p class="security-intro">The name in this PDF is different from the candidate profile you are updating. Review both names before continuing.</p>
+      <div class="application-name-compare">
+        <div><span>Existing Candidate</span><strong id="recruitmentMismatchExistingName">—</strong></div>
+        <div><span>PDF Candidate</span><strong id="recruitmentMismatchPdfName">—</strong></div>
+      </div>
+      <div class="form-note" id="recruitmentMismatchFileName"></div>
+      <div class="modal-actions"><button type="button" class="button secondary" data-reject-recruitment-application>Reject Upload</button><button type="button" class="button primary" data-accept-recruitment-application>Accept Upload</button></div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="recruitmentRoadTestModal">
+    <div class="modal-card wide">
+      <div class="modal-heading"><div><span class="eyebrow">HR Recruitment</span><h2 id="recruitmentRoadTestModalTitle">Road Test Form</h2></div><button class="icon-btn" data-close-modal="recruitmentRoadTestModal">×</button></div>
+      <form id="recruitmentRoadTestForm">
+        <input type="hidden" id="recruitmentRoadTestCandidateId">
+        <div class="road-test-template-note">
+          <strong>FedEx Ground OP-104S - Tractor/Single Trailer Combination</strong>
+          <span>NBL keeps the supplied road-test form exactly as provided, preserves its existing marks and company information, and fills the fields below into the original 5-page PDF.</span>
+        </div>
+        <div class="form-grid two">
+          <div class="form-field"><label>Driver Candidate</label><input id="roadTestCandidateName" type="text" readonly></div>
+          <div class="form-field"><label>FedEx ID</label><input id="roadTestCandidateFedexId" type="text" readonly></div>
+        </div>
+        <div class="form-grid three">
+          <div class="form-field"><label>CDL Number <span class="optional-label">From candidate profile</span></label><input id="roadTestCandidateCdlNumber" type="text" readonly></div>
+          <div class="form-field"><label>CDL Issuing State <span class="optional-label">From candidate profile</span></label><input id="roadTestCandidateCdlIssuingState" type="text" readonly></div>
+          <div class="form-field"><label>Road Test Date</label><input id="roadTestDate" type="date" readonly required></div>
+        </div>
+        <div class="hr-profile-fields-heading"><strong>Test Administrator</strong><span>Enter once; NBL reuses the name, ID and generated signature everywhere the form requires them.</span></div>
+        <div class="form-grid two">
+          <div class="form-field"><label>Test Administrator Name</label><input id="roadTestAdminName" type="text" required placeholder="Administrator name"></div>
+          <div class="form-field"><label>Test Administrator FedEx ID</label><input id="roadTestAdminFedexId" type="text" required placeholder="FedEx ID"></div>
+        </div>
+        <div class="form-field"><label>Equipment Familiarization Certificate Number</label><input id="roadTestCertificateNumber" type="text" required placeholder="Certificate number"></div>
+        <div class="hr-profile-fields-heading"><strong>Road Tested Vehicle</strong><span>These populate Section 3 of the original form.</span></div>
+        <div class="form-grid two">
+          <div class="form-field"><label>Tractor Number</label><input id="roadTestTractorNumber" type="text" required placeholder="Tractor number"></div>
+          <div class="form-field"><label>Trailer Number</label><input id="roadTestTrailerNumber" type="text" required placeholder="Trailer number"></div>
+        </div>
+        <div class="form-note road-test-signature-note">Candidate and test-administrator signatures are generated from their respective names in a cursive electronic-signature style. The form date is reused in Sections 1, 2, 10 and 11. Existing Y/NA markings, automatic-transmission selection, mileage, Nashbox Logistics address/title and all other pre-filled content remain unchanged.</div>
+        <div class="modal-actions"><button type="button" class="button secondary" data-close-modal="recruitmentRoadTestModal">Cancel</button><button type="submit" class="button primary" id="saveRoadTestBtn">Save Road Test</button></div>
+      </form>
+    </div>
+  </div>
+
+
+  <div class="modal-backdrop hidden" id="roadTestExportPromptModal">
+    <div class="modal-card">
+      <div class="modal-heading"><div><span class="eyebrow">Road Test Saved</span><h2>Export PDF?</h2></div></div>
+      <p class="security-intro">The road test information for <strong id="roadTestExportPromptCandidateName">Candidate</strong> has been saved. Would you like to export the completed OP-104S PDF now?</p>
+      <div class="modal-actions"><button type="button" class="button secondary" id="roadTestSaveOnlyBtn">Save Only</button><button type="button" class="button primary" id="roadTestExportAfterSaveBtn">Export PDF</button></div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="dispatchRunEconomicsModal">
+    <div class="modal-card wide">
+      <div class="modal-heading"><div><span class="eyebrow">Dispatch Run</span><h2 id="dispatchRunEconomicsTitle">Add Run</h2></div><button class="icon-btn" data-close-modal="dispatchRunEconomicsModal">×</button></div>
+      <form id="dispatchRunEconomicsForm">
+        <input type="hidden" id="dispatchRunEconomicsId">
+        <div class="form-grid two">
+          <div class="form-field"><label>Location</label><select id="dispatchRunLocationInput" required></select></div>
+          <div class="form-field"><label>Run Type</label><select id="dispatchRunTypeInput"><option value="assigned">Assigned Run</option><option value="unassigned">Unassigned / URR</option><option value="spot">Spot</option></select></div>
+        </div>
+        <div class="form-grid two">
+          <div class="form-field"><label>Run Name</label><input id="dispatchRunNameInput" type="text" required placeholder="e.g. Nashville - Knoxville"></div>
+          <div class="form-field"><label>Origin / Start Location</label><input id="dispatchRunOriginInput" type="text" required placeholder="e.g. Nashville"></div>
+        </div>
+        <div class="form-grid two">
+          <div class="form-field"><label>Primary Driver <span class="optional-label">Optional</span></label><select id="dispatchRunPrimaryDriverInput"><option value="">No primary driver</option></select></div>
+          <div class="form-field"><label>Tractor <span class="optional-label">Optional</span></label><select id="dispatchRunPrimaryTractorInput"><option value="">No tractor assigned</option></select></div>
+        </div>
+        <div class="form-field"><label>Operating Days</label>
+          <div class="dispatch-day-checkboxes" id="dispatchRunDays">
+            <label><input type="checkbox" value="0"> Sun</label><label><input type="checkbox" value="1"> Mon</label><label><input type="checkbox" value="2"> Tue</label><label><input type="checkbox" value="3"> Wed</label><label><input type="checkbox" value="4"> Thu</label><label><input type="checkbox" value="5"> Fri</label><label><input type="checkbox" value="6"> Sat</label>
+          </div>
+        </div>
+        <div class="form-grid two">
+          <div class="form-field"><label>Miles Per Run <span class="optional-label">Optional</span></label><input id="dispatchRunMilesInput" type="number" min="0" step="0.1" placeholder="One-day route miles"></div>
+          <div class="form-field"><label>Pay Per Mile <span class="optional-label">Optional</span></label><input id="dispatchRunRateInput" type="number" min="0" step="0.001" placeholder="Route revenue rate"></div>
+        </div>
+        <div class="form-note">Changing a run's days or primary driver preserves valid manual assignments where possible. Assignments on removed days are deleted. New primary-driver days are filled automatically when that driver is available and not already assigned elsewhere.</div>
+        <div class="modal-actions"><button type="button" class="button secondary" data-close-modal="dispatchRunEconomicsModal">Cancel</button><button type="submit" class="button primary">Save Run</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="dispatchLocationModal">
+    <div class="modal-card">
+      <div class="modal-heading"><div><span class="eyebrow">Dispatch Location</span><h2 id="dispatchLocationModalTitle">Add Location</h2></div><button class="icon-btn" data-close-modal="dispatchLocationModal">×</button></div>
+      <form id="dispatchLocationForm">
+        <input type="hidden" id="dispatchLocationIdInput">
+        <div class="form-field"><label>Location Name</label><input id="dispatchLocationNameInput" type="text" required placeholder="e.g. Nashville, Spartanburg, Clarksville"></div>
+        <div class="form-note">Each location gets its own run list, weekly coverage board, economics and team schedule export. Drivers remain shared so the app can warn about cross-location double-booking.</div>
+        <div class="modal-actions"><button type="button" class="button secondary" data-close-modal="dispatchLocationModal">Cancel</button><button type="submit" class="button primary">Save Location</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="dispatchDriverRosterModal">
+    <div class="modal-card extra-wide dispatch-roster-modal-card">
+      <div class="modal-heading"><div><span class="eyebrow">Dispatch Driver Roster</span><h2>Manage Dispatch Drivers</h2></div><button class="icon-btn" data-close-modal="dispatchDriverRosterModal">×</button></div>
+      <div class="dispatch-roster-section">
+        <div class="panel-heading compact-heading">
+          <div><h3>Drivers from Settlement Statements</h3><p>Select drivers found in the stored FedEx settlement statements and add them to Dispatch. Drivers already in the roster are identified automatically.</p></div>
+          <div class="dispatch-roster-actions"><button type="button" class="button secondary" id="selectAllSettlementDriversBtn">Select All Available</button><button type="button" class="button primary" id="importSettlementDriversBtn">Add Selected Drivers</button></div>
+        </div>
+        <div class="form-grid two dispatch-import-location-row">
+          <div class="form-field"><label>Assign Selected Drivers To</label><select id="dispatchSettlementDriverLocationInput"></select></div>
+          <div class="form-note compact-note">You can move individual drivers to another location later using Edit Driver.</div>
+        </div>
+        <div class="table-wrap dispatch-roster-table-wrap"><table id="dispatchSettlementDriversTable" class="dispatch-roster-table"><thead></thead><tbody></tbody></table></div>
+      </div>
+
+      <div class="dispatch-roster-section dispatch-manual-driver-section">
+        <div class="panel-heading compact-heading"><div><h3>Add New Driver Manually</h3><p>Use this for new hires or drivers who have not appeared on a settlement statement yet.</p></div></div>
+        <form id="dispatchNewDriverForm">
+          <div class="form-grid three">
+            <div class="form-field"><label>Driver Name</label><input id="dispatchNewDriverName" type="text" required placeholder="Full name"></div>
+            <div class="form-field"><label>FedEx ID <span class="optional-label">Optional</span></label><input id="dispatchNewDriverFedexId" type="text" inputmode="numeric" placeholder="FedEx ID"></div>
+            <div class="form-field"><label>Dispatch Location</label><select id="dispatchNewDriverLocation" required></select></div>
+          </div>
+          <div class="form-grid two">
+            <div class="form-field"><label>Driver Pay Per Week <span class="optional-label">Optional</span></label><input id="dispatchNewDriverWeeklyPay" type="number" min="0" step="0.01" placeholder="e.g. 1200"></div>
+            <div class="form-field"><label>Available Workdays</label><div class="dispatch-day-checkboxes" id="dispatchNewDriverDays"><label><input type="checkbox" value="0"> Sun</label><label><input type="checkbox" value="1"> Mon</label><label><input type="checkbox" value="2"> Tue</label><label><input type="checkbox" value="3"> Wed</label><label><input type="checkbox" value="4"> Thu</label><label><input type="checkbox" value="5"> Fri</label><label><input type="checkbox" value="6"> Sat</label></div></div>
+          </div>
+          <div class="modal-actions inline-actions"><button type="submit" class="button primary">Add Driver</button></div>
+        </form>
+      </div>
+
+      <div class="dispatch-roster-section">
+        <div class="panel-heading compact-heading"><div><h3>Current Dispatch Roster</h3><p>Location assignments determine which driver pool appears on each dispatch tab.</p></div></div>
+        <div class="table-wrap dispatch-roster-table-wrap"><table id="dispatchCurrentRosterTable" class="dispatch-roster-table"><thead></thead><tbody></tbody></table></div>
+      </div>
+      <div class="modal-actions"><button type="button" class="button dark" data-close-modal="dispatchDriverRosterModal">Done</button></div>
+    </div>
+  </div>
+
+
+  <div class="modal-backdrop hidden" id="dispatchTractorRosterModal">
+    <div class="modal-card extra-wide dispatch-roster-modal-card">
+      <div class="modal-heading"><div><span class="eyebrow">Dispatch Tractor Roster</span><h2>Manage Dispatch Tractors</h2></div><button class="icon-btn" data-close-modal="dispatchTractorRosterModal">×</button></div>
+      <div class="dispatch-roster-section">
+        <div class="panel-heading compact-heading">
+          <div><h3>Tractors from Motive</h3><p>Select tractors from your live Motive fleet and assign them to a dispatch location. Motive metadata and odometer readings refresh automatically when the app opens.</p></div>
+          <div class="dispatch-roster-actions"><button type="button" class="button secondary" id="refreshDispatchMotiveBtn">Refresh Motive</button><button type="button" class="button secondary" id="selectAllMotiveTractorsBtn">Select All Available</button><button type="button" class="button primary" id="importMotiveTractorsBtn">Add Selected Tractors</button></div>
+        </div>
+        <div class="form-grid two dispatch-import-location-row">
+          <div class="form-field"><label>Assign Selected Tractors To</label><select id="dispatchMotiveTractorLocationInput"></select></div>
+          <div class="form-note compact-note" id="dispatchMotiveImportNote">Connected Motive tractors that are already in Dispatch are identified automatically.</div>
+        </div>
+        <div class="table-wrap dispatch-roster-table-wrap"><table id="dispatchMotiveTractorsTable" class="dispatch-roster-table"><thead></thead><tbody></tbody></table></div>
+      </div>
+
+      <div class="dispatch-roster-section">
+        <div class="panel-heading compact-heading"><div><h3>Current Dispatch Tractor Roster</h3><p>Use the Location dropdown to move a tractor between dispatch locations. Tractor details continue to come from Motive.</p></div></div>
+        <div class="table-wrap dispatch-roster-table-wrap"><table id="dispatchCurrentTractorRosterTable" class="dispatch-roster-table"><thead></thead><tbody></tbody></table></div>
+      </div>
+      <div class="modal-actions"><button type="button" class="button dark" data-close-modal="dispatchTractorRosterModal">Done</button></div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="tractorModal">
+    <div class="modal-card">
+      <div class="modal-heading"><div><span class="eyebrow">Fleet Setup</span><h2 id="tractorModalTitle">Add Tractor</h2></div><button class="icon-btn" data-close-modal="tractorModal">×</button></div>
+      <form id="tractorForm">
+        <input type="hidden" id="tractorEditId">
+        <div class="form-grid two">
+          <div class="form-field"><label>Tractor Number</label><input id="tractorNumberInput" required placeholder="e.g. 338018"></div>
+          <div class="form-field"><label>VIN</label><input id="tractorVinInput" required maxlength="17" placeholder="17-character VIN"></div>
+        </div>
+        <div class="form-grid two">
+          <div class="form-field"><label>Make / Model</label><input id="tractorMakeModelInput" required placeholder="e.g. International LT625"></div>
+          <div class="form-field"><label>Domicile Station / Hub</label><input id="tractorDomicileInput" required placeholder="e.g. 293"></div>
+        </div>
+        <div class="form-grid two">
+          <div class="form-field"><label>Current Mileage from Motive</label><input id="tractorMileageInput" type="number" min="0" step="1" required placeholder="0"></div>
+          <div class="form-field"><label>Mileage As Of</label><input id="tractorMileageDateInput" type="date" required></div>
+        </div>
+        <div class="form-note">Updating the Motive mileage resets the estimation baseline. Settlement miles after this date are added to estimate current mileage.</div>
+        <div class="modal-actions"><button type="button" class="button secondary" data-close-modal="tractorModal">Cancel</button><button type="submit" class="button primary">Save Tractor</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="payrollProfilesModal">
+    <div class="modal-card wide payroll-profiles-modal">
+      <div class="modal-heading"><div><span class="eyebrow">Driver Payroll</span><h2>Pay Profiles</h2></div><button class="icon-btn" data-close-modal="payrollProfilesModal">×</button></div>
+      <p class="security-intro">Create a saved pay plan for each driver. Drivers without a saved profile continue using the default mileage + D&amp;H rates shown on the Driver Pay screen.</p>
+      <div class="payroll-profile-add-row">
+        <select id="payrollProfileDriverSelect"></select>
+        <button class="button primary" id="addPayrollProfileBtn" type="button">Create / Edit Profile</button>
+      </div>
+      <div class="table-wrap"><table id="payrollProfilesTable" class="payroll-profiles-table"><thead></thead><tbody></tbody></table></div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="payrollProfileEditModal">
+    <div class="modal-card wide">
+      <div class="modal-heading"><div><span class="eyebrow">Pay Profile</span><h2 id="payrollProfileTitle">Driver Pay Profile</h2></div><button class="icon-btn" data-close-modal="payrollProfileEditModal">×</button></div>
+      <form id="payrollProfileForm">
+        <input type="hidden" id="payrollProfileFedexId">
+        <div class="form-grid two">
+          <div class="form-field"><label>Driver</label><input id="payrollProfileDriverName" disabled></div>
+          <div class="form-field"><label>Pay Method</label><select id="payrollMethodInput"><option value="mileage_dh">Mileage + D&amp;H</option><option value="day_rate">Day Rate</option><option value="hybrid">Hybrid: Day + Mileage + D&amp;H</option></select></div>
+        </div>
+        <div class="form-grid two">
+          <div class="form-field"><label>Day Rate</label><div class="input-prefix"><span>$</span><input id="payrollDayRateInput" type="number" min="0" step="0.01" placeholder="0.00"></div></div>
+          <div class="form-field"><label>Mileage Rate</label><div class="input-prefix"><span>$</span><input id="payrollMileageRateInput" type="number" min="0" step="0.01" placeholder="0.65"></div></div>
+        </div>
+        <div class="form-grid two">
+          <div class="form-field payroll-dh-profile-note"><label>D&amp;H Pay</label><div class="form-note">D&amp;H pay is calculated from the settlement-value mapping shown on the Driver Pay screen.</div><input id="payrollSingleRateInput" type="hidden" value="8.00"><input id="payrollDoubleRateInput" type="hidden" value="15.00"></div>
+        </div>
+        <div class="form-grid two payroll-checkbox-grid">
+          <label class="payroll-check"><input id="payrollMinimumEnabledInput" type="checkbox"><span>Weekly minimum enabled</span></label>
+          <div class="form-field"><label>Weekly Minimum</label><div class="input-prefix"><span>$</span><input id="payrollWeeklyMinimumInput" type="number" min="0" step="0.01" placeholder="1200.00"></div></div>
+        </div>
+        <label class="payroll-check"><input id="payrollProfileActiveInput" type="checkbox" checked><span>Active payroll profile — include this driver in pay periods even when no settlement miles are present.</span></label>
+        <div class="form-note">Weekly minimum is applied to regular earnings first. Bonus, holiday, vacation, training and other adjustments are added after any minimum top-up.</div>
+        <div class="modal-actions"><button type="button" class="button secondary" data-close-modal="payrollProfileEditModal">Cancel</button><button type="submit" class="button primary">Save Pay Profile</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="payrollAdjustmentsModal">
+    <div class="modal-card wide">
+      <div class="modal-heading"><div><span class="eyebrow">Pay Period</span><h2 id="payrollAdjustmentsTitle">Payroll Adjustments</h2></div><button class="icon-btn" data-close-modal="payrollAdjustmentsModal">×</button></div>
+      <input type="hidden" id="payrollAdjustmentFedexId">
+      <div class="form-grid two">
+        <div class="form-field"><label>Days Worked</label><input id="payrollDaysOverrideInput" type="number" disabled><div class="form-note" id="payrollDaysDetectedNote">Worked days are set using the dated checkboxes in the Driver Pay table.</div></div>
+        <div class="form-field"><label>Pay Period</label><input id="payrollAdjustmentPeriod" disabled></div>
+      </div>
+      <div class="panel payroll-adjustment-list-panel">
+        <div class="panel-heading"><div><h2>Additional Pay / Adjustments</h2><p>Positive or negative amounts are allowed.</p></div></div>
+        <div class="table-wrap"><table id="payrollAdjustmentsTable"><thead></thead><tbody></tbody></table></div>
+      </div>
+      <form id="payrollAdjustmentForm" class="payroll-adjustment-form">
+        <div class="form-grid two">
+          <div class="form-field"><label>Type</label><select id="payrollAdjustmentType"><option value="bonus">Bonus</option><option value="holiday">Holiday</option><option value="vacation">Vacation</option><option value="training">Training</option><option value="other">Other / Manual</option></select></div>
+          <div class="form-field"><label>Amount</label><div class="input-prefix"><span>$</span><input id="payrollAdjustmentAmount" type="number" step="0.01" required placeholder="0.00"></div></div>
+        </div>
+        <div class="form-field"><label>Description / Note</label><input id="payrollAdjustmentDescription" placeholder="e.g. Safety bonus, Labor Day, PTO, training day"></div>
+        <label class="payroll-check payroll-adjustment-minimum-check"><input id="payrollAdjustmentAboveMinimum" type="checkbox"><span>Pay this adjustment in addition to the weekly minimum</span></label>
+        <div class="form-note payroll-adjustment-minimum-note">Unchecked: a positive adjustment counts toward satisfying the weekly minimum. Checked: it is paid on top of the minimum.</div>
+        <div class="modal-actions"><button type="submit" class="button primary">Add Adjustment</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="maintenanceModal">
+    <div class="modal-card wide">
+      <div class="modal-heading"><div><span class="eyebrow">Maintenance Record</span><h2>Record Maintenance</h2></div><button class="icon-btn" data-close-modal="maintenanceModal">×</button></div>
+      <form id="maintenanceForm">
+        <div class="form-grid two">
+          <div class="form-field"><label>Tractor</label><select id="maintenanceTractorInput" required></select></div>
+          <div class="form-field"><label>Maintenance Plan</label><select id="maintenanceTypeInput" required><option value="PM1">Preventive Maintenance 1</option><option value="PM2">Preventive Maintenance 2</option><option value="OTHER">Other</option></select></div>
+        </div>
+        <div class="maintenance-scope" id="maintenanceScope"></div>
+        <div class="form-grid two">
+          <div class="form-field"><label>Service Date</label><input id="maintenanceDateInput" type="date" required></div>
+          <div class="form-field"><label>Odometer at Service</label><div class="maintenance-odometer-row"><input id="maintenanceOdometerInput" type="number" min="0" step="1" required><button type="button" class="button secondary compact" id="pullMaintenanceOdometerBtn">Pull from Motive</button></div><div class="form-note motive-odometer-status" id="maintenanceMotiveOdometerStatus">For past service dates, Motive mileage will be looked up automatically when available.</div></div>
+        </div>
+        <div class="form-grid two">
+          <div class="form-field"><label>Shop Name</label><input id="maintenanceShopInput" required placeholder="e.g. Rush Truck Centers"></div>
+          <div class="form-field"><label>Mechanic Name</label><input id="maintenanceMechanicInput" required placeholder="Mechanic / technician"></div>
+        </div>
+        <div class="form-grid two">
+          <div class="form-field"><label>Service Type</label><select id="maintenanceServiceTypeInput" required><option value="Scheduled">Scheduled</option><option value="Unscheduled">Unscheduled</option></select></div>
+          <div class="form-field optional-cost-group"><label>Total Cost (incl. tax) <span class="optional-label">Optional</span></label><div class="input-prefix"><span>$</span><input id="maintenanceTotalCostInput" type="number" min="0" step="0.01" placeholder="0.00"></div></div>
+        </div>
+        <div class="form-grid two">
+          <div class="form-field optional-cost-group"><label>Parts Cost <span class="optional-label">Optional</span></label><div class="input-prefix"><span>$</span><input id="maintenancePartsCostInput" type="number" min="0" step="0.01" placeholder="0.00"></div></div>
+          <div class="form-field optional-cost-group"><label>Labor Cost <span class="optional-label">Optional</span></label><div class="input-prefix"><span>$</span><input id="maintenanceLaborCostInput" type="number" min="0" step="0.01" placeholder="0.00"></div></div>
+        </div>
+        <div class="form-note cost-note">Cost fields are optional. Total Cost should be the final invoice amount including applicable tax.</div>
+        <div class="form-field"><label id="maintenanceWorkLabel">Custom Work / Notes</label><textarea id="maintenanceWorkInput" rows="4" placeholder="Enter additional work completed, parts replaced, repair details, etc."></textarea></div>
+        <div class="modal-actions"><button type="button" class="button secondary" data-close-modal="maintenanceModal">Cancel</button><button type="submit" class="button primary">Save Maintenance</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="inspectionModal">
+    <div class="modal-card wide">
+      <div class="modal-heading"><div><span class="eyebrow">Truck Inspection Report</span><h2 id="inspectionModalTitle">Add Inspection Report</h2></div><button class="icon-btn" data-close-modal="inspectionModal">×</button></div>
+      <form id="inspectionForm">
+        <input type="hidden" id="inspectionEditId">
+        <datalist id="tractorNumberList"></datalist>
+        <div class="form-grid two">
+          <div class="form-field"><label>Date</label><input type="date" id="inspectionDateInput" required></div>
+          <div class="form-field"><label>Tractor #</label><input id="inspectionTractorInput" list="tractorNumberList" required placeholder="e.g. 338018"></div>
+        </div>
+        <div class="form-field"><label>Driver Name</label><input id="inspectionDriverInput" required placeholder="Driver name"></div>
+        <div class="form-field"><label>Issue</label><textarea id="inspectionIssueInput" rows="4" required placeholder="Describe the issue found during inspection"></textarea></div>
+        <div class="form-grid two">
+          <div class="form-field"><label>Priority</label><select id="inspectionPriorityInput" required><option value="1">1 - Immediately</option><option value="2">2 - Soon</option><option value="3">3 - Can wait</option></select></div>
+          <div class="form-field"><label>Addressed</label><select id="inspectionAddressedInput" required><option value="N">N - No</option><option value="Y">Y - Yes</option></select></div>
+        </div>
+        <div class="modal-actions"><button type="button" class="button secondary" data-close-modal="inspectionModal">Cancel</button><button type="submit" class="button primary">Save Report</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="managementItemModal">
+    <div class="modal-card wide">
+      <div class="modal-heading"><div><span class="eyebrow">Management Meeting</span><h2 id="managementModalTitle">Add Meeting Item</h2></div><button class="icon-btn" data-close-modal="managementItemModal">×</button></div>
+      <form id="managementItemForm">
+        <input type="hidden" id="managementEditId">
+        <input type="hidden" id="managementAuditFindingId">
+        <div class="form-grid two">
+          <div class="form-field"><label>Date</label><input id="managementDateInput" type="date" required></div>
+          <div class="form-field"><label>Responsible</label><input id="managementResponsibleInput" required placeholder="Person responsible"></div>
+        </div>
+        <div class="form-field"><label>Topic</label><input id="managementTopicInput" required placeholder="Meeting topic / action item"></div>
+        <div class="form-field"><label>Notes</label><textarea id="managementNotesInput" rows="4" placeholder="Discussion notes, decision, next steps, etc."></textarea></div>
+        <div class="form-grid two">
+          <div class="form-field"><label>Due Date</label><input id="managementDueDateInput" type="date" required></div>
+          <div class="form-field"><label>Closed</label><select id="managementClosedInput" required><option value="N">N - No</option><option value="Y">Y - Yes</option></select></div>
+        </div>
+        <div class="modal-actions"><button type="button" class="button secondary" data-close-modal="managementItemModal">Cancel</button><button type="submit" class="button primary">Save Meeting Item</button></div>
+      </form>
+    </div>
+  </div>
+
+
+  <div class="modal-backdrop hidden" id="cloudSyncModal">
+    <div class="modal-card wide cloud-sync-card">
+      <div class="modal-heading"><div><span class="eyebrow">NBL Cloud</span><h2>Cloud Sync &amp; Migration</h2></div><button class="icon-btn" data-close-modal="cloudSyncModal">×</button></div>
+      <div class="cloud-account-summary" id="cloudAccountSummary">Checking cloud connection…</div>
+      <div class="cloud-sync-warning">
+        <strong>SSN protection</strong>
+        <p>Full Social Security numbers are intentionally excluded from the v77 cloud migration. The last four digits can be retained. Your existing local NBL data folder remains unchanged as the backup source until server-side SSN encryption is completed.</p>
+      </div>
+      <div class="cloud-sync-grid">
+        <div class="cloud-sync-option">
+          <h3>Import Existing Local NBL Data</h3>
+          <p>Reads your current NBL data folder and uploads the supported module data to your secure Nashbox Logistics cloud workspace.</p>
+          <button class="button primary" id="cloudImportLocalBtn" type="button">Import / Upload Local NBL Data</button>
+        </div>
+        <div class="cloud-sync-option">
+          <h3>Reload from Cloud</h3>
+          <p>Discard this browser session's in-memory module data and reload the latest saved cloud copy.</p>
+          <button class="button secondary" id="cloudReloadBtn" type="button">Reload from Cloud</button>
+        </div>
+      </div>
+      <div class="cloud-sync-progress hidden" id="cloudSyncProgress"></div>
+      <div class="cloud-sync-modules" id="cloudSyncModules"></div>
+    </div>
+  </div>
+
+  <script src="core.js?v=77"></script>
+  <script src="cloud.js?v=77"></script>
+  <script src="app.js?v=77"></script>
+</body>
+</html>
