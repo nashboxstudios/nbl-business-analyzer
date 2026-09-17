@@ -645,3 +645,10 @@ Version 77 - NBL Cloud Online Bridge
 - All /api/* backend endpoints require a valid Supabase-authenticated NBL organization user. This prevents a public deployment from exposing Motive, HR PDF parsing, or Road Test generation endpoints anonymously.
 - Added /health for hosted-service health checks.
 - Added Railway deployment files. Hosting/custom-domain setup is the next deployment step; v77 itself does not claim that a public site has already been deployed.
+
+
+Version 78 - Railway Runtime Fix
+- Added a root Dockerfile using the official Python 3.12 runtime so Railway always has Python available.
+- Added .dockerignore to keep the Mac application bundle and local-only clutter out of the Railway image.
+- Railway continues to start the app with start_nbl_analyzer.py and uses Railway's PORT automatically.
+- No NBL business data or Supabase schema changes are required for this update. Existing cloud snapshots remain intact.
