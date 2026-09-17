@@ -99,7 +99,7 @@
     hr:defaultHrData(), hrLoaded:false, recruitmentSearch:'', recruitmentStatusFilter:'', recruitmentSort:{key:'',dir:'asc'}, hrSsn:{draftFull:'',legacyLast4:'',revealed:false,existingCandidate:false,accessResolver:null}, hrApplicationMismatch:{resolver:null},
     audit:{version:1,audits:[],findings:[],activeTab:'dashboard',selectedAuditId:''}, auditLoaded:false,
     dispatch:defaultDispatchData(), dispatchLoaded:false, dispatchSelectedDriverId:null,
-    motive:{backendAvailable:false,configured:false,keyHint:'',vehicles:[],lastSync:null,test:null,loading:false},
+    motive:{backendAvailable:false,configured:false,keyHint:'',storage:'',vehicles:[],lastSync:null,test:null,loading:false},
     ivmr:{startDate:'',endDate:'',rawTrips:[],trips:[],formatBuilt:false,loadedAt:null,loading:false,routeLoading:false,routeCancelRequested:false,routeStats:null,routeProgress:null,lastPdf:null,historyTest:{loading:false,result:null,error:''}},
     ivmrLocations:defaultIvmrLocationData(), ivmrLocationsLoaded:false,
     cloud:{connected:false,user:null,membership:null,organization:null,snapshots:{},hasSnapshotData:false,lastSync:null,syncing:false},
@@ -163,12 +163,12 @@
         delete c.roadTestForm.ssnFull; delete c.roadTestForm.ssn; delete c.roadTestForm.socialSecurityNumber;
       }
     }
-    data.cloudPrivacy={fullSsnStored:false,note:'Full SSNs intentionally excluded from v78 cloud snapshots.'};
+    data.cloudPrivacy={fullSsnStored:false,note:'Full SSNs intentionally excluded from v79 cloud snapshots.'};
     return data;
   }
   function settlementSnapshot(){
     return {
-      version:78,
+      version:79,
       currentStatementId:state.currentStatementId||null,
       analysisStatementId:state.settlement?.analysisStatementId||null,
       catalog:(state.catalog||[]).map(x=>({
@@ -179,7 +179,7 @@
   }
   function ivmrCloudSnapshot(){
     return {
-      version:78,
+      version:79,
       locations:cloneJson(state.ivmrLocations||defaultIvmrLocationData()),
       current:{
         startDate:state.ivmr?.startDate||'',endDate:state.ivmr?.endDate||'',
@@ -245,8 +245,8 @@
   async function saveCloudModule(moduleKey,silent=true){
     if(!cloudConnected()||!window.NBLCloud||!state.cloud?.organization?.id) return false;
     try{
-      const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'78');
-      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'78',updated_at:new Date().toISOString()};
+      const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'79');
+      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'79',updated_at:new Date().toISOString()};
       state.cloud.hasSnapshotData=true; state.cloud.lastSync=new Date().toISOString(); updateCloudUI();
       return true;
     }catch(err){
@@ -3320,7 +3320,7 @@
   }
 
   function renderMaintenance() {
-    if(!$('maintenanceScreen') || !state.directoryHandle) return;
+    if(!$('maintenanceScreen') || !hasWorkspace()) return;
     const statuses=maintenanceStatuses();
     const overdue=statuses.filter(x=>x.status==='overdue').length;
     const dueSoon=statuses.filter(x=>x.status==='due-soon').length;
@@ -3357,7 +3357,7 @@
     if($('mmrMonthInput') && !$('mmrMonthInput').value) $('mmrMonthInput').value=todayIso().slice(0,7);
     if($('mmrCompletedDateInput') && !$('mmrCompletedDateInput').value) $('mmrCompletedDateInput').value=todayIso();
     renderMaintenanceHistory();
-    if(state.currentScreen==='maintenance') $('fileMeta').textContent=`${state.directoryHandle.name} • ${statuses.length} tractor${statuses.length===1?'':'s'} • ${state.catalog.length} settlement${state.catalog.length===1?'':'s'}`;
+    if(state.currentScreen==='maintenance') $('fileMeta').textContent=`${workspaceLabel()} • ${statuses.length} tractor${statuses.length===1?'':'s'} • ${state.catalog.length} settlement${state.catalog.length===1?'':'s'}`;
   }
 
   function renderMaintenanceHistory() {
@@ -4643,9 +4643,9 @@
   async function loadMotiveStatus(){
     try{
       const data=await localApi('/api/motive/status');
-      state.motive.backendAvailable=true; state.motive.configured=!!data.configured; state.motive.keyHint=data.key_hint||'';
+      state.motive.backendAvailable=true; state.motive.configured=!!data.configured; state.motive.keyHint=data.key_hint||''; state.motive.storage=data.storage||'';
     }catch(err){
-      state.motive.backendAvailable=false; state.motive.configured=false; state.motive.keyHint='';
+      state.motive.backendAvailable=false; state.motive.configured=false; state.motive.keyHint=''; state.motive.storage='';
     }
     renderMotive();
   }
@@ -4689,9 +4689,9 @@
     finally{ state.motive.loading=false; renderMotive(); }
   }
   async function syncMotiveToMaintenance(){
-    if(!state.directoryHandle){ showAlert('Choose the NBL business data folder before updating Maintenance.','warning'); return; }
+    if(!hasWorkspace()){ showAlert('Connect NBL Cloud or choose the NBL business data folder before updating Maintenance.','warning'); return; }
     if(!state.motive.vehicles.length){ showAlert('Refresh the Motive fleet first.','warning'); return; }
-    if(!state.maintenanceLoaded) await loadMaintenanceData();
+    if(!state.maintenanceLoaded && state.directoryHandle) await loadMaintenanceData();
     let matched=0, odometerUpdated=0, metadataUpdated=0, skipped=0;
     const now=new Date().toISOString();
     for(const v of state.motive.vehicles){
@@ -4723,11 +4723,18 @@
     if(pill){ pill.textContent=connected?'Connected':'Not Connected'; pill.className=`status-pill ${connected?'yes':'baseline'}`; }
     $('testMotiveBtn').disabled=!connected||m.loading;
     $('refreshMotiveBtn').disabled=!connected||m.loading;
-    $('disconnectMotiveBtn').disabled=!connected||m.loading;
-    $('saveMotiveKeyBtn').disabled=!m.backendAvailable||m.loading;
-    $('syncMotiveMaintenanceBtn').disabled=!m.vehicles.length||!state.directoryHandle||m.loading;
+    $('disconnectMotiveBtn').disabled=!connected||m.loading||m.storage==='environment';
+    $('saveMotiveKeyBtn').disabled=!m.backendAvailable||m.loading||m.storage==='environment';
+    $('syncMotiveMaintenanceBtn').disabled=!m.vehicles.length||!hasWorkspace()||m.loading;
+    const onlineMotive=m.storage==='environment';
     $('motiveBackendNote').innerHTML=m.backendAvailable
-      ? (connected?`API key ${escapeHtml(m.keyHint||'configured')} is stored only on this computer. It is <strong>not</strong> saved in the NBL data folder or Google Drive.`:'Local integration service is running. Paste a Motive API key above to connect.')
+      ? (connected
+          ? (onlineMotive
+              ? `API key ${escapeHtml(m.keyHint||'configured')} is securely configured on the NBL server through Railway Variables. It is never sent to the browser or stored in NBL Cloud snapshots.`
+              : `API key ${escapeHtml(m.keyHint||'configured')} is stored only on this computer. It is <strong>not</strong> saved in the NBL data folder or NBL Cloud.`)
+          : (location.hostname!=='127.0.0.1' && location.hostname!=='localhost'
+              ? 'The online NBL server is running, but Motive is not configured. Add <strong>MOTIVE_API_KEY</strong> under Railway → web → Variables, then redeploy.'
+              : 'Local integration service is running. Paste a Motive API key above to connect.'))
       : 'Motive integration is unavailable because index.html was opened directly. On Mac, close this tab and open <strong>NBL Business Analyzer.app</strong>; on Windows, use the included launcher.';
     const t=m.test;
     $('motiveTestResults').innerHTML=t?`<div class="motive-access-grid"><div><span>Vehicles API</span><strong class="${t.vehicles_ok?'ok-text':'bad-text'}">${t.vehicles_ok?'Available':'Unavailable'}</strong>${t.vehicles_message?`<small>${escapeHtml(t.vehicles_message)}</small>`:''}</div><div><span>IFTA API</span><strong class="${t.ifta_ok?'ok-text':'bad-text'}">${t.ifta_ok?'Available':'Not Confirmed'}</strong>${t.ifta_message?`<small>${escapeHtml(t.ifta_message)}</small>`:''}</div><div><span>HOS Logs</span><strong class="${t.hos_logs_ok?'ok-text':'bad-text'}">${t.hos_logs_ok?'Available':'Not Confirmed'}</strong>${t.hos_logs_message?`<small>${escapeHtml(t.hos_logs_message)}</small>`:''}</div><div><span>Historical GPS</span><strong class="${t.gps_data_ok?'ok-text':'bad-text'}">${t.gps_data_ok?'Breadcrumbs Available':(t.gps_access_ok?'Endpoint Available':'Not Confirmed')}</strong>${t.gps_message?`<small>${escapeHtml(t.gps_message)}</small>`:''}${t.gps_result?.vehicle_number?`<small>Test tractor: ${escapeHtml(t.gps_result.vehicle_number)}${t.gps_result.point_count!=null?` • ${fmtNum(t.gps_result.point_count)} points`:''}</small>`:''}</div></div>`:'';

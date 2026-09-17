@@ -652,3 +652,11 @@ Version 78 - Railway Runtime Fix
 - Added .dockerignore to keep the Mac application bundle and local-only clutter out of the Railway image.
 - Railway continues to start the app with start_nbl_analyzer.py and uses Railway's PORT automatically.
 - No NBL business data or Supabase schema changes are required for this update. Existing cloud snapshots remain intact.
+
+
+Version 79 - Cloud Maintenance + Motive Configuration
+- Maintenance now renders from NBL Cloud even when no local data-folder handle exists.
+- Maintenance header uses the active workspace label instead of assuming a local folder.
+- Motive-to-Maintenance sync now works against the cloud-backed Maintenance workspace.
+- Online Motive credentials are read from the MOTIVE_API_KEY Railway environment variable so they persist across deployments and remain server-side.
+- The hosted app no longer pretends a browser-entered Motive key will persist in an ephemeral Railway container.
