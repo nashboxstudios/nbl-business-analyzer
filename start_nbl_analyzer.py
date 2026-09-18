@@ -16,6 +16,7 @@ PORT_FILE = os.environ.get('NBL_PORT_FILE', '')
 MOTIVE_BASE = 'https://api.gomotive.com'
 SUPABASE_URL = 'https://tjpcabnhaxaiecnbnrhm.supabase.co'
 SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_AQBDWZQ-xtLG7-XRw1Ustw_zrUEA18E'
+SUPABASE_SECRET_KEY = (os.environ.get('SUPABASE_SECRET_KEY', '').strip() or os.environ.get('SUPABASE_SERVICE_ROLE_KEY', '').strip())
 AUTH_CACHE = {}
 AUTH_CACHE_LOCK = threading.Lock()
 SECRET_DIR = Path.home() / '.nbl_business_analyzer'
@@ -63,7 +64,7 @@ def validate_nbl_access_token(token):
         'apikey': SUPABASE_PUBLISHABLE_KEY,
         'Authorization': f'Bearer {token}',
         'Accept': 'application/json',
-        'User-Agent': 'NBL-Business-Analyzer/79'
+        'User-Agent': 'NBL-Business-Analyzer/80'
     }
     try:
         req = Request(SUPABASE_URL + '/auth/v1/user', headers=headers, method='GET')
@@ -93,6 +94,16 @@ def validate_nbl_access_token(token):
         return None
 
 
+def invalidate_auth_cache_for_user(user_id):
+    uid = str(user_id or '').strip()
+    if not uid:
+        return
+    with AUTH_CACHE_LOCK:
+        stale = [token for token, entry in AUTH_CACHE.items() if str((entry.get('user') or {}).get('id') or '') == uid]
+        for token in stale:
+            AUTH_CACHE.pop(token, None)
+
+
 def require_nbl_auth(handler):
     auth = str(handler.headers.get('Authorization') or '').strip()
     token = auth[7:].strip() if auth.lower().startswith('bearer ') else ''
@@ -107,6 +118,8 @@ def api_role_allowed(user, path, method='GET'):
     membership = membership if isinstance(membership, dict) else {}
     role = str(membership.get('role') or '').strip().lower()
     perms = membership.get('module_permissions') if isinstance(membership.get('module_permissions'), dict) else {}
+    if path.startswith('/api/admin/'):
+        return role == 'owner'
     if role in ('owner', 'admin') or perms.get('all') is True:
         return True
     if path.startswith('/api/hr/'):
@@ -126,6 +139,159 @@ def require_nbl_api_access(handler, path, method='GET'):
         handler.send_json({'ok': False, 'error': 'Your NBL role does not have access to this server tool.'}, 403)
         return None
     return user
+
+
+def supabase_service_request(path, method='GET', body=None, prefer=''):
+    if not SUPABASE_SECRET_KEY:
+        raise RuntimeError('Online user creation requires SUPABASE_SECRET_KEY in Railway Variables.')
+    headers = {
+        'apikey': SUPABASE_SECRET_KEY,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'NBL-Business-Analyzer/80'
+    }
+    # Modern sb_secret_ keys are sent as apikey only. Legacy service_role JWTs
+    # are still supported through the fallback environment variable.
+    if not SUPABASE_SECRET_KEY.startswith('sb_secret_'):
+        headers['Authorization'] = f'Bearer {SUPABASE_SECRET_KEY}'
+    if prefer:
+        headers['Prefer'] = prefer
+    data = None if body is None else json.dumps(body).encode('utf-8')
+    req = Request(SUPABASE_URL + path, headers=headers, data=data, method=method)
+    try:
+        with urlopen(req, timeout=20) as resp:
+            raw = resp.read().decode('utf-8')
+            return json.loads(raw) if raw else None
+    except HTTPError as exc:
+        try:
+            payload = json.loads(exc.read().decode('utf-8'))
+            message = payload.get('msg') or payload.get('message') or payload.get('error_description') or payload.get('error')
+        except Exception:
+            message = None
+        raise RuntimeError(str(message or f'Supabase admin request failed ({exc.code}).'))
+
+
+def owner_user_directory(user):
+    membership = user.get('_nbl_membership') if isinstance(user, dict) else {}
+    org_id = str((membership or {}).get('organization_id') or '').strip()
+    if not org_id:
+        raise RuntimeError('No NBL organization is assigned to this owner account.')
+    if not SUPABASE_SECRET_KEY:
+        return {'configured': False, 'users': []}
+    auth_payload = supabase_service_request('/auth/v1/admin/users?per_page=1000&page=1')
+    if isinstance(auth_payload, dict):
+        auth_users = auth_payload.get('users') or []
+    elif isinstance(auth_payload, list):
+        auth_users = auth_payload
+    else:
+        auth_users = []
+    org_q = urlencode({'organization_id': f'eq.{org_id}', 'select': 'user_id,role,status,module_permissions,created_at,updated_at'})
+    members = supabase_service_request('/rest/v1/organization_members?' + org_q) or []
+    ids = [str(m.get('user_id') or '') for m in members if m.get('user_id')]
+    profiles = []
+    if ids:
+        # PostgREST in.(...) syntax. UUIDs do not require quoting.
+        profile_q = 'user_id=in.(' + ','.join(ids) + ')&select=user_id,full_name,created_at,updated_at'
+        profiles = supabase_service_request('/rest/v1/profiles?' + profile_q) or []
+    auth_by_id = {str(x.get('id') or ''): x for x in auth_users if isinstance(x, dict)}
+    profile_by_id = {str(x.get('user_id') or ''): x for x in profiles if isinstance(x, dict)}
+    out = []
+    for member in members:
+        uid = str(member.get('user_id') or '')
+        au = auth_by_id.get(uid, {})
+        pr = profile_by_id.get(uid, {})
+        meta = au.get('user_metadata') if isinstance(au.get('user_metadata'), dict) else {}
+        out.append({
+            'user_id': uid,
+            'email': str(au.get('email') or ''),
+            'full_name': str(pr.get('full_name') or meta.get('full_name') or ''),
+            'role': str(member.get('role') or 'read_only'),
+            'status': str(member.get('status') or 'active'),
+            'module_permissions': member.get('module_permissions') if isinstance(member.get('module_permissions'), dict) else {},
+            'created_at': member.get('created_at') or au.get('created_at'),
+            'last_sign_in_at': au.get('last_sign_in_at')
+        })
+    out.sort(key=lambda x: (0 if x.get('role') == 'owner' else 1, (x.get('full_name') or x.get('email') or '').lower()))
+    return {'configured': True, 'users': out}
+
+
+def create_nbl_user(user, data):
+    if not SUPABASE_SECRET_KEY:
+        raise RuntimeError('Add SUPABASE_SECRET_KEY under Railway → web → Variables before creating NBL users.')
+    membership = user.get('_nbl_membership') if isinstance(user, dict) else {}
+    org_id = str((membership or {}).get('organization_id') or '').strip()
+    email = str((data or {}).get('email') or '').strip().lower()
+    full_name = str((data or {}).get('full_name') or '').strip()
+    password = str((data or {}).get('password') or '')
+    role = str((data or {}).get('role') or 'operations').strip().lower()
+    allowed_roles = {'admin', 'operations', 'hr'}
+    if not org_id:
+        raise RuntimeError('No NBL organization is assigned to this owner account.')
+    if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):
+        raise RuntimeError('Enter a valid email address.')
+    if len(password) < 10:
+        raise RuntimeError('Temporary password must be at least 10 characters.')
+    if role not in allowed_roles:
+        raise RuntimeError('Choose Admin, Operations, or HR. Owner and Finance roles cannot be assigned here.')
+    created = supabase_service_request('/auth/v1/admin/users', 'POST', {
+        'email': email,
+        'password': password,
+        'email_confirm': True,
+        'user_metadata': {'full_name': full_name}
+    }) or {}
+    uid = str(created.get('id') or '').strip()
+    if not uid:
+        raise RuntimeError('Supabase created no user ID.')
+    try:
+        supabase_service_request('/rest/v1/profiles?on_conflict=user_id', 'POST', [{
+            'user_id': uid, 'full_name': full_name or None, 'updated_at': datetime.now(timezone.utc).isoformat()
+        }], 'resolution=merge-duplicates,return=representation')
+        supabase_service_request('/rest/v1/organization_members?on_conflict=organization_id,user_id', 'POST', [{
+            'organization_id': org_id, 'user_id': uid, 'role': role, 'status': 'active', 'module_permissions': {}
+        }], 'resolution=merge-duplicates,return=representation')
+    except Exception:
+        try:
+            supabase_service_request('/auth/v1/admin/users/' + uid, 'DELETE')
+        except Exception:
+            pass
+        raise
+    return {'user_id': uid, 'email': email, 'full_name': full_name, 'role': role, 'status': 'active'}
+
+
+def update_nbl_user(user, data):
+    if not SUPABASE_SECRET_KEY:
+        raise RuntimeError('Add SUPABASE_SECRET_KEY under Railway → web → Variables before managing NBL users.')
+    membership = user.get('_nbl_membership') if isinstance(user, dict) else {}
+    org_id = str((membership or {}).get('organization_id') or '').strip()
+    uid = str((data or {}).get('user_id') or '').strip()
+    full_name = str((data or {}).get('full_name') or '').strip()
+    role = str((data or {}).get('role') or '').strip().lower()
+    status = str((data or {}).get('status') or '').strip().lower()
+    allowed_roles = {'admin', 'operations', 'hr'}
+    if not org_id or not uid:
+        raise RuntimeError('Organization and user ID are required.')
+    if uid == str(user.get('id') or ''):
+        raise RuntimeError('Use My Profile to edit the Owner account. The Owner role cannot be changed here.')
+    if role not in allowed_roles:
+        raise RuntimeError('Owner and Finance roles cannot be assigned to another profile.')
+    if status not in {'active', 'inactive'}:
+        raise RuntimeError('Status must be active or inactive.')
+    # Ensure the target already belongs to this organization and is not an owner.
+    q = urlencode({'organization_id': f'eq.{org_id}', 'user_id': f'eq.{uid}', 'select': 'user_id,role', 'limit': '1'})
+    rows = supabase_service_request('/rest/v1/organization_members?' + q) or []
+    if not rows:
+        raise RuntimeError('This user is not part of the NBL organization.')
+    if str(rows[0].get('role') or '').lower() == 'owner':
+        raise RuntimeError('The Owner profile cannot be changed from User Access.')
+    patch_q = urlencode({'organization_id': f'eq.{org_id}', 'user_id': f'eq.{uid}'})
+    supabase_service_request('/rest/v1/organization_members?' + patch_q, 'PATCH', {
+        'role': role, 'status': status, 'updated_at': datetime.now(timezone.utc).isoformat()
+    }, 'return=representation')
+    supabase_service_request('/rest/v1/profiles?on_conflict=user_id', 'POST', [{
+        'user_id': uid, 'full_name': full_name or None, 'updated_at': datetime.now(timezone.utc).isoformat()
+    }], 'resolution=merge-duplicates,return=representation')
+    invalidate_auth_cache_for_user(uid)
+    return {'user_id': uid, 'full_name': full_name, 'role': role, 'status': status}
 
 def read_motive_key():
     env_value = os.environ.get('MOTIVE_API_KEY', '').strip()
@@ -169,7 +335,7 @@ def motive_request(path, params=None, timeout=25, extra_headers=None):
         'X-API-Key': key,
         'Accept': 'application/json',
         'X-Metric-Units': 'false',
-        'User-Agent': 'NBL-Business-Analyzer/79'
+        'User-Agent': 'NBL-Business-Analyzer/80'
     }
     if extra_headers:
         headers.update(extra_headers)
@@ -2760,9 +2926,17 @@ class NBLHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == '/health':
-            return self.send_json({'ok': True, 'app': 'NBL Business Analyzer', 'version': 79})
+            return self.send_json({'ok': True, 'app': 'NBL Business Analyzer', 'version': 80})
         if parsed.path.startswith('/api/') and not require_nbl_api_access(self, parsed.path, 'GET'):
             return
+        if parsed.path == '/api/admin/users':
+            try:
+                auth = str(self.headers.get('Authorization') or '').strip()
+                token = auth[7:].strip() if auth.lower().startswith('bearer ') else ''
+                user = validate_nbl_access_token(token)
+                return self.send_json({'ok': True, **owner_user_directory(user)})
+            except Exception as exc:
+                return self.send_json({'ok': False, 'error': str(exc)}, 422)
         if not parsed.path.startswith('/api/motive/'):
             return super().do_GET()
         try:
@@ -2891,6 +3065,18 @@ class NBLHandler(SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path.startswith('/api/') and not require_nbl_api_access(self, parsed.path, 'POST'):
             return
+        if parsed.path in ('/api/admin/users/create', '/api/admin/users/update'):
+            try:
+                auth = str(self.headers.get('Authorization') or '').strip()
+                token = auth[7:].strip() if auth.lower().startswith('bearer ') else ''
+                user = validate_nbl_access_token(token)
+                data = self.read_json()
+                result = create_nbl_user(user, data) if parsed.path.endswith('/create') else update_nbl_user(user, data)
+                with AUTH_CACHE_LOCK:
+                    AUTH_CACHE.clear()
+                return self.send_json({'ok': True, 'user': result})
+            except Exception as exc:
+                return self.send_json({'ok': False, 'error': str(exc)}, 422)
         if parsed.path == '/api/hr/road-test':
             try:
                 data = self.read_json()
@@ -2952,13 +3138,13 @@ def main():
     # that is still running from hijacking a newer build's browser window.
     server = ThreadingHTTPServer((HOST, REQUESTED_PORT), NBLHandler)
     actual_port = int(server.server_address[1])
-    url = f'http://localhost:{actual_port}/index.html?v=79'
+    url = f'http://localhost:{actual_port}/index.html?v=80'
     if PORT_FILE:
         try:
             Path(PORT_FILE).write_text(url, encoding='utf-8')
         except Exception:
             pass
-    print('NBL Business Analyzer v79 is running.')
+    print('NBL Business Analyzer v80 is running.')
     print(f'Open: {url}')
     print('Motive API credentials use MOTIVE_API_KEY when provided; local builds fall back to the protected local key file.')
     print('Keep this process running while using the app.')

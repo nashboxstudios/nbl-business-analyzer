@@ -660,3 +660,12 @@ Version 79 - Cloud Maintenance + Motive Configuration
 - Motive-to-Maintenance sync now works against the cloud-backed Maintenance workspace.
 - Online Motive credentials are read from the MOTIVE_API_KEY Railway environment variable so they persist across deployments and remain server-side.
 - The hosted app no longer pretends a browser-entered Motive key will persist in an ephemeral Railway container.
+
+
+Version 80 - Multi-User Access + Owner Finance Lock
+- Added owner-only User Access for online NBL profiles.
+- Driver Pay, Settlement, and Revenue Finder are owner-only at both UI and Supabase RLS layers.
+- Finance Access Code now protects Revenue Finder in addition to Driver Pay and Settlement.
+- Non-owner profiles cannot see finance modules, Finance Security, statement upload controls, or the local data-folder bridge.
+- Added My Profile for display name and password changes.
+- Online user creation uses SUPABASE_SECRET_KEY only on the Railway server; the secret is never sent to the browser. A legacy SUPABASE_SERVICE_ROLE_KEY is still accepted as a fallback for older deployments.

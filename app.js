@@ -102,7 +102,7 @@
     motive:{backendAvailable:false,configured:false,keyHint:'',storage:'',vehicles:[],lastSync:null,test:null,loading:false},
     ivmr:{startDate:'',endDate:'',rawTrips:[],trips:[],formatBuilt:false,loadedAt:null,loading:false,routeLoading:false,routeCancelRequested:false,routeStats:null,routeProgress:null,lastPdf:null,historyTest:{loading:false,result:null,error:''}},
     ivmrLocations:defaultIvmrLocationData(), ivmrLocationsLoaded:false,
-    cloud:{connected:false,user:null,membership:null,organization:null,snapshots:{},hasSnapshotData:false,lastSync:null,syncing:false},
+    cloud:{connected:false,user:null,profile:null,membership:null,organization:null,snapshots:{},hasSnapshotData:false,lastSync:null,syncing:false,users:[],usersLoading:false},
     finance:{configured:false,unlocked:false,config:null,pendingScreen:null,autoLockTimer:null},
     payroll:{version:2,profiles:{},periods:{},dhMappings:{}}, payrollLoaded:false,
     payrollHos:{loading:false,lastPeriodKey:'',lastError:''}
@@ -147,7 +147,45 @@
 
   const CLOUD_MODULES=['hr','driver_pay','maintenance','meetings','audit','dispatch','settlement','ivmr'];
   const CLOUD_MODULE_LABELS={hr:'Recruitment / HR',driver_pay:'Driver Pay',maintenance:'Maintenance',meetings:'Meetings',audit:'Audit',dispatch:'Dispatch',settlement:'Settlement / Revenue Finder',ivmr:'IVMR'};
+  const SCREEN_MODULE_MAP={drivers:'driver_pay',summary:'settlement',revenue:'settlement',maintenance:'maintenance',meetings:'meetings',hr:'hr',audit:'audit',dispatch:'dispatch',ivmr:'ivmr',motive:'motive'};
+  const FINANCE_MODULE_KEYS=new Set(['driver_pay','settlement','revenue']);
   function cloudConnected(){ return !!state.cloud?.connected; }
+  function currentRole(){ return String(state.cloud?.membership?.role||'').trim().toLowerCase(); }
+  function currentModulePermissions(){ const p=state.cloud?.membership?.module_permissions; return p&&typeof p==='object'?p:{}; }
+  function isOwnerAccount(){ return currentRole()==='owner'; }
+  function canAccessModuleKey(moduleKey,writeAccess=false){
+    if(!cloudConnected()) return true; // local/offline build keeps the legacy local behavior
+    const key=String(moduleKey||'').trim();
+    const role=currentRole(), perms=currentModulePermissions();
+    if(FINANCE_MODULE_KEYS.has(key)) return role==='owner';
+    if(role==='owner'||role==='admin'||perms.all===true) return true;
+    if(role==='hr' && key==='hr') return true;
+    if(role==='operations' && ['maintenance','meetings','dispatch','audit','ivmr','motive'].includes(key)) return true;
+    if(role==='read_only' && writeAccess) return false;
+    return perms[key]===true;
+  }
+  function canAccessScreen(screen){
+    if(screen==='users') return cloudConnected() && isOwnerAccount();
+    const moduleKey=SCREEN_MODULE_MAP[screen];
+    return moduleKey ? canAccessModuleKey(moduleKey,false) : true;
+  }
+  function firstAccessibleScreen(){
+    return ['drivers','summary','revenue','maintenance','meetings','dispatch','audit','ivmr','motive','hr'].find(canAccessScreen)||'motive';
+  }
+  function applyAccessVisibility(){
+    if(!cloudConnected()) return;
+    document.querySelectorAll('.nav-btn[data-screen]').forEach(btn=>btn.classList.toggle('hidden',!canAccessScreen(btn.dataset.screen)));
+    $('financeLockStatus')?.classList.toggle('hidden',!isOwnerAccount());
+    $('financeSecurityBtn')?.classList.toggle('hidden',!isOwnerAccount());
+    $('cloudImportLocalOption')?.classList.toggle('hidden',!isOwnerAccount());
+    $('userAccessNav')?.classList.toggle('hidden',!isOwnerAccount());
+    ['folderStatus','chooseFolderBtn','refreshFolderBtn','emptyChooseFolderBtn','uploadStatementBtn','emptyUploadStatementBtn'].forEach(id=>$(id)?.classList.toggle('hidden',!isOwnerAccount()));
+    if(!isOwnerAccount()){
+      state.finance.unlocked=false;
+      if(state.finance.autoLockTimer) clearTimeout(state.finance.autoLockTimer);
+      state.finance.autoLockTimer=null;
+    }
+  }
   function hasWorkspace(){ return !!state.directoryHandle || cloudConnected(); }
   function workspaceLabel(){
     if(state.directoryHandle) return state.directoryHandle.name;
@@ -163,12 +201,12 @@
         delete c.roadTestForm.ssnFull; delete c.roadTestForm.ssn; delete c.roadTestForm.socialSecurityNumber;
       }
     }
-    data.cloudPrivacy={fullSsnStored:false,note:'Full SSNs intentionally excluded from v79 cloud snapshots.'};
+    data.cloudPrivacy={fullSsnStored:false,note:'Full SSNs intentionally excluded from v80 cloud snapshots.'};
     return data;
   }
   function settlementSnapshot(){
     return {
-      version:79,
+      version:80,
       currentStatementId:state.currentStatementId||null,
       analysisStatementId:state.settlement?.analysisStatementId||null,
       catalog:(state.catalog||[]).map(x=>({
@@ -179,7 +217,7 @@
   }
   function ivmrCloudSnapshot(){
     return {
-      version:79,
+      version:80,
       locations:cloneJson(state.ivmrLocations||defaultIvmrLocationData()),
       current:{
         startDate:state.ivmr?.startDate||'',endDate:state.ivmr?.endDate||'',
@@ -220,7 +258,8 @@
   }
   function renderCloudModules(){
     const el=$('cloudSyncModules'); if(!el)return;
-    el.innerHTML=CLOUD_MODULES.map(k=>{
+    const visible=CLOUD_MODULES.filter(k=>canAccessModuleKey(k,false));
+    el.innerHTML=visible.map(k=>{
       const snap=state.cloud?.snapshots?.[k], cls=snap?'synced':'';
       const suffix=snap?.updated_at?` • ${new Date(snap.updated_at).toLocaleString()}`:'';
       return `<span class="cloud-module-pill ${cls}">${escapeHtml(CLOUD_MODULE_LABELS[k])}${escapeHtml(suffix)}</span>`;
@@ -237,16 +276,18 @@
     const summary=$('cloudAccountSummary');
     if(summary){
       summary.innerHTML=cloudConnected()
-        ? `<strong>${escapeHtml(state.cloud.organization?.name||'Nashbox Logistics')}</strong><br>${escapeHtml(state.cloud.user?.email||'')} • Role: ${escapeHtml(state.cloud.membership?.role||'member')}${state.cloud.lastSync?`<br>Last cloud sync: ${escapeHtml(new Date(state.cloud.lastSync).toLocaleString())}`:''}`
+        ? `<strong>${escapeHtml(state.cloud.organization?.name||'Nashbox Logistics')}</strong><br>${escapeHtml(state.cloud.profile?.full_name||state.cloud.user?.email||'')} • ${escapeHtml(state.cloud.user?.email||'')} • Role: ${escapeHtml(state.cloud.membership?.role||'member')}${state.cloud.lastSync?`<br>Last cloud sync: ${escapeHtml(new Date(state.cloud.lastSync).toLocaleString())}`:''}`
         : 'Not connected to NBL Cloud.';
     }
+    const profileBtn=$('myProfileBtn'); if(profileBtn) profileBtn.classList.toggle('hidden',!cloudConnected());
+    applyAccessVisibility();
     renderCloudModules();
   }
   async function saveCloudModule(moduleKey,silent=true){
     if(!cloudConnected()||!window.NBLCloud||!state.cloud?.organization?.id) return false;
     try{
-      const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'79');
-      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'79',updated_at:new Date().toISOString()};
+      const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'80');
+      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'80',updated_at:new Date().toISOString()};
       state.cloud.hasSnapshotData=true; state.cloud.lastSync=new Date().toISOString(); updateCloudUI();
       return true;
     }catch(err){
@@ -301,6 +342,8 @@
     const membership=await window.NBLCloud.getMembership();
     if(!membership) throw new Error('This account is not an active member of a Nashbox Logistics workspace.');
     state.cloud.membership=membership; state.cloud.organization=membership.organization||{id:membership.organization_id,name:'Nashbox Logistics'}; state.cloud.connected=true;
+    try{ state.cloud.profile=await window.NBLCloud.getProfile(); }catch(_){ state.cloud.profile=null; }
+    applyAccessVisibility();
     await loadCloudWorkspace(false); updateCloudUI(); $('cloudLoginOverlay')?.classList.add('hidden');
   }
   async function initCloudBridge(){
@@ -327,7 +370,7 @@
   }
   async function cloudSignOut(){
     try{ await window.NBLCloud?.signOut(); }catch(_){ }
-    state.cloud={connected:false,user:null,membership:null,organization:null,snapshots:{},hasSnapshotData:false,lastSync:null,syncing:false};
+    state.cloud={connected:false,user:null,profile:null,membership:null,organization:null,snapshots:{},hasSnapshotData:false,lastSync:null,syncing:false,users:[],usersLoading:false};
     resetCloudBackedState(); lockFinance(); renderAll(); updateCloudUI();
     $('cloudLoginOverlay')?.classList.remove('hidden'); closeModal('cloudSyncModal');
   }
@@ -341,6 +384,7 @@
   async function syncLocalToCloud(){
     if(state.cloud.syncing) return;
     if(!cloudConnected()){ showAlert('Sign in to NBL Cloud first.','warning'); return; }
+    if(!isOwnerAccount()){ showAlert('Only the NBL Owner account can import a local data folder into NBL Cloud.','warning'); return; }
     if(!(await ensureLocalImportFolder())) return;
     state.cloud.syncing=true; const btn=$('cloudImportLocalBtn'); if(btn){btn.disabled=true;btn.textContent='Importing…';}
     try{
@@ -365,13 +409,120 @@
   }
   function openCloudSync(){ updateCloudUI(); $('cloudSyncProgress')?.classList.add('hidden'); openModal('cloudSyncModal'); }
 
+  const USER_ACCESS_ROLES=[
+    ['admin','Admin'],['operations','Operations'],['hr','HR']
+  ];
+  function userRoleLabel(role){
+    if(String(role||'').toLowerCase()==='owner') return 'Owner';
+    return USER_ACCESS_ROLES.find(x=>x[0]===String(role||'').toLowerCase())?.[1]||String(role||'member');
+  }
+  function userRoleOptions(selected){
+    return USER_ACCESS_ROLES.map(([value,label])=>`<option value="${value}" ${value===selected?'selected':''}>${label}</option>`).join('');
+  }
+  async function loadUserAccess(force=false){
+    if(!cloudConnected()||!isOwnerAccount()||state.cloud.usersLoading) return;
+    if(state.cloud.users?.length && !force){ renderUserAccess(); return; }
+    state.cloud.usersLoading=true; renderUserAccess();
+    try{
+      const data=await localApi('/api/admin/users',{timeoutMs:20000});
+      state.cloud.userServiceConfigured=!!data.configured;
+      state.cloud.users=Array.isArray(data.users)?data.users:[];
+    }catch(err){
+      state.cloud.userServiceConfigured=false;
+      state.cloud.userAccessError=err.message||String(err);
+    }finally{
+      state.cloud.usersLoading=false; renderUserAccess();
+    }
+  }
+  function renderUserAccess(){
+    const table=$('userAccessTable'); if(!table) return;
+    const status=$('userAccessServiceStatus');
+    if(status){
+      const configured=state.cloud.userServiceConfigured;
+      status.className=`cloud-sync-warning ${configured?'user-access-ready':'user-access-needs-key'}`;
+      status.innerHTML=configured
+        ? '<strong>User management is ready</strong><p>Only the Owner can create or change NBL user access. Driver Pay, Settlement, and Revenue Finder are never available to non-owner profiles.</p>'
+        : `<strong>User creation needs one Railway secret</strong><p>${escapeHtml(state.cloud.userAccessError||'Add SUPABASE_SECRET_KEY under Railway → web → Variables. The key stays server-side and is never exposed to users.')}</p>`;
+    }
+    const createBtn=$('createNblUserBtn'); if(createBtn) createBtn.disabled=!state.cloud.userServiceConfigured || state.cloud.usersLoading;
+    const count=$('userAccessCount'); if(count) count.textContent=`${(state.cloud.users||[]).length} profile${(state.cloud.users||[]).length===1?'':'s'}`;
+    table.querySelector('thead').innerHTML='<tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last Sign In</th><th>Actions</th></tr>';
+    if(state.cloud.usersLoading){ table.querySelector('tbody').innerHTML='<tr><td colspan="6" class="empty-table-cell">Loading user profiles…</td></tr>'; return; }
+    const users=state.cloud.users||[];
+    table.querySelector('tbody').innerHTML=users.length?users.map(u=>{
+      const owner=String(u.role||'').toLowerCase()==='owner';
+      const uid=escapeHtml(u.user_id||'');
+      const last=u.last_sign_in_at?new Date(u.last_sign_in_at).toLocaleString():'—';
+      return `<tr data-user-access-row="${uid}">
+        <td>${owner?`<strong>${escapeHtml(u.full_name||'Owner')}</strong>`:`<input class="user-access-name" value="${escapeHtml(u.full_name||'')}" placeholder="Full name">`}</td>
+        <td>${escapeHtml(u.email||'')}</td>
+        <td>${owner?'<span class="status-pill yes">Owner</span>':`<select class="user-access-role">${userRoleOptions(String(u.role||'').toLowerCase())}</select>`}</td>
+        <td>${owner?'<span class="status-pill yes">Active</span>':`<select class="user-access-status"><option value="active" ${u.status==='active'?'selected':''}>Active</option><option value="inactive" ${u.status==='inactive'?'selected':''}>Inactive</option></select>`}</td>
+        <td>${escapeHtml(last)}</td>
+        <td>${owner?'<span class="muted">Protected owner profile</span>':`<button type="button" class="button secondary" data-save-user-access="${uid}">Save Access</button>`}</td>
+      </tr>`;
+    }).join(''):'<tr><td colspan="6" class="empty-table-cell">No NBL user profiles found.</td></tr>';
+    if(isOwnerAccount() && !state.cloud.usersLoading && !state.cloud.users?.length && state.cloud.userServiceConfigured!==false) setTimeout(()=>loadUserAccess(),0);
+  }
+  async function createNblUserFromForm(e){
+    e.preventDefault();
+    if(!isOwnerAccount()){ showAlert('Only the Owner can create NBL users.','warning'); return; }
+    const btn=$('createNblUserBtn');
+    const payload={
+      full_name:String($('newNblUserName')?.value||'').trim(),
+      email:String($('newNblUserEmail')?.value||'').trim(),
+      password:String($('newNblUserPassword')?.value||''),
+      role:String($('newNblUserRole')?.value||'operations')
+    };
+    if(!payload.full_name||!payload.email||payload.password.length<10){ showAlert('Enter the user’s name, email, and a temporary password of at least 10 characters.','warning'); return; }
+    try{
+      if(btn){btn.disabled=true;btn.textContent='Creating…';}
+      await localApi('/api/admin/users/create',{method:'POST',body:JSON.stringify(payload),timeoutMs:25000});
+      e.target.reset(); if($('newNblUserRole')) $('newNblUserRole').value='operations';
+      await loadUserAccess(true);
+      showAlert(`NBL profile created for <strong>${escapeHtml(payload.email)}</strong>. Give the user the temporary password directly and have them change it under My Profile after signing in.`,'success');
+    }catch(err){ showAlert(`Could not create the NBL user: ${escapeHtml(err.message||String(err))}`,'error'); }
+    finally{ if(btn){btn.disabled=!state.cloud.userServiceConfigured;btn.textContent='Create User';} }
+  }
+  async function saveUserAccess(userId){
+    const row=document.querySelector(`[data-user-access-row="${CSS.escape(String(userId||''))}"]`); if(!row) return;
+    const payload={user_id:userId,full_name:String(row.querySelector('.user-access-name')?.value||'').trim(),role:row.querySelector('.user-access-role')?.value,status:row.querySelector('.user-access-status')?.value};
+    try{
+      await localApi('/api/admin/users/update',{method:'POST',body:JSON.stringify(payload),timeoutMs:20000});
+      await loadUserAccess(true); showAlert('User access updated.','success');
+    }catch(err){ showAlert(`Could not update user access: ${escapeHtml(err.message||String(err))}`,'error'); }
+  }
+  function openMyProfile(){
+    if(!cloudConnected()) return;
+    $('myProfileName').value=state.cloud.profile?.full_name||'';
+    $('myProfileEmail').value=state.cloud.user?.email||'';
+    $('myProfileRole').value=userRoleLabel(currentRole());
+    $('myProfileNewPassword').value=''; $('myProfileConfirmPassword').value='';
+    $('myProfileError')?.classList.add('hidden'); openModal('myProfileModal');
+  }
+  async function saveMyProfileFromForm(e){
+    e.preventDefault();
+    const name=String($('myProfileName')?.value||'').trim();
+    const password=String($('myProfileNewPassword')?.value||'');
+    const confirm=String($('myProfileConfirmPassword')?.value||'');
+    const err=$('myProfileError');
+    if(!name){ if(err){err.textContent='Enter your name.';err.classList.remove('hidden');} return; }
+    if(password && password.length<10){ if(err){err.textContent='New passwords must have at least 10 characters.';err.classList.remove('hidden');} return; }
+    if(password!==confirm){ if(err){err.textContent='The new password and confirmation do not match.';err.classList.remove('hidden');} return; }
+    try{
+      state.cloud.profile=await window.NBLCloud.saveProfile(name);
+      if(password) await window.NBLCloud.updatePassword(password);
+      updateCloudUI(); closeModal('myProfileModal'); showAlert(password?'Profile and password updated.':'Profile updated.','success');
+    }catch(ex){ if(err){err.textContent=ex.message||String(ex);err.classList.remove('hidden');} }
+  }
+
   function showAlert(message, type='warning') {
     $('alertArea').innerHTML = message ? `<div class="alert ${type}">${message}</div>` : '';
   }
   function escapeHtml(s){return String(s==null?'':s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 
 
-  const FINANCE_SCREENS = new Set(['drivers','summary']);
+  const FINANCE_SCREENS = new Set(['drivers','summary','revenue']);
   function isFinanceScreen(screen){ return FINANCE_SCREENS.has(screen); }
   function randomBytes(n){ const b=new Uint8Array(n); crypto.getRandomValues(b); return b; }
   function bytesToB64url(bytes){
@@ -402,7 +553,9 @@
     updateFinanceSecurityUI();
   }
   function updateFinanceSecurityUI(){
-    const unlocked=!!state.finance.unlocked;
+    const ownerAllowed=!cloudConnected() || isOwnerAccount();
+    if(!ownerAllowed) state.finance.unlocked=false;
+    const unlocked=ownerAllowed && !!state.finance.unlocked;
     const status=$('financeLockStatus');
     if(status){ status.classList.toggle('unlocked',unlocked); status.classList.toggle('locked',!unlocked); status.querySelector('small').textContent=unlocked?'Unlocked':'Locked'; }
     document.querySelectorAll('.protected-nav .nav-lock').forEach(el=>el.textContent=unlocked?'🔓':'🔒');
@@ -453,6 +606,7 @@
     updateDeviceUnlockControls();
   }
   function openFinanceSecurityModal(forceSection=''){
+    if(cloudConnected() && !isOwnerAccount()){ showAlert('Finance access is restricted to the NBL Owner account.','warning'); return; }
     if(forceSection) showFinanceSecuritySection(forceSection);
     else if(!state.finance.configured) showFinanceSecuritySection('financeSecuritySetup');
     else if(!state.finance.unlocked) showFinanceSecuritySection('financeSecurityUnlock');
@@ -511,6 +665,10 @@
     }catch(err){ console.error(err); showAlert(`Device unlock was not completed: ${escapeHtml(err.message||String(err))}`,'warning'); }
   }
   function requestScreen(screen){
+    if(!canAccessScreen(screen)){
+      showAlert('Your NBL profile does not have access to this module.','warning');
+      const fallback=firstAccessibleScreen(); if(fallback!==screen) setScreen(fallback); return;
+    }
     if(isFinanceScreen(screen) && !state.finance.unlocked){
       state.finance.pendingScreen=screen; setScreen(screen); openFinanceSecurityModal(); return;
     }
@@ -518,6 +676,7 @@
   }
 
   function setScreen(screen) {
+    if(!canAccessScreen(screen)) screen=firstAccessibleScreen();
     state.currentScreen = screen;
     document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.screen===screen));
     document.querySelectorAll('.nav-group').forEach(group=>{
@@ -532,23 +691,26 @@
     $('maintenanceScreen').classList.toggle('hidden',screen!=='maintenance' || !workspace);
     $('meetingsScreen').classList.toggle('hidden',screen!=='meetings' || !workspace);
     $('hrScreen')?.classList.toggle('hidden',screen!=='hr' || !workspace);
+    $('usersScreen')?.classList.toggle('hidden',screen!=='users');
     $('auditScreen')?.classList.toggle('hidden',screen!=='audit' || !workspace);
-    $('revenueScreen').classList.toggle('hidden',screen!=='revenue' || !workspace);
+    $('revenueScreen').classList.toggle('hidden',screen!=='revenue' || !workspace || financeLocked);
     $('dispatchScreen')?.classList.toggle('hidden',screen!=='dispatch' || !workspace);
     $('ivmrScreen')?.classList.toggle('hidden',screen!=='ivmr' || !workspace);
     $('motiveScreen')?.classList.toggle('hidden',screen!=='motive');
     $('financeLockedState')?.classList.toggle('hidden',!financeLocked);
-    const folderScreen = screen==='maintenance' || screen==='meetings' || screen==='hr' || screen==='audit' || screen==='revenue' || screen==='dispatch' || screen==='ivmr' || screen==='motive';
+    const folderScreen = screen==='maintenance' || screen==='meetings' || screen==='hr' || screen==='users' || screen==='audit' || screen==='revenue' || screen==='dispatch' || screen==='ivmr' || screen==='motive';
     const requiresWorkspace = screen==='maintenance' || screen==='meetings' || screen==='hr' || screen==='audit' || screen==='revenue' || screen==='dispatch' || screen==='ivmr';
-    const needsEmpty = financeLocked ? false : (requiresWorkspace ? !workspace : (screen==='motive' ? false : !hasResult));
+    const needsEmpty = financeLocked ? false : (screen==='users' ? false : (requiresWorkspace ? !workspace : (screen==='motive' ? false : !hasResult)));
     $('emptyState').classList.toggle('hidden',!needsEmpty);
     if(needsEmpty && requiresWorkspace) $('emptyStateText').textContent=cloudConnected()?'This module is connected to NBL Cloud. No cloud data has been uploaded yet. Open Cloud Sync to import your existing local NBL data.':'Sign in to NBL Cloud or choose your local NBL business data folder to begin.';
     if(needsEmpty && (screen==='drivers'||screen==='summary')) $('emptyStateText').textContent=cloudConnected()?'No settlement data is stored in NBL Cloud yet. Open Cloud Sync to import your existing local NBL data, or upload a settlement CSV.':'Choose a data folder and upload a settlement CSV.';
-    const titles={drivers:'Driver Pay',summary:'Settlement',maintenance:'Maintenance',meetings:'Meetings',hr:'Recruitment',audit:'Audit',revenue:'Revenue Finder',dispatch:'Dispatch',ivmr:'IVMR',motive:'Motive'};
+    const titles={drivers:'Driver Pay',summary:'Settlement',maintenance:'Maintenance',meetings:'Meetings',hr:'Recruitment',users:'User Access',audit:'Audit',revenue:'Revenue Finder',dispatch:'Dispatch',ivmr:'IVMR',motive:'Motive'};
     $('pageTitle').textContent=titles[screen]||'NBL Business Analyzer';
     $('saveBtn').classList.toggle('hidden',folderScreen || financeLocked);
     $('exportBtn').classList.toggle('hidden',folderScreen || financeLocked);
-    if(financeLocked) $('fileMeta').textContent='Protected finance module • Unlock to view payroll and settlement data.';
+    if($('uploadStatementBtn')) $('uploadStatementBtn').classList.toggle('hidden',(cloudConnected()&&!isOwnerAccount()) || financeLocked);
+    if($('emptyUploadStatementBtn')) $('emptyUploadStatementBtn').classList.toggle('hidden',(cloudConnected()&&!isOwnerAccount()) || financeLocked);
+    if(financeLocked) $('fileMeta').textContent='Owner-only protected module • Unlock with your Finance Access Code.';
     if(screen==='maintenance') {
       $('fileMeta').textContent=workspace ? `${label} • ${state.maintenance.tractors.length} tractor${state.maintenance.tractors.length===1?'':'s'} • ${state.catalog.length} settlement${state.catalog.length===1?'':'s'}` : 'Connect NBL Cloud or choose your local data folder to begin.';
       if(workspace) renderMaintenance();
@@ -562,14 +724,17 @@
       const stuck=(state.hr.candidates||[]).filter(x=>x.fadvStatus==='Stuck' && !HR_TERMINAL_STATUSES.has(normalizeRecruitmentStatus(x.recruitmentStatus))).length;
       $('fileMeta').textContent=workspace ? `${label} • ${active} in progress driver${active===1?'':'s'} • ${stuck} FADV stuck` : 'Connect NBL Cloud or choose your local data folder to begin.';
       if(workspace) renderHr();
+    } else if(screen==='users') {
+      $('fileMeta').textContent='Owner-only access management • Finance modules remain unavailable to every non-owner account.';
+      renderUserAccess();
     } else if(screen==='audit') {
       const openFindings=(state.audit.findings||[]).filter(x=>x.closed!=='Y').length;
       const latest=[...(state.audit.audits||[])].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')))[0];
       $('fileMeta').textContent=workspace ? `${label} • ${state.audit.audits.length} audit${state.audit.audits.length===1?'':'s'} • ${openFindings} open finding${openFindings===1?'':'s'}${latest?` • latest ${fmtDate(latest.date)}`:''}` : 'Connect NBL Cloud or choose your local data folder to begin.';
       if(workspace) renderAudit();
     } else if(screen==='revenue') {
-      $('fileMeta').textContent=workspace ? `${label} • scanning ${state.catalog.length} settlement statement${state.catalog.length===1?'':'s'} for possible missed revenue` : 'Connect NBL Cloud or choose your local data folder to begin.';
-      if(workspace) renderRevenueFinder();
+      $('fileMeta').textContent=financeLocked?'Owner-only protected module • Unlock with your Finance Access Code.':(workspace ? `${label} • scanning ${state.catalog.length} settlement statement${state.catalog.length===1?'':'s'} for possible missed revenue` : 'Connect NBL Cloud or choose your local data folder to begin.');
+      if(workspace && !financeLocked) renderRevenueFinder();
     } else if(screen==='dispatch') {
       const ds=dispatchCoverageStats();
       $('fileMeta').textContent=workspace ? `${label} • ${dispatchActiveLocationName()} dispatch • ${ds.covered}/${ds.required} weekly run assignments covered` : 'Connect NBL Cloud or choose your local data folder to begin.';
@@ -2235,6 +2400,8 @@
   }
   function updateRecruitmentSsnRevealButton(){
     const btn=$('recruitmentSsnRevealBtn'); if(!btn) return;
+    if(cloudConnected() && !isOwnerAccount()){ btn.disabled=true; btn.classList.add('hidden'); return; }
+    btn.classList.remove('hidden');
     const hasFull=!!normalizedRecruitmentSsn(state.hrSsn?.draftFull);
     const hasLast4=String(state.hrSsn?.legacyLast4||'').replace(/\D/g,'').length===4 || !!recruitmentSsnLast4FromInput($('recruitmentSsnInput')?.value||'');
     const canAccess=hasFull || hasLast4 || !!state.hrSsn?.existingCandidate;
@@ -2252,8 +2419,9 @@
     updateRecruitmentSsnRevealButton();
   }
   function requestSsnFinanceCode(){
+    if(cloudConnected() && !isOwnerAccount()){ showAlert('Full SSN reveal is restricted to the NBL Owner account.','warning'); return Promise.resolve(false); }
     if(!state.finance.configured){
-      showAlert('Create a Finance Access Code first. The same code used for Driver Pay and Settlement protects full SSNs.','warning');
+      showAlert('Create a Finance Access Code first. The same code used for Driver Pay, Settlement, and Revenue Finder protects full SSNs.','warning');
       openFinanceSecurityModal('financeSecuritySetup'); return Promise.resolve(false);
     }
     return new Promise(resolve=>{
@@ -4768,9 +4936,13 @@
   $('changeFinanceCodeBtn')?.addEventListener('click',()=>{ $('financeNewCode').value=''; $('financeConfirmCode').value=''; openFinanceSecurityModal('financeSecuritySetup'); });
   $('cloudLoginForm')?.addEventListener('submit',cloudLoginFromForm);
   $('cloudSyncBtn')?.addEventListener('click',openCloudSync);
+  $('myProfileBtn')?.addEventListener('click',openMyProfile);
+  $('myProfileForm')?.addEventListener('submit',saveMyProfileFromForm);
   $('cloudSignOutBtn')?.addEventListener('click',cloudSignOut);
   $('cloudImportLocalBtn')?.addEventListener('click',syncLocalToCloud);
   $('cloudReloadBtn')?.addEventListener('click',reloadFromCloud);
+  $('userAccessCreateForm')?.addEventListener('submit',createNblUserFromForm);
+  $('refreshUserAccessBtn')?.addEventListener('click',()=>loadUserAccess(true));
   $('chooseFolderBtn').addEventListener('click',connectFolder);
   $('emptyChooseFolderBtn').addEventListener('click',connectFolder);
   $('refreshFolderBtn').addEventListener('click',()=>scanFolder(null,false));
@@ -4934,6 +5106,7 @@
     const runTractor=e.target.closest('[data-dispatch-run-tractor]'); if(runTractor){assignDispatchTractorToRun(runTractor.dataset.dispatchRunTractor,runTractor.value);return;}
   });
   document.addEventListener('click',e=>{
+    const userAccessSave=e.target.closest('[data-save-user-access]'); if(userAccessSave){ saveUserAccess(userAccessSave.dataset.saveUserAccess); return; }
     const hrSort=e.target.closest('[data-hr-sort]'); if(hrSort){ toggleRecruitmentSort(hrSort.dataset.hrSort); return; }
     const edit=e.target.closest('[data-edit-tractor]'); if(edit) openTractorModal(edit.dataset.editTractor);
     const mmr=e.target.closest('[data-mmr-tractor]'); if(mmr) generateMmrPdf([mmr.dataset.mmrTractor]);
@@ -4979,7 +5152,7 @@
     await initCloudBridge();
     if(state.cloud.connected) await loadMotiveStatus();
     if(state.motive.backendAvailable && state.motive.configured) await refreshMotiveFleet(true);
-    setScreen('drivers');
+    setScreen(cloudConnected()?firstAccessibleScreen():'drivers');
     await restoreFolder();
     updateCloudUI();
   }

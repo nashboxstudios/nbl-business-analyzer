@@ -30,7 +30,7 @@
       <div class="brand">
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
         <div class="app-name">NBL Business Analyzer</div>
-        <div class="app-version">Version 79 &bull; Cloud Maintenance + Motive Config</div>
+        <div class="app-version">Version 80 &bull; Multi-User Access + Owner Finance Lock</div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-group" data-nav-group="admin">
@@ -43,6 +43,7 @@
               <div class="nav-subgroup-label">HR</div>
               <button class="nav-btn nav-btn-grandchild" data-screen="hr">Recruitment</button>
             </div>
+            <button class="nav-btn nav-btn-child hidden" id="userAccessNav" data-screen="users">User Access</button>
           </div>
         </div>
 
@@ -57,7 +58,7 @@
         </div>
 
         <div class="nav-standalone">
-          <button class="nav-btn" data-screen="revenue">Revenue Finder</button>
+          <button class="nav-btn protected-nav" data-screen="revenue">Revenue Finder <em class="nav-lock">🔒</em></button>
           <button class="nav-btn" data-screen="dispatch">Dispatch</button>
         </div>
       </nav>
@@ -65,6 +66,7 @@
 
         <div class="cloud-status" id="cloudStatus"><span class="cloud-dot"></span><div><strong>NBL Cloud</strong><small>Checking session…</small></div></div>
         <button class="primary full" id="cloudSyncBtn" type="button">Cloud Sync</button>
+        <button class="secondary full hidden" id="myProfileBtn" type="button">My Profile</button>
         <button class="secondary full subtle hidden" id="cloudSignOutBtn" type="button">Sign Out</button>
         <div class="folder-status" id="folderStatus"><span class="dot"></span><div><strong>NBL business data folder</strong><small>Not selected</small></div></div>
         <button class="secondary full" id="chooseFolderBtn">Choose Data Folder</button>
@@ -81,7 +83,7 @@
           <p id="fileMeta">Choose your NBL business data folder to begin.</p>
         </div>
         <div class="actions">
-          <label class="button primary file-button">Upload Statement<input id="fileInput" type="file" accept=".csv,text/csv" hidden></label>
+          <label class="button primary file-button" id="uploadStatementBtn">Upload Statement<input id="fileInput" type="file" accept=".csv,text/csv" hidden></label>
           <button class="button secondary" id="saveBtn" disabled>Save Report</button>
           <button class="button dark" id="exportBtn" disabled>Export Excel</button>
         </div>
@@ -95,7 +97,7 @@
           <p id="emptyStateText">Sign in to NBL Cloud for the shared online workspace. You can also connect your existing local NBL data folder for migration, backup, and local report storage.</p>
           <div class="empty-actions">
             <button class="button secondary big" id="emptyChooseFolderBtn">Choose Data Folder</button>
-            <label class="button primary file-button big">Upload Settlement CSV<input type="file" id="emptyFileInput" accept=".csv,text/csv" hidden></label>
+            <label class="button primary file-button big" id="emptyUploadStatementBtn">Upload Settlement CSV<input type="file" id="emptyFileInput" accept=".csv,text/csv" hidden></label>
           </div>
         </div>
 
@@ -103,7 +105,7 @@
           <div class="finance-lock-card">
             <div class="finance-lock-icon">🔒</div>
             <h2>Finance modules are locked</h2>
-            <p>Driver Pay and Settlement require your finance access code or device authentication.</p>
+            <p>Driver Pay, Settlement, and Revenue Finder require your finance access code or device authentication.</p>
             <button class="button primary big" id="unlockFinanceBtn">Unlock Finance</button>
           </div>
         </div>
@@ -323,6 +325,40 @@
                 <table id="recruitmentTable" class="hr-recruitment-table"><thead></thead><tbody></tbody></table>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div id="usersScreen" class="screen hidden">
+          <div class="hr-toolbar">
+            <div>
+              <span class="eyebrow">Owner / Access Control</span>
+              <h2>User Access</h2>
+              <p>Create individual NBL profiles and control which non-finance role each person uses. Driver Pay, Settlement, and Revenue Finder remain owner-only.</p>
+            </div>
+            <button class="button secondary" id="refreshUserAccessBtn" type="button">Refresh Users</button>
+          </div>
+
+          <div id="userAccessServiceStatus" class="cloud-sync-warning"></div>
+
+          <div class="panel">
+            <div class="panel-heading"><div><h2>Create User Profile</h2><p>Set a temporary password and give it to the user directly. They can change it after signing in under My Profile.</p></div></div>
+            <form id="userAccessCreateForm">
+              <div class="form-grid two">
+                <div class="form-field"><label>Full Name</label><input id="newNblUserName" type="text" required placeholder="e.g. Josh Gardner"></div>
+                <div class="form-field"><label>Email</label><input id="newNblUserEmail" type="email" required placeholder="name@nashboxlogistics.com"></div>
+              </div>
+              <div class="form-grid two">
+                <div class="form-field"><label>Temporary Password</label><input id="newNblUserPassword" type="password" minlength="10" required autocomplete="new-password" placeholder="At least 10 characters"></div>
+                <div class="form-field"><label>Role</label><select id="newNblUserRole"><option value="operations">Operations</option><option value="admin">Admin</option><option value="hr">HR</option></select></div>
+              </div>
+              <div class="form-note">Non-owner roles can never access Driver Pay, Settlement, Revenue Finder, the Finance Access Code, or full SSN reveal.</div>
+              <div class="modal-actions"><button class="button primary" id="createNblUserBtn" type="submit">Create User</button></div>
+            </form>
+          </div>
+
+          <div class="panel">
+            <div class="panel-heading"><div><h2>NBL User Profiles</h2><p>Deactivate a user to immediately remove access to the NBL workspace. The Owner profile cannot be changed here.</p></div><div class="history-count" id="userAccessCount">0 profiles</div></div>
+            <div class="table-wrap"><table id="userAccessTable"><thead></thead><tbody></tbody></table></div>
           </div>
         </div>
 
@@ -733,7 +769,7 @@
     <div class="modal-card finance-security-card">
       <div class="modal-heading"><div><span class="eyebrow">Protected Modules</span><h2 id="financeSecurityTitle">Finance Access</h2></div><button class="icon-btn" data-close-modal="financeSecurityModal">×</button></div>
       <div id="financeSecuritySetup" class="finance-security-section hidden">
-        <p class="security-intro">Create a 4–10 digit code to protect Driver Pay, Settlement, and full SSN reveal in HR. This code is stored only in this browser.</p>
+        <p class="security-intro">Create a 4–10 digit code to protect Driver Pay, Settlement, Revenue Finder, and full SSN reveal in HR. This code is stored only in this browser.</p>
         <form id="financeSetupForm">
           <div class="form-field"><label>Create Access Code</label><input id="financeNewCode" type="password" inputmode="numeric" pattern="[0-9]{4,10}" minlength="4" maxlength="10" autocomplete="new-password" required placeholder="4–10 digits"></div>
           <div class="form-field"><label>Confirm Access Code</label><input id="financeConfirmCode" type="password" inputmode="numeric" pattern="[0-9]{4,10}" minlength="4" maxlength="10" autocomplete="new-password" required placeholder="Re-enter code"></div>
@@ -742,7 +778,7 @@
         </form>
       </div>
       <div id="financeSecurityUnlock" class="finance-security-section hidden">
-        <p class="security-intro">Enter your finance access code to open Driver Pay and Settlement. The same code is also used to reveal full SSNs in HR.</p>
+        <p class="security-intro">Enter your finance access code to open Driver Pay, Settlement, and Revenue Finder. The same code is also used to reveal full SSNs in HR.</p>
         <form id="financeUnlockForm">
           <div class="form-field"><label>Access Code</label><input id="financeUnlockCode" type="password" inputmode="numeric" maxlength="10" autocomplete="current-password" required placeholder="Enter code"></div>
           <div class="security-error hidden" id="financeUnlockError"></div>
@@ -753,7 +789,7 @@
         </form>
       </div>
       <div id="financeSecurityManage" class="finance-security-section hidden">
-        <div class="security-status-row"><span class="status-pill yes">Unlocked</span><span>Driver Pay and Settlement are available. The same access code protects full SSN reveal in HR.</span></div>
+        <div class="security-status-row"><span class="status-pill yes">Unlocked</span><span>Driver Pay, Settlement, and Revenue Finder are available. The same access code protects full SSN reveal in HR.</span></div>
         <div class="security-manage-actions">
           <button class="button dark" id="lockFinanceNowBtn" type="button">Lock Finance Now</button>
           <button class="button secondary" id="changeFinanceCodeBtn" type="button">Change Access Code</button>
@@ -768,7 +804,7 @@
   <div class="modal-backdrop hidden" id="ssnAccessModal">
     <div class="modal-card finance-security-card">
       <div class="modal-heading"><div><span class="eyebrow">Protected HR Data</span><h2>Reveal Full SSN</h2></div><button class="icon-btn" data-close-modal="ssnAccessModal">×</button></div>
-      <p class="security-intro">Enter the same Finance Access Code used for Driver Pay and Settlement.</p>
+      <p class="security-intro">Enter the same Finance Access Code used for Driver Pay, Settlement, and Revenue Finder.</p>
       <form id="ssnAccessForm">
         <div class="form-field"><label>Finance Access Code</label><input id="ssnAccessCode" type="password" inputmode="numeric" maxlength="10" autocomplete="current-password" required placeholder="Enter code"></div>
         <div class="security-error hidden" id="ssnAccessError"></div>
@@ -1196,16 +1232,33 @@
   </div>
 
 
+  <div class="modal-backdrop hidden" id="myProfileModal">
+    <div class="modal-card finance-security-card">
+      <div class="modal-heading"><div><span class="eyebrow">NBL Account</span><h2>My Profile</h2></div><button class="icon-btn" data-close-modal="myProfileModal">×</button></div>
+      <form id="myProfileForm">
+        <div class="form-field"><label>Full Name</label><input id="myProfileName" type="text" required></div>
+        <div class="form-field"><label>Email</label><input id="myProfileEmail" type="email" readonly></div>
+        <div class="form-field"><label>Role</label><input id="myProfileRole" type="text" readonly></div>
+        <div class="form-grid two">
+          <div class="form-field"><label>New Password <span class="optional-label">Optional</span></label><input id="myProfileNewPassword" type="password" minlength="10" autocomplete="new-password" placeholder="Leave blank to keep current password"></div>
+          <div class="form-field"><label>Confirm New Password</label><input id="myProfileConfirmPassword" type="password" minlength="10" autocomplete="new-password"></div>
+        </div>
+        <div class="security-error hidden" id="myProfileError"></div>
+        <div class="modal-actions"><button type="button" class="button secondary" data-close-modal="myProfileModal">Cancel</button><button type="submit" class="button primary">Save Profile</button></div>
+      </form>
+    </div>
+  </div>
+
   <div class="modal-backdrop hidden" id="cloudSyncModal">
     <div class="modal-card wide cloud-sync-card">
       <div class="modal-heading"><div><span class="eyebrow">NBL Cloud</span><h2>Cloud Sync &amp; Migration</h2></div><button class="icon-btn" data-close-modal="cloudSyncModal">×</button></div>
       <div class="cloud-account-summary" id="cloudAccountSummary">Checking cloud connection…</div>
       <div class="cloud-sync-warning">
         <strong>SSN protection</strong>
-        <p>Full Social Security numbers are intentionally excluded from the v79 cloud migration. The last four digits can be retained. Your existing local NBL data folder remains unchanged as the backup source until server-side SSN encryption is completed.</p>
+        <p>Full Social Security numbers are intentionally excluded from the v80 cloud migration. The last four digits can be retained. Your existing local NBL data folder remains unchanged as the backup source until server-side SSN encryption is completed.</p>
       </div>
       <div class="cloud-sync-grid">
-        <div class="cloud-sync-option">
+        <div class="cloud-sync-option" id="cloudImportLocalOption">
           <h3>Import Existing Local NBL Data</h3>
           <p>Reads your current NBL data folder and uploads the supported module data to your secure Nashbox Logistics cloud workspace.</p>
           <button class="button primary" id="cloudImportLocalBtn" type="button">Import / Upload Local NBL Data</button>
@@ -1221,8 +1274,8 @@
     </div>
   </div>
 
-  <script src="core.js?v=79"></script>
-  <script src="cloud.js?v=79"></script>
-  <script src="app.js?v=79"></script>
+  <script src="core.js?v=80"></script>
+  <script src="cloud.js?v=80"></script>
+  <script src="app.js?v=80"></script>
 </body>
 </html>
