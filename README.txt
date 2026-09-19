@@ -1,3 +1,12 @@
+NBL FleetCommand — Version 87
+
+- Added a phone-friendly slide-out navigation drawer with tap-away and Escape closing.
+- Reworked the top bar, action buttons, forms, cards, and modals for smaller screens.
+- Converted the Daily Dispatch Board into stacked route cards on phones.
+- Preserved horizontal scrolling for data-heavy financial, maintenance, and reporting tables.
+- Increased touch targets and added safe-area support for modern phones.
+- Preserved all desktop layouts, module logic, and data formats.
+
 NBL FleetCommand — Version 86
 
 - Renamed the application from NBL Business Analyzer to NBL FleetCommand.

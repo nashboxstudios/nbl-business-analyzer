@@ -209,7 +209,7 @@
   }
   function settlementSnapshot(){
     return {
-      version:86,
+      version:87,
       currentStatementId:state.currentStatementId||null,
       analysisStatementId:state.settlement?.analysisStatementId||null,
       catalog:(state.catalog||[]).map(x=>({
@@ -327,7 +327,7 @@
     if(!cloudConnected()||!window.NBLCloud||!state.cloud?.organization?.id) return false;
     try{
       const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'85');
-      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'86',updated_at:new Date().toISOString()};
+      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'87',updated_at:new Date().toISOString()};
       state.cloud.hasSnapshotData=true; state.cloud.lastSync=new Date().toISOString(); updateCloudUI();
       return true;
     }catch(err){
@@ -3537,7 +3537,7 @@
     $('dailyDispatchTableTitle').textContent=`Routes for ${fmtDate(date)}`;$('dailyDispatchSaveState').textContent=board?.savedAt?`Saved ${new Date(board.savedAt).toLocaleString()}`:'New date • not yet saved';
     table.querySelector('thead').innerHTML='<tr><th>Route</th><th>Call</th><th>Dispatched</th><th>Driver Assigned</th></tr>';
     const groups=new Map();for(const row of rows){const hub=row.hub||'Other';if(!groups.has(hub))groups.set(hub,[]);groups.get(hub).push(row);}const hubs=[...DAILY_DISPATCH_HUBS,...[...groups.keys()].filter(h=>!DAILY_DISPATCH_HUBS.includes(h))];const body=[];
-    for(const hub of hubs){const list=groups.get(hub)||[];if(!list.length)continue;body.push(`<tr class="daily-dispatch-hub-row"><td colspan="4">${escapeHtml(hub)} Hub</td></tr>`);for(const row of list){body.push(`<tr data-daily-route-row data-route-id="${escapeHtml(row.routeId||'')}" data-route-name="${escapeHtml(row.routeName||'')}" data-route-origin="${escapeHtml(row.origin||'')}" data-route-hub="${escapeHtml(hub)}"><td class="daily-dispatch-route"><strong>${escapeHtml(row.routeName||'Unnamed Route')}</strong><small>${escapeHtml(row.origin||'—')}</small></td><td><select data-daily-call><option value="not_received" ${row.callStatus!=='received'?'selected':''}>Not Received</option><option value="received" ${row.callStatus==='received'?'selected':''}>Received</option></select></td><td><select data-daily-status><option value="" ${!row.dispatchStatus?'selected':''}>—</option><option value="accepted" ${row.dispatchStatus==='accepted'?'selected':''}>Accepted</option><option value="declined" ${row.dispatchStatus==='declined'?'selected':''}>Declined</option></select></td><td><select class="daily-driver-select" data-daily-driver>${dailyDispatchDriverOptions(row.driverId||'')}</select></td></tr>`);}}
+    for(const hub of hubs){const list=groups.get(hub)||[];if(!list.length)continue;body.push(`<tr class="daily-dispatch-hub-row"><td colspan="4">${escapeHtml(hub)} Hub</td></tr>`);for(const row of list){body.push(`<tr data-daily-route-row data-route-id="${escapeHtml(row.routeId||'')}" data-route-name="${escapeHtml(row.routeName||'')}" data-route-origin="${escapeHtml(row.origin||'')}" data-route-hub="${escapeHtml(hub)}"><td class="daily-dispatch-route" data-label="Route"><strong>${escapeHtml(row.routeName||'Unnamed Route')}</strong><small>${escapeHtml(row.origin||'—')}</small></td><td data-label="Call"><select data-daily-call><option value="not_received" ${row.callStatus!=='received'?'selected':''}>Not Received</option><option value="received" ${row.callStatus==='received'?'selected':''}>Received</option></select></td><td data-label="Dispatched"><select data-daily-status><option value="" ${!row.dispatchStatus?'selected':''}>—</option><option value="accepted" ${row.dispatchStatus==='accepted'?'selected':''}>Accepted</option><option value="declined" ${row.dispatchStatus==='declined'?'selected':''}>Declined</option></select></td><td data-label="Driver Assigned"><select class="daily-driver-select" data-daily-driver>${dailyDispatchDriverOptions(row.driverId||'')}</select></td></tr>`);}}
     table.querySelector('tbody').innerHTML=body.join('')||'<tr class="daily-dispatch-empty"><td colspan="4">No routes are available. Add routes in the Weekly Dispatch Planner first.</td></tr>';table.querySelector('tfoot').innerHTML='<tr class="daily-dispatch-decline-row"><td colspan="3">Decline Counter</td><td><span id="dailyDispatchDeclineCount">0</span></td></tr>';
     table.querySelectorAll('select').forEach(el=>el.addEventListener('change',updateDailyDispatchBoardControls));updateDailyDispatchBoardControls();
   }
@@ -5194,7 +5194,14 @@
     const collapsed=group.classList.toggle('collapsed');
     toggle.setAttribute('aria-expanded',collapsed?'false':'true');
   }));
-  document.querySelectorAll('.nav-btn').forEach(b=>b.addEventListener('click',()=>requestScreen(b.dataset.screen)));
+  function setMobileSidebar(open){
+    document.body.classList.toggle('mobile-sidebar-open',!!open);
+    $('mobileMenuBtn')?.setAttribute('aria-expanded',open?'true':'false');
+    $('mobileMenuBtn')?.setAttribute('aria-label',open?'Close navigation':'Open navigation');
+  }
+  $('mobileMenuBtn')?.addEventListener('click',()=>setMobileSidebar(!document.body.classList.contains('mobile-sidebar-open')));
+  $('mobileSidebarBackdrop')?.addEventListener('click',()=>setMobileSidebar(false));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.addEventListener('click',()=>{ requestScreen(b.dataset.screen); setMobileSidebar(false); }));
   $('unlockFinanceBtn')?.addEventListener('click',()=>openFinanceSecurityModal());
   $('financeSecurityBtn')?.addEventListener('click',()=>openFinanceSecurityModal());
   $('appSettingsBtn')?.addEventListener('click',()=>openModal('appSettingsModal'));
@@ -5415,7 +5422,8 @@
     const ivmrEdit=e.target.closest('[data-ivmr-edit-tractor]'); if(ivmrEdit) openTractorModal(ivmrEdit.dataset.ivmrEditTractor);
     const ivmrAdd=e.target.closest('[data-ivmr-add-tractor]'); if(ivmrAdd) openTractorFromIvmr(ivmrAdd.dataset.ivmrAddTractor);
   });
-  document.addEventListener('keydown',e=>{ if(e.key==='Escape') document.querySelectorAll('.modal-backdrop:not(.hidden)').forEach(m=>closeModal(m.id)); });
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ setMobileSidebar(false); document.querySelectorAll('.modal-backdrop:not(.hidden)').forEach(m=>closeModal(m.id)); } });
+  window.addEventListener('resize',()=>{ if(window.innerWidth>800) setMobileSidebar(false); });
 
   ['pointerdown','keydown'].forEach(evt=>document.addEventListener(evt,noteFinanceActivity,{passive:true}));
 
