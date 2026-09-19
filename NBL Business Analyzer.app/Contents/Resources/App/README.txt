@@ -1,3 +1,20 @@
+Version 85 - Daily Dispatch Board
+
+- Added Daily Dispatch Board as a second Dispatch submodule.
+- Select a date and record Call Received / Not Received, Accepted / Declined, and Driver Assigned for every route.
+- Routes are grouped by Nashville, Spartanburg, and Marietta hubs.
+- Assigned routes are prepopulated as Received and Accepted with their regular driver selected.
+- Each date is saved independently and can be retrieved or edited later.
+- Added a live decline counter for the selected date.
+
+Version 84 - Weekly Dispatch Planner
+
+- Dispatch is now an Operations submodule named Weekly Dispatch Planner.
+- Removed financial inputs, financial cards, and revenue/pay columns from the planner.
+- Added Lost Miles: route miles multiplied by uncovered scheduled days, summed across all routes.
+- Manage Drivers now includes both Hired Recruitment drivers and drivers found in settlement statements.
+- All other weekly scheduling, saved plans, tractors, exports, and drag-and-drop behavior remain unchanged.
+
 Version 83 - Settlement Reports Deployment Cache Fix
 - Updated all CSS and JavaScript cache-busting URLs to v83 so Railway and web browsers load the current Settlement Reports code after deployment.
 - Verified the existing cloud snapshots contain 12 settlement weeks plus Driver Pay periods; no data migration is required.

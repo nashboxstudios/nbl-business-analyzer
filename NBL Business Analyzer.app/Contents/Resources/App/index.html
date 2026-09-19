@@ -6,7 +6,7 @@
   <title>NBL Business Analyzer</title>
   <meta name="theme-color" content="#35164E" />
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=83" />
+  <link rel="stylesheet" href="styles.css?v=85" />
 </head>
 <body>
 
@@ -30,7 +30,7 @@
       <div class="brand">
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
         <div class="app-name">NBL Business Analyzer</div>
-        <div class="app-version">Version 83 &bull; Cloud Settlement Reports</div>
+        <div class="app-version">Version 85 &bull; Daily Dispatch Board</div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-group" data-nav-group="admin">
@@ -58,12 +58,16 @@
             <button class="nav-btn nav-btn-child" data-screen="maintenance">Maintenance</button>
             <button class="nav-btn nav-btn-child" data-screen="motive">Motive</button>
             <button class="nav-btn nav-btn-child" data-screen="audit">Audit</button>
+            <div class="nav-subgroup">
+              <div class="nav-subgroup-label">Dispatch</div>
+              <button class="nav-btn nav-btn-grandchild" data-screen="dispatch">Weekly Dispatch Planner</button>
+              <button class="nav-btn nav-btn-grandchild" data-screen="daily-dispatch">Daily Dispatch Board</button>
+            </div>
           </div>
         </div>
 
         <div class="nav-standalone">
           <button class="nav-btn protected-nav" data-screen="revenue">Revenue Finder <em class="nav-lock">🔒</em></button>
-          <button class="nav-btn" data-screen="dispatch">Dispatch</button>
         </div>
       </nav>
       <div class="sidebar-bottom">
@@ -535,12 +539,12 @@
           <div class="dispatch-toolbar">
             <div>
               <span class="eyebrow" id="dispatchLocationEyebrow">Dispatch Operations</span>
-              <h2>Weekly Dispatch Revenue &amp; Coverage Planner</h2>
-              <p>Plan each operating location independently, move drivers between runs, and use route economics to maximize coverage and revenue while reducing declines.</p>
+              <h2>Weekly Dispatch Planner</h2>
+              <p>Plan each operating location independently, move drivers between runs, and track weekly mileage and uncovered miles.</p>
             </div>
             <div class="dispatch-toolbar-actions">
               <div class="dispatch-potential" id="dispatchPotential">Best possible: —</div>
-              <button class="button primary" id="optimizeDispatchBtn">Optimize Revenue &amp; Coverage</button>
+              <button class="button primary" id="optimizeDispatchBtn">Optimize Coverage</button>
               <button class="button secondary" id="addDispatchRunBtn">+ Add Run</button>
               <button class="button secondary" id="manageDispatchDriversBtn">Manage Drivers</button>
               <button class="button secondary" id="manageDispatchTractorsBtn">Manage Tractors</button>
@@ -583,7 +587,7 @@
 
           <div class="panel dispatch-driver-panel">
             <div class="panel-heading">
-              <div><h2 id="dispatchDriverPanelTitle">Drivers Assigned to This Location</h2><p>Only drivers assigned to the selected dispatch location appear in this pool. Use <strong>Manage Drivers</strong> to import drivers from settlement statements, add new drivers, or move drivers between locations.</p></div>
+              <div><h2 id="dispatchDriverPanelTitle">Drivers Assigned to This Location</h2><p>Only drivers assigned to the selected dispatch location appear in this pool. Use <strong>Manage Drivers</strong> to add hired Recruitment drivers, settlement drivers, or move drivers between locations.</p></div>
               <div class="dispatch-save-state" id="dispatchSaveState">Saved locally</div>
             </div>
             <div class="dispatch-driver-pool" id="dispatchDriverPool"></div>
@@ -599,7 +603,7 @@
 
           <div class="panel dispatch-board-panel">
             <div class="panel-heading">
-              <div><h2>Run Coverage Chart</h2><p>Runs shown here belong to the selected location. Use <strong>Add Run</strong> or <strong>Edit Run</strong> to manage the location's route list and economics.</p></div>
+              <div><h2>Run Coverage Chart</h2><p>Runs shown here belong to the selected location. Use <strong>Add Run</strong> or <strong>Edit Run</strong> to manage the location's routes and mileage.</p></div>
               <div class="dispatch-legend"><span><i class="legend-dot covered"></i> Covered</span><span><i class="legend-dot open"></i> Open</span><span><i class="legend-dot primary"></i> Primary assignment</span></div>
             </div>
             <div class="dispatch-board-wrap">
@@ -609,12 +613,12 @@
 
           <div class="panel dispatch-economics-panel">
             <div class="panel-heading">
-              <div><h2>Route Economics</h2><p>Revenue is calculated from miles per run × pay per mile × covered days. Lost revenue represents scheduled run-days that are currently uncovered.</p></div>
+              <div><h2>Route Mileage</h2><p>Weekly miles count covered run-days. Lost Miles is the sum of route miles for scheduled run-days that are not covered.</p></div>
             </div>
             <div class="table-wrap">
               <table id="dispatchEconomicsTable" class="dispatch-economics-table"><thead></thead><tbody></tbody></table>
             </div>
-            <div class="dispatch-driver-economics-heading"><h3>Driver Pay &amp; Utilization</h3><p>Weekly pay is entered per driver. Assigned days and route revenue reflect the selected location, while schedule conflicts are checked across all locations.</p></div>
+            <div class="dispatch-driver-economics-heading"><h3>Driver Utilization</h3><p>Assigned days reflect the selected location, while schedule conflicts are checked across all locations.</p></div>
             <div class="table-wrap">
               <table id="dispatchDriverEconomicsTable" class="dispatch-economics-table"><thead></thead><tbody></tbody></table>
             </div>
@@ -629,9 +633,33 @@
 
           <div class="panel dispatch-opportunity-panel">
             <div class="panel-heading">
-              <div><h2>Revenue Opportunities / Decline Risk</h2><p>Open run-days are ranked by potential daily revenue so the highest-value coverage gaps are easiest to address first.</p></div>
+              <div><h2>Open Run-Days / Lost Miles</h2><p>Open run-days are ranked by route miles so the largest mileage gaps are easiest to address first.</p></div>
             </div>
             <div class="dispatch-opportunity-list" id="dispatchOpportunityList"></div>
+          </div>
+        </div>
+
+        <div id="dailyDispatchScreen" class="screen hidden">
+          <div class="dispatch-toolbar daily-dispatch-toolbar">
+            <div>
+              <span class="eyebrow">Dispatch</span>
+              <h2>Daily Dispatch Board</h2>
+              <p>Record the routes offered for the selected date, whether each was accepted or declined, and the driver assigned.</p>
+            </div>
+            <div class="dispatch-toolbar-actions daily-dispatch-actions">
+              <label class="daily-dispatch-date-label">Dispatch Date<input id="dailyDispatchDateInput" type="date"></label>
+              <button class="button primary" id="saveDailyDispatchBtn" type="button">Save Daily Dispatch</button>
+            </div>
+          </div>
+          <div class="summary-grid daily-dispatch-summary" id="dailyDispatchCards"></div>
+          <div class="panel daily-dispatch-panel">
+            <div class="panel-heading">
+              <div><h2 id="dailyDispatchTableTitle">Routes</h2><p>Assigned routes are prepopulated as received and accepted with their regular driver. Change only what was different that day.</p></div>
+              <div class="dispatch-save-state" id="dailyDispatchSaveState">Not saved</div>
+            </div>
+            <div class="table-wrap">
+              <table id="dailyDispatchTable" class="daily-dispatch-table"><thead></thead><tbody></tbody><tfoot></tfoot></table>
+            </div>
           </div>
         </div>
 
@@ -860,7 +888,7 @@
 
   <div class="modal-backdrop hidden" id="dispatchScheduleModal">
     <div class="modal-card">
-      <div class="modal-heading"><div><span class="eyebrow">Dispatch Driver</span><h2 id="dispatchScheduleModalTitle">Edit Driver Schedule / Pay</h2></div><button class="icon-btn" data-close-modal="dispatchScheduleModal">×</button></div>
+      <div class="modal-heading"><div><span class="eyebrow">Dispatch Driver</span><h2 id="dispatchScheduleModalTitle">Edit Driver Schedule</h2></div><button class="icon-btn" data-close-modal="dispatchScheduleModal">×</button></div>
       <form id="dispatchScheduleForm">
         <input type="hidden" id="dispatchScheduleDriverId">
         <div class="form-field"><label>Driver</label><input id="dispatchScheduleDriverName" type="text" readonly></div>
@@ -868,7 +896,6 @@
           <div class="form-field"><label>FedEx ID <span class="optional-label">Optional</span></label><input id="dispatchDriverFedexIdInput" type="text" inputmode="numeric" placeholder="e.g. 3556668"></div>
           <div class="form-field"><label>Dispatch Location</label><select id="dispatchDriverLocationInput" required></select></div>
         </div>
-        <div class="form-field"><label>Driver Pay Per Week <span class="optional-label">Optional</span></label><input id="dispatchDriverWeeklyPayInput" type="number" min="0" step="0.01" placeholder="e.g. 1200"></div>
         <div class="form-field"><label>Available Workdays</label>
           <div class="dispatch-day-checkboxes" id="dispatchScheduleDays">
             <label><input type="checkbox" value="0"> Sun</label>
@@ -1030,10 +1057,7 @@
             <label><input type="checkbox" value="0"> Sun</label><label><input type="checkbox" value="1"> Mon</label><label><input type="checkbox" value="2"> Tue</label><label><input type="checkbox" value="3"> Wed</label><label><input type="checkbox" value="4"> Thu</label><label><input type="checkbox" value="5"> Fri</label><label><input type="checkbox" value="6"> Sat</label>
           </div>
         </div>
-        <div class="form-grid two">
-          <div class="form-field"><label>Miles Per Run <span class="optional-label">Optional</span></label><input id="dispatchRunMilesInput" type="number" min="0" step="0.1" placeholder="One-day route miles"></div>
-          <div class="form-field"><label>Pay Per Mile <span class="optional-label">Optional</span></label><input id="dispatchRunRateInput" type="number" min="0" step="0.001" placeholder="Route revenue rate"></div>
-        </div>
+        <div class="form-field"><label>Miles Per Run <span class="optional-label">Optional</span></label><input id="dispatchRunMilesInput" type="number" min="0" step="0.1" placeholder="One-day route miles"></div>
         <div class="form-note">Changing a run's days or primary driver preserves valid manual assignments where possible. Assignments on removed days are deleted. New primary-driver days are filled automatically when that driver is available and not already assigned elsewhere.</div>
         <div class="modal-actions"><button type="button" class="button secondary" data-close-modal="dispatchRunEconomicsModal">Cancel</button><button type="submit" class="button primary">Save Run</button></div>
       </form>
@@ -1057,7 +1081,7 @@
       <div class="modal-heading"><div><span class="eyebrow">Dispatch Driver Roster</span><h2>Manage Dispatch Drivers</h2></div><button class="icon-btn" data-close-modal="dispatchDriverRosterModal">×</button></div>
       <div class="dispatch-roster-section">
         <div class="panel-heading compact-heading">
-          <div><h3>Drivers from Settlement Statements</h3><p>Select drivers found in the stored FedEx settlement statements and add them to Dispatch. Drivers already in the roster are identified automatically.</p></div>
+          <div><h3>Available Drivers</h3><p>Select any driver marked Hired in Recruitment or found in a stored settlement statement. Drivers already in the roster are identified automatically.</p></div>
           <div class="dispatch-roster-actions"><button type="button" class="button secondary" id="selectAllSettlementDriversBtn">Select All Available</button><button type="button" class="button primary" id="importSettlementDriversBtn">Add Selected Drivers</button></div>
         </div>
         <div class="form-grid two dispatch-import-location-row">
@@ -1076,7 +1100,6 @@
             <div class="form-field"><label>Dispatch Location</label><select id="dispatchNewDriverLocation" required></select></div>
           </div>
           <div class="form-grid two">
-            <div class="form-field"><label>Driver Pay Per Week <span class="optional-label">Optional</span></label><input id="dispatchNewDriverWeeklyPay" type="number" min="0" step="0.01" placeholder="e.g. 1200"></div>
             <div class="form-field"><label>Available Workdays</label><div class="dispatch-day-checkboxes" id="dispatchNewDriverDays"><label><input type="checkbox" value="0"> Sun</label><label><input type="checkbox" value="1"> Mon</label><label><input type="checkbox" value="2"> Tue</label><label><input type="checkbox" value="3"> Wed</label><label><input type="checkbox" value="4"> Thu</label><label><input type="checkbox" value="5"> Fri</label><label><input type="checkbox" value="6"> Sat</label></div></div>
           </div>
           <div class="modal-actions inline-actions"><button type="submit" class="button primary">Add Driver</button></div>
@@ -1319,8 +1342,8 @@
     </div>
   </div>
 
-  <script src="core.js?v=83"></script>
-  <script src="cloud.js?v=83"></script>
-  <script src="app.js?v=83"></script>
+  <script src="core.js?v=85"></script>
+  <script src="cloud.js?v=85"></script>
+  <script src="app.js?v=85"></script>
 </body>
 </html>

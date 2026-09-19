@@ -2926,7 +2926,7 @@ class NBLHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == '/health':
-            return self.send_json({'ok': True, 'app': 'NBL Business Analyzer', 'version': 83})
+            return self.send_json({'ok': True, 'app': 'NBL Business Analyzer', 'version': 85})
         if parsed.path.startswith('/api/') and not require_nbl_api_access(self, parsed.path, 'GET'):
             return
         if parsed.path == '/api/admin/users':
@@ -3138,13 +3138,13 @@ def main():
     # that is still running from hijacking a newer build's browser window.
     server = ThreadingHTTPServer((HOST, REQUESTED_PORT), NBLHandler)
     actual_port = int(server.server_address[1])
-    url = f'http://localhost:{actual_port}/index.html?v=83'
+    url = f'http://localhost:{actual_port}/index.html?v=85'
     if PORT_FILE:
         try:
             Path(PORT_FILE).write_text(url, encoding='utf-8')
         except Exception:
             pass
-    print('NBL Business Analyzer v83 is running.')
+    print('NBL Business Analyzer v85 is running.')
     print(f'Open: {url}')
     print('Motive API credentials use MOTIVE_API_KEY when provided; local builds fall back to the protected local key file.')
     print('Keep this process running while using the app.')
