@@ -1,3 +1,7 @@
+Version 83 - Settlement Reports Deployment Cache Fix
+- Updated all CSS and JavaScript cache-busting URLs to v83 so Railway and web browsers load the current Settlement Reports code after deployment.
+- Verified the existing cloud snapshots contain 12 settlement weeks plus Driver Pay periods; no data migration is required.
+
 Version 82 - Cloud Settlement Reports
 - Settlement Reports now refreshes Settlement and Driver Pay data directly from NBL Cloud when used online.
 - Added compatibility for existing cloud settlement snapshots, including catalog and legacy single-result shapes.
