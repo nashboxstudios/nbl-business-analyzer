@@ -105,7 +105,8 @@
     cloud:{connected:false,user:null,profile:null,membership:null,organization:null,snapshots:{},hasSnapshotData:false,lastSync:null,syncing:false,users:[],usersLoading:false},
     finance:{configured:false,unlocked:false,config:null,pendingScreen:null,autoLockTimer:null},
     payroll:{version:2,profiles:{},periods:{},dhMappings:{}}, payrollLoaded:false,
-    payrollHos:{loading:false,lastPeriodKey:'',lastError:''}
+    payrollHos:{loading:false,lastPeriodKey:'',lastError:''},
+    reportsCloudRefreshing:false
   };
   let maintenanceOdometerLookupSeq=0;
   const $ = id => document.getElementById(id);
@@ -207,7 +208,7 @@
   }
   function settlementSnapshot(){
     return {
-      version:81,
+      version:82,
       currentStatementId:state.currentStatementId||null,
       analysisStatementId:state.settlement?.analysisStatementId||null,
       catalog:(state.catalog||[]).map(x=>({
@@ -215,6 +216,34 @@
       })),
       updatedAt:new Date().toISOString()
     };
+  }
+  function normalizeCloudSettlementCatalog(data){
+    const ss=data&&typeof data==='object'?data:{};
+    let source=Array.isArray(ss.catalog)?ss.catalog:
+      Array.isArray(ss.statements)?ss.statements:
+      Array.isArray(ss.items)?ss.items:[];
+    // Earlier cloud imports could contain the selected settlement as a single
+    // result instead of a catalog. Preserve compatibility with those snapshots.
+    if(!source.length){
+      const result=ss.result||ss.currentResult||ss.settlementResult;
+      if(result&&typeof result==='object') source=[{
+        id:ss.currentStatementId||ss.id||'cloud/current-settlement',
+        fileName:ss.fileName||ss.sourceFile||'Cloud settlement',
+        settlementDate:ss.settlementDate||result.summary?.settlementDate||'',
+        payDate:ss.payDate||result.summary?.payDate||'',result
+      }];
+    }
+    return source.map((entry,index)=>{
+      const result=cloneJson(entry?.result||entry?.analysis||entry?.data||{});
+      result.summary ||= {};
+      const settlementDate=String(entry?.settlementDate||result.summary.settlementDate||'');
+      const payDate=String(entry?.payDate||result.summary.payDate||'');
+      result.summary.settlementDate=settlementDate;
+      result.summary.payDate=payDate;
+      const id=String(entry?.id||entry?.relativePath||`cloud/settlement-${settlementDate||index+1}`);
+      return {...entry,id,relativePath:entry?.relativePath||id,fileName:entry?.fileName||entry?.name||'Cloud settlement',settlementDate,payDate,result,file:null,rawBytes:null,rawText:''};
+    }).filter(x=>x.result&&typeof x.result==='object')
+      .sort((a,b)=>String(b.settlementDate||'').localeCompare(String(a.settlementDate||''))||String(a.fileName||'').localeCompare(String(b.fileName||'')));
   }
   function ivmrCloudSnapshot(){
     return {
@@ -287,8 +316,8 @@
   async function saveCloudModule(moduleKey,silent=true){
     if(!cloudConnected()||!window.NBLCloud||!state.cloud?.organization?.id) return false;
     try{
-      const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'80');
-      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'80',updated_at:new Date().toISOString()};
+      const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'82');
+      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'82',updated_at:new Date().toISOString()};
       state.cloud.hasSnapshotData=true; state.cloud.lastSync=new Date().toISOString(); updateCloudUI();
       return true;
     }catch(err){
@@ -311,8 +340,7 @@
     if(get('dispatch')){ state.dispatch={...defaultDispatchData(),...cloneJson(get('dispatch'))}; state.dispatchLoaded=true; }
     if(get('settlement')){
       const ss=cloneJson(get('settlement'))||{};
-      state.catalog=(ss.catalog||[]).map(x=>({...x,file:null,rawBytes:null,rawText:''}));
-      state.catalog.sort((a,b)=>String(b.settlementDate||'').localeCompare(String(a.settlementDate||''))||String(a.fileName||'').localeCompare(String(b.fileName||'')));
+      state.catalog=normalizeCloudSettlementCatalog(ss);
       state.currentStatementId=ss.currentStatementId||state.catalog[0]?.id||null;
       state.settlement.analysisStatementId=ss.analysisStatementId||state.catalog[0]?.id||null;
     }
@@ -325,6 +353,43 @@
     let target=state.currentStatementId&&state.catalog.find(x=>x.id===state.currentStatementId)?state.currentStatementId:state.catalog[0]?.id;
     if(target) selectStatement(target,false); else { state.result=null; state.file=null; state.rawBytes=null; state.rawText=''; }
     renderAll(); updateFolderUI(); updateCloudUI();
+  }
+  async function refreshSettlementReportsFromCloud(showMessage=false){
+    if(!cloudConnected()||state.directoryHandle||state.reportsCloudRefreshing) return false;
+    state.reportsCloudRefreshing=true;
+    const btn=$('generateSettlementReportsBtn');
+    if(btn){ btn.disabled=true; btn.textContent='Loading Cloud Data…'; }
+    try{
+      const snaps=await window.NBLCloud.getSnapshots(state.cloud.organization.id);
+      state.cloud.snapshots=snaps||state.cloud.snapshots||{};
+      const payroll=snaps?.driver_pay?.data;
+      if(payroll&&typeof payroll==='object'){
+        state.payroll={version:2,profiles:{},periods:{},dhMappings:{},...cloneJson(payroll)};
+        state.payrollLoaded=true;
+      }
+      const settlement=snaps?.settlement?.data;
+      if(settlement&&typeof settlement==='object'){
+        const catalog=normalizeCloudSettlementCatalog(settlement);
+        if(catalog.length){
+          state.catalog=catalog;
+          state.currentStatementId=settlement.currentStatementId||catalog[0].id;
+          const selected=catalog.find(x=>x.id===state.currentStatementId)||catalog[0];
+          state.currentStatementId=selected.id; state.result=selected.result;
+        }
+      }
+      populateDateSelectors();
+      initializeSettlementReportDates();
+      $('fileMeta').textContent=`${workspaceLabel()} • ${state.catalog.length} settlement${state.catalog.length===1?'':'s'} available for reporting`;
+      if(showMessage) showAlert(state.catalog.length?'Settlement Reports refreshed from NBL Cloud.':'NBL Cloud is connected, but no settlement history was found in the Settlement snapshot.',state.catalog.length?'success':'warning');
+      return !!state.catalog.length;
+    }catch(err){
+      console.error('Could not refresh Settlement Reports cloud data',err);
+      if(showMessage) showAlert(`Could not load Settlement Reports from NBL Cloud: ${escapeHtml(err.message||String(err))}`,'error');
+      return false;
+    }finally{
+      state.reportsCloudRefreshing=false;
+      if(btn){ btn.disabled=false; btn.textContent='Generate Reports'; }
+    }
   }
   async function loadCloudWorkspace(showMessage=false){
     if(!cloudConnected()) return false;
@@ -715,7 +780,10 @@
     if(financeLocked) $('fileMeta').textContent='Owner-only protected module • Unlock with your Finance Access Code.';
     if(screen==='settlement-reports') {
       $('fileMeta').textContent=workspace ? `${label} • ${state.catalog.length} settlement${state.catalog.length===1?'':'s'} available for reporting` : 'Connect NBL Cloud or choose your local data folder to begin.';
-      if(workspace && !financeLocked) initializeSettlementReportDates();
+      if(workspace && !financeLocked){
+        initializeSettlementReportDates();
+        if(cloudConnected()&&!state.directoryHandle) refreshSettlementReportsFromCloud(false);
+      }
     } else if(screen==='maintenance') {
       $('fileMeta').textContent=workspace ? `${label} • ${state.maintenance.tractors.length} tractor${state.maintenance.tractors.length===1?'':'s'} • ${state.catalog.length} settlement${state.catalog.length===1?'':'s'}` : 'Connect NBL Cloud or choose your local data folder to begin.';
       if(workspace) renderMaintenance();
@@ -5088,7 +5156,10 @@
   $('driverSettlementDateSelect').addEventListener('change',e=>selectStatement(e.target.value));
   document.querySelectorAll('[data-settlement-tab]').forEach(btn=>btn.addEventListener('click',()=>setSettlementTab(btn.dataset.settlementTab)));
   $('settlementAnalysisDateSelect')?.addEventListener('change',e=>{state.settlement.analysisStatementId=e.target.value;renderSettlementAnalysis();});
-  $('generateSettlementReportsBtn')?.addEventListener('click',renderSettlementReports);
+  $('generateSettlementReportsBtn')?.addEventListener('click',async()=>{
+    if(cloudConnected()&&!state.directoryHandle) await refreshSettlementReportsFromCloud(true);
+    else renderSettlementReports();
+  });
   $('managePayProfilesBtn')?.addEventListener('click',openPayrollProfilesModal);
   $('addPayrollProfileBtn')?.addEventListener('click',()=>openPayrollProfileEditor($('payrollProfileDriverSelect')?.value));
   $('payrollProfileForm')?.addEventListener('submit',savePayrollProfileFromForm);
