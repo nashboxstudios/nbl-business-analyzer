@@ -182,6 +182,7 @@
     $('userAccessNav')?.classList.toggle('hidden',!isOwnerAccount());
     document.querySelector('[data-finance-nav="reports"]')?.classList.toggle('hidden',!isOwnerAccount());
     ['folderStatus','chooseFolderBtn','refreshFolderBtn','emptyChooseFolderBtn','uploadStatementBtn','emptyUploadStatementBtn'].forEach(id=>$(id)?.classList.toggle('hidden',!isOwnerAccount()));
+    document.querySelector('[data-nav-group="finance"]')?.classList.toggle('hidden',!isOwnerAccount());
     if(!isOwnerAccount()){
       state.finance.unlocked=false;
       if(state.finance.autoLockTimer) clearTimeout(state.finance.autoLockTimer);
@@ -208,7 +209,7 @@
   }
   function settlementSnapshot(){
     return {
-      version:85,
+      version:86,
       currentStatementId:state.currentStatementId||null,
       analysisStatementId:state.settlement?.analysisStatementId||null,
       catalog:(state.catalog||[]).map(x=>({
@@ -303,6 +304,15 @@
       if(small) small.textContent=cloudConnected()?`${state.cloud.user?.email||'Signed in'} • ${state.cloud.membership?.role||'member'}`:'Not signed in';
     }
     if(signOut) signOut.classList.toggle('hidden',!cloudConnected());
+    const sidebarUser=$('sidebarUserSummary');
+    if(sidebarUser){
+      const name=state.cloud?.profile?.full_name||state.cloud?.user?.email?.split('@')[0]||'NBL User';
+      const role=state.cloud?.membership?.role||'member';
+      const strong=sidebarUser.querySelector('strong'), small=sidebarUser.querySelector('small'), avatar=sidebarUser.querySelector('.sidebar-user-avatar');
+      if(strong) strong.textContent=name;
+      if(small) small.textContent=cloudConnected()?`${role} account`:'Local workspace';
+      if(avatar) avatar.textContent=(String(name).trim().charAt(0)||'N').toUpperCase();
+    }
     const summary=$('cloudAccountSummary');
     if(summary){
       summary.innerHTML=cloudConnected()
@@ -317,7 +327,7 @@
     if(!cloudConnected()||!window.NBLCloud||!state.cloud?.organization?.id) return false;
     try{
       const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'85');
-      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'85',updated_at:new Date().toISOString()};
+      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'86',updated_at:new Date().toISOString()};
       state.cloud.hasSnapshotData=true; state.cloud.lastSync=new Date().toISOString(); updateCloudUI();
       return true;
     }catch(err){
@@ -705,11 +715,11 @@
     $('financeUnlockCode').value=''; err.classList.add('hidden'); unlockFinanceSuccess('code');
   }
   async function enrollDeviceUnlock(){
-    if(!deviceUnlockSupported()){ showAlert('Device unlock is not available in this launch mode. Open NBL Business Analyzer.app or use the included local launcher so the app runs at localhost.','warning'); return; }
+    if(!deviceUnlockSupported()){ showAlert('Device unlock is not available in this launch mode. Open NBL FleetCommand.app or use the included local launcher so the app runs at localhost.','warning'); return; }
     try{
       const credential=await navigator.credentials.create({publicKey:{
         challenge:randomBytes(32),
-        rp:{name:'NBL Business Analyzer'},
+        rp:{name:'NBL FleetCommand'},
         user:{id:randomBytes(16),name:'nbl-finance',displayName:'NBL Finance Access'},
         pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
         authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required',residentKey:'preferred'},
@@ -773,7 +783,7 @@
     if(needsEmpty && requiresWorkspace) $('emptyStateText').textContent=cloudConnected()?'This module is connected to NBL Cloud. No cloud data has been uploaded yet. Open Cloud Sync to import your existing local NBL data.':'Sign in to NBL Cloud or choose your local NBL business data folder to begin.';
     if(needsEmpty && (screen==='drivers'||screen==='summary')) $('emptyStateText').textContent=cloudConnected()?'No settlement data is stored in NBL Cloud yet. Open Cloud Sync to import your existing local NBL data, or upload a settlement CSV.':'Choose a data folder and upload a settlement CSV.';
     const titles={drivers:'Driver Pay',summary:'Settlement','settlement-reports':'Settlement Reports',maintenance:'Maintenance',meetings:'Meetings',hr:'Recruitment',users:'User Access',audit:'Audit',revenue:'Revenue Finder',dispatch:'Weekly Dispatch Planner','daily-dispatch':'Daily Dispatch Board',ivmr:'IVMR',motive:'Motive'};
-    $('pageTitle').textContent=titles[screen]||'NBL Business Analyzer';
+    $('pageTitle').textContent=titles[screen]||'NBL FleetCommand';
     $('saveBtn').classList.toggle('hidden',folderScreen || financeLocked);
     $('exportBtn').classList.toggle('hidden',folderScreen || financeLocked);
     if($('uploadStatementBtn')) $('uploadStatementBtn').classList.toggle('hidden',(cloudConnected()&&!isOwnerAccount()) || financeLocked);
@@ -2581,7 +2591,7 @@
       const headers=order.map(key=>HR_RECRUITMENT_LABELS[key]||key);
       const dataRows=rows.map(candidate=>order.map(key=>recruitmentExportValue(candidate,key)));
       const widths=order.map(key=>Math.max(10,Math.round((layout.columnWidths[key]||HR_RECRUITMENT_DEFAULT_WIDTHS[key]||100)/7)));
-      const bytes=Core.makeRecruitmentXlsx({headers,rows:dataRows,widths,freezeColumns:1,title:'NBL Business Analyzer — Recruitment List'});
+      const bytes=Core.makeRecruitmentXlsx({headers,rows:dataRows,widths,freezeColumns:1,title:'NBL FleetCommand — Recruitment List'});
       downloadBlob(bytes,`NBL_Recruitment_List_${todayIso()}.xlsx`,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       showAlert(`Recruitment list exported with <strong>${rows.length}</strong> candidate${rows.length===1?'':'s'} across all statuses.`,'success');
     }catch(err){ console.error(err); showAlert('Could not export the recruitment workbook: '+err.message,'error'); }
@@ -4574,7 +4584,7 @@
   async function loadIvmrData(){
     setIvmrDefaultDates();
     if(!hasWorkspace()){ showAlert('Connect NBL Cloud or choose your NBL business data folder first.','warning'); return; }
-    if(!state.motive.backendAvailable){ showAlert('Open NBL Business Analyzer using the Mac app or local launcher before loading IVMR data.','warning'); return; }
+    if(!state.motive.backendAvailable){ showAlert('Open NBL FleetCommand using the Mac app or local launcher before loading IVMR data.','warning'); return; }
     if(!state.motive.configured){ showAlert('Connect a Motive API key before loading IVMR data.','warning'); return; }
     const start=$('ivmrStartDate').value, end=$('ivmrEndDate').value;
     if(!start||!end||start>end){ showAlert('Choose a valid IVMR start and end date.','warning'); return; }
@@ -4601,7 +4611,7 @@
   }
   async function runIvmrHistoryTest(){
     const h=state.ivmr.historyTest;
-    if(!state.motive.backendAvailable){ showAlert('Open NBL Business Analyzer using the Mac app or local launcher before running the Motive history test.','warning'); return; }
+    if(!state.motive.backendAvailable){ showAlert('Open NBL FleetCommand using the Mac app or local launcher before running the Motive history test.','warning'); return; }
     if(!state.motive.configured){ showAlert('Connect Motive before running the history test.','warning'); return; }
     const tractor=String($('ivmrHistoryTractor')?.value||'').trim(), start=$('ivmrHistoryStart')?.value||'', end=$('ivmrHistoryEnd')?.value||'';
     if(!tractor||!start||!end||start>end){ showAlert('Enter a tractor number and valid history start/end dates.','warning'); return; }
@@ -4683,7 +4693,7 @@
       if(visible){ const pct=Math.max(0,Math.min(100,Math.round((p.done/p.total)*100))); el.innerHTML=`<div class="ivmr-route-progress-head"><strong>${escapeHtml(p.message||'Building highway routes…')}</strong><span>${pct}%</span></div><div class="ivmr-route-progress-track"><div class="ivmr-route-progress-bar" style="width:${pct}%"></div></div><div class="ivmr-route-progress-meta"><span>${fmtNum(p.done)} / ${fmtNum(p.total)} rows processed</span><span>${fmtNum(p.matched)} matched • ${fmtNum(p.failed)} review/failed</span></div>`; }
     }
     $('ivmrSourceNote').innerHTML=!state.motive.backendAvailable
-      ? '<strong>Local Motive service is not running.</strong> Start the NBL Business Analyzer Mac app.'
+      ? '<strong>Local Motive service is not running.</strong> Start the NBL FleetCommand Mac app.'
       : (!state.motive.configured?'Connect Motive first.':(loaded?(state.ivmr.formatBuilt?`Mileage Report-style IVMR rows built for ${fmtDate(state.ivmr.startDate)} through ${fmtDate(state.ivmr.endDate)} from the underlying Motive IFTA fragments.`:`Loaded underlying Motive IFTA fragments for ${fmtDate(state.ivmr.startDate)} through ${fmtDate(state.ivmr.endDate)}. Run Build Routes to create Mileage Report-style rows.`):'Ready to load Motive IFTA data.'));
     $('ivmrCards').innerHTML=[
       ['IVMR Miles',loaded?fmtIvmrMiles(totalMiles):'—',''],
@@ -5077,7 +5087,7 @@
     renderMotive();
   }
   async function saveMotiveKey(){
-    if(!state.motive.backendAvailable){ showAlert('Open NBL Business Analyzer.app (Mac) or use the included local launcher before connecting Motive.','warning'); return; }
+    if(!state.motive.backendAvailable){ showAlert('Open NBL FleetCommand.app (Mac) or use the included local launcher before connecting Motive.','warning'); return; }
     const key=$('motiveApiKeyInput')?.value.trim();
     if(!key){ showAlert('Paste a Motive API key first.','warning'); return; }
     try{
@@ -5162,7 +5172,7 @@
           : (location.hostname!=='127.0.0.1' && location.hostname!=='localhost'
               ? 'The online NBL server is running, but Motive is not configured. Add <strong>MOTIVE_API_KEY</strong> under Railway → web → Variables, then redeploy.'
               : 'Local integration service is running. Paste a Motive API key above to connect.'))
-      : 'Motive integration is unavailable because index.html was opened directly. On Mac, close this tab and open <strong>NBL Business Analyzer.app</strong>; on Windows, use the included launcher.';
+      : 'Motive integration is unavailable because index.html was opened directly. On Mac, close this tab and open <strong>NBL FleetCommand.app</strong>; on Windows, use the included launcher.';
     const t=m.test;
     $('motiveTestResults').innerHTML=t?`<div class="motive-access-grid"><div><span>Vehicles API</span><strong class="${t.vehicles_ok?'ok-text':'bad-text'}">${t.vehicles_ok?'Available':'Unavailable'}</strong>${t.vehicles_message?`<small>${escapeHtml(t.vehicles_message)}</small>`:''}</div><div><span>IFTA API</span><strong class="${t.ifta_ok?'ok-text':'bad-text'}">${t.ifta_ok?'Available':'Not Confirmed'}</strong>${t.ifta_message?`<small>${escapeHtml(t.ifta_message)}</small>`:''}</div><div><span>HOS Logs</span><strong class="${t.hos_logs_ok?'ok-text':'bad-text'}">${t.hos_logs_ok?'Available':'Not Confirmed'}</strong>${t.hos_logs_message?`<small>${escapeHtml(t.hos_logs_message)}</small>`:''}</div><div><span>Historical GPS</span><strong class="${t.gps_data_ok?'ok-text':'bad-text'}">${t.gps_data_ok?'Breadcrumbs Available':(t.gps_access_ok?'Endpoint Available':'Not Confirmed')}</strong>${t.gps_message?`<small>${escapeHtml(t.gps_message)}</small>`:''}${t.gps_result?.vehicle_number?`<small>Test tractor: ${escapeHtml(t.gps_result.vehicle_number)}${t.gps_result.point_count!=null?` • ${fmtNum(t.gps_result.point_count)} points`:''}</small>`:''}</div></div>`:'';
     $('motiveFleetCount').textContent=`${m.vehicles.length} vehicle${m.vehicles.length===1?'':'s'}`;
@@ -5175,7 +5185,7 @@
       return `<tr><td><strong>${escapeHtml(v.number||'—')}</strong></td><td>${escapeHtml(v.vin||'—')}</td><td>${escapeHtml(mm||'—')}</td><td>${escapeHtml(v.status||'—')}</td><td>${v.ifta===true||String(v.ifta).toLowerCase()==='true'?'<span class="status-pill yes">Yes</span>':(v.ifta===false||String(v.ifta).toLowerCase()==='false'?'<span class="status-pill baseline">No</span>':'—')}</td><td>${escapeHtml(motiveDriverName(v))}</td><td><strong>${odo==null?'—':fmtNum(odo)}</strong>${v.true_odometer!=null?'<small>True odometer</small>':''}</td><td>${escapeHtml(loc)}</td><td>${escapeHtml(whenText)}</td><td>${match?`<span class="status-pill yes">Matched ${escapeHtml(match.tractorNumber)}</span>`:'<span class="status-pill baseline">Not matched</span>'}</td></tr>`;
     }).join(''):'<tr><td colspan="10" class="empty-table-cell">Connect Motive to load vehicle data. Connected accounts refresh automatically when the app opens.</td></tr>';
     if(state.currentScreen==='motive'){
-      $('fileMeta').textContent=!m.backendAvailable?'Motive integration requires NBL Business Analyzer.app or the included local launcher.':(connected?`Motive connected${m.keyHint?` • key ${m.keyHint}`:''}${m.lastSync?` • last fleet refresh ${new Date(m.lastSync).toLocaleString()}`:''}`:'Motive API key not configured on this computer.');
+      $('fileMeta').textContent=!m.backendAvailable?'Motive integration requires NBL FleetCommand.app or the included local launcher.':(connected?`Motive connected${m.keyHint?` • key ${m.keyHint}`:''}${m.lastSync?` • last fleet refresh ${new Date(m.lastSync).toLocaleString()}`:''}`:'Motive API key not configured on this computer.');
     }
   }
 
@@ -5187,6 +5197,7 @@
   document.querySelectorAll('.nav-btn').forEach(b=>b.addEventListener('click',()=>requestScreen(b.dataset.screen)));
   $('unlockFinanceBtn')?.addEventListener('click',()=>openFinanceSecurityModal());
   $('financeSecurityBtn')?.addEventListener('click',()=>openFinanceSecurityModal());
+  $('appSettingsBtn')?.addEventListener('click',()=>openModal('appSettingsModal'));
   $('financeSetupForm')?.addEventListener('submit',saveFinanceCodeFromForm);
   $('financeUnlockForm')?.addEventListener('submit',unlockFinanceFromForm);
   $('deviceUnlockBtn')?.addEventListener('click',unlockFinanceWithDevice);

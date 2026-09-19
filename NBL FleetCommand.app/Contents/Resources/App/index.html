@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>NBL Business Analyzer</title>
+  <title>NBL FleetCommand</title>
   <meta name="theme-color" content="#35164E" />
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=85" />
+  <link rel="stylesheet" href="styles.css?v=86" />
 </head>
 <body>
 
@@ -14,7 +14,7 @@
     <div class="cloud-login-card">
       <img class="cloud-login-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
       <span class="eyebrow">NBL Cloud</span>
-      <h1>NBL Business Analyzer</h1>
+      <h1>NBL FleetCommand</h1>
       <p>Sign in with your NBL account to access the online workspace.</p>
       <form id="cloudLoginForm">
         <div class="form-field"><label>Email</label><input id="cloudLoginEmail" type="email" autocomplete="username" required placeholder="you@company.com"></div>
@@ -29,58 +29,58 @@
     <aside class="sidebar">
       <div class="brand">
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
-        <div class="app-name">NBL Business Analyzer</div>
-        <div class="app-version">Version 85 &bull; Daily Dispatch Board</div>
+        <div class="app-name">NBL FleetCommand</div>
+        <div class="app-tagline">Operations Intelligence</div>
+        <div class="app-version">Version 86</div>
       </div>
       <nav class="sidebar-nav">
-        <div class="nav-group" data-nav-group="admin">
-          <button type="button" class="nav-group-toggle" aria-expanded="true"><span class="nav-group-title">Admin</span><span class="nav-group-chevron" aria-hidden="true">▾</span></button>
-          <div class="nav-group-items">
-            <button class="nav-btn nav-btn-child active protected-nav" data-screen="drivers">Driver Pay <em class="nav-lock">🔒</em></button>
-            <button class="nav-btn nav-btn-child protected-nav" data-screen="summary">Settlement <em class="nav-lock">🔒</em></button>
-            <div class="nav-subgroup protected-nav" data-finance-nav="reports">
-              <div class="nav-subgroup-label">Reports <em class="nav-lock">🔒</em></div>
-              <button class="nav-btn nav-btn-grandchild protected-nav" data-screen="settlement-reports">Settlement Reports <em class="nav-lock">🔒</em></button>
-            </div>
-            <button class="nav-btn nav-btn-child" data-screen="ivmr">IVMR</button>
-            <div class="nav-subgroup">
-              <div class="nav-subgroup-label">HR</div>
-              <button class="nav-btn nav-btn-grandchild" data-screen="hr">Recruitment</button>
-            </div>
-            <button class="nav-btn nav-btn-child hidden" id="userAccessNav" data-screen="users">User Access</button>
-          </div>
-        </div>
-
         <div class="nav-group" data-nav-group="operations">
           <button type="button" class="nav-group-toggle" aria-expanded="true"><span class="nav-group-title">Operations</span><span class="nav-group-chevron" aria-hidden="true">▾</span></button>
           <div class="nav-group-items">
-            <button class="nav-btn nav-btn-child" data-screen="meetings">Meetings</button>
-            <button class="nav-btn nav-btn-child" data-screen="maintenance">Maintenance</button>
-            <button class="nav-btn nav-btn-child" data-screen="motive">Motive</button>
-            <button class="nav-btn nav-btn-child" data-screen="audit">Audit</button>
             <div class="nav-subgroup">
-              <div class="nav-subgroup-label">Dispatch</div>
-              <button class="nav-btn nav-btn-grandchild" data-screen="dispatch">Weekly Dispatch Planner</button>
-              <button class="nav-btn nav-btn-grandchild" data-screen="daily-dispatch">Daily Dispatch Board</button>
+              <div class="nav-subgroup-label"><span class="nav-section-icon">D</span> Dispatch</div>
+              <button class="nav-btn nav-btn-grandchild" data-icon="D" data-screen="daily-dispatch">Daily Dispatch Board</button>
+              <button class="nav-btn nav-btn-grandchild" data-icon="W" data-screen="dispatch">Weekly Dispatch Planner</button>
             </div>
+            <button class="nav-btn nav-btn-child" data-icon="M" data-screen="maintenance">Fleet Maintenance</button>
+            <button class="nav-btn nav-btn-child" data-icon="M" data-screen="motive">Motive</button>
+            <button class="nav-btn nav-btn-child" data-icon="M" data-screen="meetings">Meetings</button>
+            <button class="nav-btn nav-btn-child" data-icon="A" data-screen="audit">Audit</button>
           </div>
         </div>
 
-        <div class="nav-standalone">
-          <button class="nav-btn protected-nav" data-screen="revenue">Revenue Finder <em class="nav-lock">🔒</em></button>
+        <div class="nav-group" data-nav-group="people">
+          <button type="button" class="nav-group-toggle" aria-expanded="true"><span class="nav-group-title">People</span><span class="nav-group-chevron" aria-hidden="true">▾</span></button>
+          <div class="nav-group-items">
+            <button class="nav-btn nav-btn-child" data-icon="R" data-screen="hr">Recruitment</button>
+            <button class="nav-btn nav-btn-child hidden" data-icon="U" id="userAccessNav" data-screen="users">Users</button>
+          </div>
+        </div>
+
+        <div class="nav-group" data-nav-group="finance">
+          <button type="button" class="nav-group-toggle" aria-expanded="true"><span class="nav-group-title">Finance</span><span class="nav-group-chevron" aria-hidden="true">▾</span></button>
+          <div class="nav-group-items">
+            <button class="nav-btn nav-btn-child active protected-nav" data-icon="$" data-screen="drivers">Driver Pay <em class="nav-lock">Locked</em></button>
+            <button class="nav-btn nav-btn-child protected-nav" data-icon="$" data-screen="summary">Settlements <em class="nav-lock">Locked</em></button>
+            <div class="nav-subgroup protected-nav" data-finance-nav="reports">
+              <div class="nav-subgroup-label"><span class="nav-section-icon">R</span> Reports <em class="nav-lock">Locked</em></div>
+              <button class="nav-btn nav-btn-grandchild protected-nav" data-icon="S" data-screen="settlement-reports">Settlement Reports</button>
+            </div>
+            <button class="nav-btn nav-btn-child protected-nav" data-icon="R" data-screen="revenue">Revenue Finder <em class="nav-lock">Locked</em></button>
+          </div>
+        </div>
+
+        <div class="nav-group" data-nav-group="compliance">
+          <button type="button" class="nav-group-toggle" aria-expanded="true"><span class="nav-group-title">Compliance</span><span class="nav-group-chevron" aria-hidden="true">▾</span></button>
+          <div class="nav-group-items">
+            <button class="nav-btn nav-btn-child" data-icon="I" data-screen="ivmr">IVMR</button>
+          </div>
         </div>
       </nav>
       <div class="sidebar-bottom">
-
+        <div class="sidebar-user" id="sidebarUserSummary"><span class="sidebar-user-avatar">N</span><div><strong>NBL User</strong><small>Loading profile…</small></div></div>
         <div class="cloud-status" id="cloudStatus"><span class="cloud-dot"></span><div><strong>NBL Cloud</strong><small>Checking session…</small></div></div>
-        <button class="primary full" id="cloudSyncBtn" type="button">Cloud Sync</button>
-        <button class="secondary full hidden" id="myProfileBtn" type="button">My Profile</button>
-        <button class="secondary full subtle hidden" id="cloudSignOutBtn" type="button">Sign Out</button>
-        <div class="folder-status" id="folderStatus"><span class="dot"></span><div><strong>NBL business data folder</strong><small>Not selected</small></div></div>
-        <button class="secondary full" id="chooseFolderBtn">Choose Data Folder</button>
-        <button class="secondary full subtle" id="refreshFolderBtn" disabled>Refresh Statements</button>
-        <div class="finance-lock-status locked" id="financeLockStatus"><span class="lock-dot"></span><div><strong>Finance Access</strong><small>Locked</small></div></div>
-        <button class="secondary full finance-lock-btn" id="financeSecurityBtn">Finance Security</button>
+        <div class="sidebar-utility-actions"><button class="sidebar-utility-btn" id="appSettingsBtn" type="button">Settings</button><button class="sidebar-utility-btn hidden" id="cloudSignOutBtn" type="button">Sign Out</button></div>
       </div>
     </aside>
 
@@ -768,7 +768,7 @@
             <div>
               <span class="eyebrow">Fleet Integration</span>
               <h2>Motive Connection</h2>
-              <p>Connect NBL Business Analyzer to Motive to view fleet data and update maintenance odometers from Motive readings.</p>
+              <p>Connect NBL FleetCommand to Motive to view fleet data and update maintenance odometers from Motive readings.</p>
             </div>
             <div class="motive-toolbar-actions">
               <button class="button secondary" id="testMotiveBtn" disabled>Test Connection</button>
@@ -790,7 +790,7 @@
                 <button class="button secondary" id="disconnectMotiveBtn" disabled>Disconnect</button>
               </div>
             </div>
-            <div class="motive-security-note" id="motiveBackendNote">Use the included <strong>Start NBL Business Analyzer</strong> launcher for Motive integration.</div>
+            <div class="motive-security-note" id="motiveBackendNote">Use the included <strong>Start NBL FleetCommand</strong> launcher for Motive integration.</div>
             <div class="motive-test-results" id="motiveTestResults"></div>
           </div>
 
@@ -810,6 +810,25 @@
 
       </section>
     </main>
+  </div>
+
+  <div class="modal-backdrop hidden" id="appSettingsModal">
+    <div class="modal-card settings-modal-card">
+      <div class="modal-heading"><div><span class="eyebrow">NBL FleetCommand</span><h2>Settings &amp; Connections</h2></div><button class="icon-btn" data-close-modal="appSettingsModal">×</button></div>
+      <div class="settings-section">
+        <div><h3>Cloud Workspace</h3><p>Sync shared company data and manage your profile.</p></div>
+        <div class="settings-actions"><button class="button primary" id="cloudSyncBtn" type="button">Cloud Sync</button><button class="button secondary hidden" id="myProfileBtn" type="button">My Profile</button></div>
+      </div>
+      <div class="settings-section">
+        <div><h3>Local Data Folder</h3><p>Connect a local folder for migration, backup, and local report storage.</p><div class="folder-status" id="folderStatus"><span class="dot"></span><div><strong>NBL business data folder</strong><small>Not selected</small></div></div></div>
+        <div class="settings-actions"><button class="button secondary" id="chooseFolderBtn">Choose Data Folder</button><button class="button secondary subtle" id="refreshFolderBtn" disabled>Refresh Statements</button></div>
+      </div>
+      <div class="settings-section">
+        <div><h3>Finance Security</h3><p>Control access to Driver Pay, Settlements, Reports, and Revenue Finder.</p><div class="finance-lock-status locked" id="financeLockStatus"><span class="lock-dot"></span><div><strong>Finance Access</strong><small>Locked</small></div></div></div>
+        <div class="settings-actions"><button class="button secondary finance-lock-btn" id="financeSecurityBtn">Finance Security</button></div>
+      </div>
+      <div class="modal-actions"><button type="button" class="button dark" data-close-modal="appSettingsModal">Done</button></div>
+    </div>
   </div>
 
 
@@ -907,7 +926,7 @@
             <label><input type="checkbox" value="6"> Sat</label>
           </div>
         </div>
-        <div class="form-note">Changing availability does not remove existing assignments. If the new schedule conflicts with assignments already on the chart, NBL Business Analyzer will warn you and let you decide whether to keep them.</div>
+        <div class="form-note">Changing availability does not remove existing assignments. If the new schedule conflicts with assignments already on the chart, NBL FleetCommand will warn you and let you decide whether to keep them.</div>
         <div class="modal-actions"><button type="button" class="button secondary" data-close-modal="dispatchScheduleModal">Cancel</button><button type="submit" class="button primary">Save Driver</button></div>
       </form>
     </div>
@@ -1342,8 +1361,8 @@
     </div>
   </div>
 
-  <script src="core.js?v=85"></script>
-  <script src="cloud.js?v=85"></script>
-  <script src="app.js?v=85"></script>
+  <script src="core.js?v=86"></script>
+  <script src="cloud.js?v=86"></script>
+  <script src="app.js?v=86"></script>
 </body>
 </html>
