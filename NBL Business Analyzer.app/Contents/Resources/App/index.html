@@ -30,7 +30,7 @@
       <div class="brand">
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
         <div class="app-name">NBL Business Analyzer</div>
-        <div class="app-version">Version 80 &bull; Multi-User Access + Owner Finance Lock</div>
+        <div class="app-version">Version 81 &bull; Locked Settlement Reports</div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-group" data-nav-group="admin">
@@ -38,6 +38,10 @@
           <div class="nav-group-items">
             <button class="nav-btn nav-btn-child active protected-nav" data-screen="drivers">Driver Pay <em class="nav-lock">🔒</em></button>
             <button class="nav-btn nav-btn-child protected-nav" data-screen="summary">Settlement <em class="nav-lock">🔒</em></button>
+            <div class="nav-subgroup protected-nav" data-finance-nav="reports">
+              <div class="nav-subgroup-label">Reports <em class="nav-lock">🔒</em></div>
+              <button class="nav-btn nav-btn-grandchild protected-nav" data-screen="settlement-reports">Settlement Reports <em class="nav-lock">🔒</em></button>
+            </div>
             <button class="nav-btn nav-btn-child" data-screen="ivmr">IVMR</button>
             <div class="nav-subgroup">
               <div class="nav-subgroup-label">HR</div>
@@ -105,7 +109,7 @@
           <div class="finance-lock-card">
             <div class="finance-lock-icon">🔒</div>
             <h2>Finance modules are locked</h2>
-            <p>Driver Pay, Settlement, and Revenue Finder require your finance access code or device authentication.</p>
+            <p>Driver Pay, Settlement, Reports, and Revenue Finder require your finance access code or device authentication.</p>
             <button class="button primary big" id="unlockFinanceBtn">Unlock Finance</button>
           </div>
         </div>
@@ -190,6 +194,47 @@
                 <div class="table-wrap"><table id="spotClientTable" class="analysis-table"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div id="reportsScreen" class="screen hidden">
+          <div class="reports-toolbar">
+            <div>
+              <span class="eyebrow">Admin / Reports / Settlement Reports</span>
+              <h2>Settlement Reports</h2>
+              <p>Analyze driver labor cost against generated revenue and tractor fuel efficiency across a selected settlement date range.</p>
+            </div>
+          </div>
+
+          <div class="panel reports-filter-panel">
+            <div class="reports-filter-grid">
+              <div class="form-field"><label>Start Date</label><input id="settlementReportStartDate" type="date"></div>
+              <div class="form-field"><label>End Date</label><input id="settlementReportEndDate" type="date"></div>
+              <button class="button primary" id="generateSettlementReportsBtn" type="button">Generate Reports</button>
+              <div class="reports-range-note" id="settlementReportsRangeNote">Select a date range and generate the reports.</div>
+            </div>
+          </div>
+
+          <div class="summary-grid reports-summary-grid" id="settlementReportsCards"></div>
+
+          <div class="panel reports-panel">
+            <div class="panel-heading">
+              <div><h2>Driver Pay vs Revenue Generated</h2><p>Driver pay is compared with the settlement revenue attributed to that driver. Ratios above 35% are highlighted.</p></div>
+              <div class="history-count" id="driverPayRevenueCount">0 drivers</div>
+            </div>
+            <div id="driverPayRevenueBars" class="analysis-bars reports-bars"></div>
+            <div class="table-wrap"><table id="driverPayRevenueTable" class="reports-table"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
+            <div class="reports-method-note">When two drivers are listed on the same trip, trip revenue is split equally between them so total attributed driver revenue does not double-count the settlement.</div>
+          </div>
+
+          <div class="panel reports-panel">
+            <div class="panel-heading">
+              <div><h2>Fuel Efficiency by Tractor</h2><p>MPG is calculated from settlement trip miles divided by fuel-purchase gallons for each tractor. MPG below 7.0 is highlighted.</p></div>
+              <div class="history-count" id="fuelEfficiencyCount">0 tractors</div>
+            </div>
+            <div id="fuelEfficiencyBars" class="analysis-bars reports-bars"></div>
+            <div class="table-wrap"><table id="fuelEfficiencyTable" class="reports-table fuel-efficiency-table"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
+            <div class="reports-method-note">Fuel efficiency uses the Fuel Purchases section of the selected FedEx settlements. Tractors without fuel-purchase gallons in the range display MPG as unavailable.</div>
           </div>
         </div>
 
@@ -333,7 +378,7 @@
             <div>
               <span class="eyebrow">Owner / Access Control</span>
               <h2>User Access</h2>
-              <p>Create individual NBL profiles and control which non-finance role each person uses. Driver Pay, Settlement, and Revenue Finder remain owner-only.</p>
+              <p>Create individual NBL profiles and control which non-finance role each person uses. Driver Pay, Settlement, Reports, and Revenue Finder remain owner-only.</p>
             </div>
             <button class="button secondary" id="refreshUserAccessBtn" type="button">Refresh Users</button>
           </div>
@@ -351,7 +396,7 @@
                 <div class="form-field"><label>Temporary Password</label><input id="newNblUserPassword" type="password" minlength="10" required autocomplete="new-password" placeholder="At least 10 characters"></div>
                 <div class="form-field"><label>Role</label><select id="newNblUserRole"><option value="operations">Operations</option><option value="admin">Admin</option><option value="hr">HR</option></select></div>
               </div>
-              <div class="form-note">Non-owner roles can never access Driver Pay, Settlement, Revenue Finder, the Finance Access Code, or full SSN reveal.</div>
+              <div class="form-note">Non-owner roles can never access Driver Pay, Settlement, Reports, Revenue Finder, the Finance Access Code, or full SSN reveal.</div>
               <div class="modal-actions"><button class="button primary" id="createNblUserBtn" type="submit">Create User</button></div>
             </form>
           </div>
@@ -769,7 +814,7 @@
     <div class="modal-card finance-security-card">
       <div class="modal-heading"><div><span class="eyebrow">Protected Modules</span><h2 id="financeSecurityTitle">Finance Access</h2></div><button class="icon-btn" data-close-modal="financeSecurityModal">×</button></div>
       <div id="financeSecuritySetup" class="finance-security-section hidden">
-        <p class="security-intro">Create a 4–10 digit code to protect Driver Pay, Settlement, Revenue Finder, and full SSN reveal in HR. This code is stored only in this browser.</p>
+        <p class="security-intro">Create a 4–10 digit code to protect Driver Pay, Settlement, Reports, Revenue Finder, and full SSN reveal in HR. This code is stored only in this browser.</p>
         <form id="financeSetupForm">
           <div class="form-field"><label>Create Access Code</label><input id="financeNewCode" type="password" inputmode="numeric" pattern="[0-9]{4,10}" minlength="4" maxlength="10" autocomplete="new-password" required placeholder="4–10 digits"></div>
           <div class="form-field"><label>Confirm Access Code</label><input id="financeConfirmCode" type="password" inputmode="numeric" pattern="[0-9]{4,10}" minlength="4" maxlength="10" autocomplete="new-password" required placeholder="Re-enter code"></div>
@@ -778,7 +823,7 @@
         </form>
       </div>
       <div id="financeSecurityUnlock" class="finance-security-section hidden">
-        <p class="security-intro">Enter your finance access code to open Driver Pay, Settlement, and Revenue Finder. The same code is also used to reveal full SSNs in HR.</p>
+        <p class="security-intro">Enter your finance access code to open Driver Pay, Settlement, Reports, and Revenue Finder. The same code is also used to reveal full SSNs in HR.</p>
         <form id="financeUnlockForm">
           <div class="form-field"><label>Access Code</label><input id="financeUnlockCode" type="password" inputmode="numeric" maxlength="10" autocomplete="current-password" required placeholder="Enter code"></div>
           <div class="security-error hidden" id="financeUnlockError"></div>
@@ -789,7 +834,7 @@
         </form>
       </div>
       <div id="financeSecurityManage" class="finance-security-section hidden">
-        <div class="security-status-row"><span class="status-pill yes">Unlocked</span><span>Driver Pay, Settlement, and Revenue Finder are available. The same access code protects full SSN reveal in HR.</span></div>
+        <div class="security-status-row"><span class="status-pill yes">Unlocked</span><span>Driver Pay, Settlement, Reports, and Revenue Finder are available. The same access code protects full SSN reveal in HR.</span></div>
         <div class="security-manage-actions">
           <button class="button dark" id="lockFinanceNowBtn" type="button">Lock Finance Now</button>
           <button class="button secondary" id="changeFinanceCodeBtn" type="button">Change Access Code</button>
@@ -804,7 +849,7 @@
   <div class="modal-backdrop hidden" id="ssnAccessModal">
     <div class="modal-card finance-security-card">
       <div class="modal-heading"><div><span class="eyebrow">Protected HR Data</span><h2>Reveal Full SSN</h2></div><button class="icon-btn" data-close-modal="ssnAccessModal">×</button></div>
-      <p class="security-intro">Enter the same Finance Access Code used for Driver Pay, Settlement, and Revenue Finder.</p>
+      <p class="security-intro">Enter the same Finance Access Code used for Driver Pay, Settlement, Reports, and Revenue Finder.</p>
       <form id="ssnAccessForm">
         <div class="form-field"><label>Finance Access Code</label><input id="ssnAccessCode" type="password" inputmode="numeric" maxlength="10" autocomplete="current-password" required placeholder="Enter code"></div>
         <div class="security-error hidden" id="ssnAccessError"></div>
@@ -1255,7 +1300,7 @@
       <div class="cloud-account-summary" id="cloudAccountSummary">Checking cloud connection…</div>
       <div class="cloud-sync-warning">
         <strong>SSN protection</strong>
-        <p>Full Social Security numbers are intentionally excluded from the v80 cloud migration. The last four digits can be retained. Your existing local NBL data folder remains unchanged as the backup source until server-side SSN encryption is completed.</p>
+        <p>Full Social Security numbers are intentionally excluded from the v81 cloud migration. The last four digits can be retained. Your existing local NBL data folder remains unchanged as the backup source until server-side SSN encryption is completed.</p>
       </div>
       <div class="cloud-sync-grid">
         <div class="cloud-sync-option" id="cloudImportLocalOption">

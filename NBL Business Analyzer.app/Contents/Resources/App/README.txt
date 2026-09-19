@@ -1,3 +1,10 @@
+Version 81 - Locked Settlement Reports
+- Added Admin > Reports > Settlement Reports.
+- Owner-only and protected by the Finance Access Code.
+- Date-range driver pay vs attributed revenue report; highlights pay ratios above 35%.
+- Date-range tractor fuel-efficiency report; highlights MPG below 7.0.
+- Fuel efficiency uses settlement Fuel Purchases gallons and settlement trip miles.
+
 NBL Business Analyzer — v65
 =====================================
 

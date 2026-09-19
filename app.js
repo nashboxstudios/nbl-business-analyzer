@@ -147,8 +147,8 @@
 
   const CLOUD_MODULES=['hr','driver_pay','maintenance','meetings','audit','dispatch','settlement','ivmr'];
   const CLOUD_MODULE_LABELS={hr:'Recruitment / HR',driver_pay:'Driver Pay',maintenance:'Maintenance',meetings:'Meetings',audit:'Audit',dispatch:'Dispatch',settlement:'Settlement / Revenue Finder',ivmr:'IVMR'};
-  const SCREEN_MODULE_MAP={drivers:'driver_pay',summary:'settlement',revenue:'settlement',maintenance:'maintenance',meetings:'meetings',hr:'hr',audit:'audit',dispatch:'dispatch',ivmr:'ivmr',motive:'motive'};
-  const FINANCE_MODULE_KEYS=new Set(['driver_pay','settlement','revenue']);
+  const SCREEN_MODULE_MAP={drivers:'driver_pay',summary:'settlement','settlement-reports':'reports',revenue:'settlement',maintenance:'maintenance',meetings:'meetings',hr:'hr',audit:'audit',dispatch:'dispatch',ivmr:'ivmr',motive:'motive'};
+  const FINANCE_MODULE_KEYS=new Set(['driver_pay','settlement','revenue','reports']);
   function cloudConnected(){ return !!state.cloud?.connected; }
   function currentRole(){ return String(state.cloud?.membership?.role||'').trim().toLowerCase(); }
   function currentModulePermissions(){ const p=state.cloud?.membership?.module_permissions; return p&&typeof p==='object'?p:{}; }
@@ -170,7 +170,7 @@
     return moduleKey ? canAccessModuleKey(moduleKey,false) : true;
   }
   function firstAccessibleScreen(){
-    return ['drivers','summary','revenue','maintenance','meetings','dispatch','audit','ivmr','motive','hr'].find(canAccessScreen)||'motive';
+    return ['drivers','summary','settlement-reports','revenue','maintenance','meetings','dispatch','audit','ivmr','motive','hr'].find(canAccessScreen)||'motive';
   }
   function applyAccessVisibility(){
     if(!cloudConnected()) return;
@@ -179,6 +179,7 @@
     $('financeSecurityBtn')?.classList.toggle('hidden',!isOwnerAccount());
     $('cloudImportLocalOption')?.classList.toggle('hidden',!isOwnerAccount());
     $('userAccessNav')?.classList.toggle('hidden',!isOwnerAccount());
+    document.querySelector('[data-finance-nav="reports"]')?.classList.toggle('hidden',!isOwnerAccount());
     ['folderStatus','chooseFolderBtn','refreshFolderBtn','emptyChooseFolderBtn','uploadStatementBtn','emptyUploadStatementBtn'].forEach(id=>$(id)?.classList.toggle('hidden',!isOwnerAccount()));
     if(!isOwnerAccount()){
       state.finance.unlocked=false;
@@ -201,12 +202,12 @@
         delete c.roadTestForm.ssnFull; delete c.roadTestForm.ssn; delete c.roadTestForm.socialSecurityNumber;
       }
     }
-    data.cloudPrivacy={fullSsnStored:false,note:'Full SSNs intentionally excluded from v80 cloud snapshots.'};
+    data.cloudPrivacy={fullSsnStored:false,note:'Full SSNs intentionally excluded from v81 cloud snapshots.'};
     return data;
   }
   function settlementSnapshot(){
     return {
-      version:80,
+      version:81,
       currentStatementId:state.currentStatementId||null,
       analysisStatementId:state.settlement?.analysisStatementId||null,
       catalog:(state.catalog||[]).map(x=>({
@@ -217,7 +218,7 @@
   }
   function ivmrCloudSnapshot(){
     return {
-      version:80,
+      version:81,
       locations:cloneJson(state.ivmrLocations||defaultIvmrLocationData()),
       current:{
         startDate:state.ivmr?.startDate||'',endDate:state.ivmr?.endDate||'',
@@ -441,7 +442,7 @@
       const configured=state.cloud.userServiceConfigured;
       status.className=`cloud-sync-warning ${configured?'user-access-ready':'user-access-needs-key'}`;
       status.innerHTML=configured
-        ? '<strong>User management is ready</strong><p>Only the Owner can create or change NBL user access. Driver Pay, Settlement, and Revenue Finder are never available to non-owner profiles.</p>'
+        ? '<strong>User management is ready</strong><p>Only the Owner can create or change NBL user access. Driver Pay, Settlement, Reports, and Revenue Finder are never available to non-owner profiles.</p>'
         : `<strong>User creation needs one Railway secret</strong><p>${escapeHtml(state.cloud.userAccessError||'Add SUPABASE_SECRET_KEY under Railway → web → Variables. The key stays server-side and is never exposed to users.')}</p>`;
     }
     const createBtn=$('createNblUserBtn'); if(createBtn) createBtn.disabled=!state.cloud.userServiceConfigured || state.cloud.usersLoading;
@@ -522,7 +523,7 @@
   function escapeHtml(s){return String(s==null?'':s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 
 
-  const FINANCE_SCREENS = new Set(['drivers','summary','revenue']);
+  const FINANCE_SCREENS = new Set(['drivers','summary','settlement-reports','revenue']);
   function isFinanceScreen(screen){ return FINANCE_SCREENS.has(screen); }
   function randomBytes(n){ const b=new Uint8Array(n); crypto.getRandomValues(b); return b; }
   function bytesToB64url(bytes){
@@ -688,6 +689,7 @@
     const financeLocked=isFinanceScreen(screen) && !state.finance.unlocked;
     $('driversScreen').classList.toggle('hidden',screen!=='drivers' || !hasResult || financeLocked);
     $('summaryScreen').classList.toggle('hidden',screen!=='summary' || !state.catalog.length || financeLocked);
+    $('reportsScreen')?.classList.toggle('hidden',screen!=='settlement-reports' || !workspace || financeLocked);
     $('maintenanceScreen').classList.toggle('hidden',screen!=='maintenance' || !workspace);
     $('meetingsScreen').classList.toggle('hidden',screen!=='meetings' || !workspace);
     $('hrScreen')?.classList.toggle('hidden',screen!=='hr' || !workspace);
@@ -698,20 +700,23 @@
     $('ivmrScreen')?.classList.toggle('hidden',screen!=='ivmr' || !workspace);
     $('motiveScreen')?.classList.toggle('hidden',screen!=='motive');
     $('financeLockedState')?.classList.toggle('hidden',!financeLocked);
-    const folderScreen = screen==='maintenance' || screen==='meetings' || screen==='hr' || screen==='users' || screen==='audit' || screen==='revenue' || screen==='dispatch' || screen==='ivmr' || screen==='motive';
-    const requiresWorkspace = screen==='maintenance' || screen==='meetings' || screen==='hr' || screen==='audit' || screen==='revenue' || screen==='dispatch' || screen==='ivmr';
+    const folderScreen = screen==='maintenance' || screen==='meetings' || screen==='hr' || screen==='users' || screen==='audit' || screen==='settlement-reports' || screen==='revenue' || screen==='dispatch' || screen==='ivmr' || screen==='motive';
+    const requiresWorkspace = screen==='maintenance' || screen==='meetings' || screen==='hr' || screen==='audit' || screen==='settlement-reports' || screen==='revenue' || screen==='dispatch' || screen==='ivmr';
     const needsEmpty = financeLocked ? false : (screen==='users' ? false : (requiresWorkspace ? !workspace : (screen==='motive' ? false : !hasResult)));
     $('emptyState').classList.toggle('hidden',!needsEmpty);
     if(needsEmpty && requiresWorkspace) $('emptyStateText').textContent=cloudConnected()?'This module is connected to NBL Cloud. No cloud data has been uploaded yet. Open Cloud Sync to import your existing local NBL data.':'Sign in to NBL Cloud or choose your local NBL business data folder to begin.';
     if(needsEmpty && (screen==='drivers'||screen==='summary')) $('emptyStateText').textContent=cloudConnected()?'No settlement data is stored in NBL Cloud yet. Open Cloud Sync to import your existing local NBL data, or upload a settlement CSV.':'Choose a data folder and upload a settlement CSV.';
-    const titles={drivers:'Driver Pay',summary:'Settlement',maintenance:'Maintenance',meetings:'Meetings',hr:'Recruitment',users:'User Access',audit:'Audit',revenue:'Revenue Finder',dispatch:'Dispatch',ivmr:'IVMR',motive:'Motive'};
+    const titles={drivers:'Driver Pay',summary:'Settlement','settlement-reports':'Settlement Reports',maintenance:'Maintenance',meetings:'Meetings',hr:'Recruitment',users:'User Access',audit:'Audit',revenue:'Revenue Finder',dispatch:'Dispatch',ivmr:'IVMR',motive:'Motive'};
     $('pageTitle').textContent=titles[screen]||'NBL Business Analyzer';
     $('saveBtn').classList.toggle('hidden',folderScreen || financeLocked);
     $('exportBtn').classList.toggle('hidden',folderScreen || financeLocked);
     if($('uploadStatementBtn')) $('uploadStatementBtn').classList.toggle('hidden',(cloudConnected()&&!isOwnerAccount()) || financeLocked);
     if($('emptyUploadStatementBtn')) $('emptyUploadStatementBtn').classList.toggle('hidden',(cloudConnected()&&!isOwnerAccount()) || financeLocked);
     if(financeLocked) $('fileMeta').textContent='Owner-only protected module • Unlock with your Finance Access Code.';
-    if(screen==='maintenance') {
+    if(screen==='settlement-reports') {
+      $('fileMeta').textContent=workspace ? `${label} • ${state.catalog.length} settlement${state.catalog.length===1?'':'s'} available for reporting` : 'Connect NBL Cloud or choose your local data folder to begin.';
+      if(workspace && !financeLocked) initializeSettlementReportDates();
+    } else if(screen==='maintenance') {
       $('fileMeta').textContent=workspace ? `${label} • ${state.maintenance.tractors.length} tractor${state.maintenance.tractors.length===1?'':'s'} • ${state.catalog.length} settlement${state.catalog.length===1?'':'s'}` : 'Connect NBL Cloud or choose your local data folder to begin.';
       if(workspace) renderMaintenance();
     } else if(screen==='meetings') {
@@ -1573,6 +1578,132 @@
     stable.querySelector('tfoot').innerHTML=`<tr><td><strong>Total</strong></td><td><strong>${fmtNum(spotTotal)}</strong></td><td><strong>${spotTotal?'100.0':'0.0'}%</strong></td><td><strong>${fmtNum((item.result?.spots||[]).length)}</strong></td></tr>`;
   }
 
+
+  function settlementReportDatedCatalog(){
+    return (state.catalog||[]).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(String(x.settlementDate||''))).slice().sort((a,b)=>String(a.settlementDate).localeCompare(String(b.settlementDate)));
+  }
+  function initializeSettlementReportDates(){
+    const items=settlementReportDatedCatalog(), start=$('settlementReportStartDate'), end=$('settlementReportEndDate');
+    if(!start||!end) return;
+    if(!items.length){ start.value=''; end.value=''; renderSettlementReports(); return; }
+    const min=items[0].settlementDate, max=items[items.length-1].settlementDate;
+    start.min=min; start.max=max; end.min=min; end.max=max;
+    if(!start.value || start.value<min || start.value>max) start.value=min;
+    if(!end.value || end.value<min || end.value>max) end.value=max;
+    renderSettlementReports();
+  }
+  function settlementReportSelectedItems(){
+    const start=String($('settlementReportStartDate')?.value||''), end=String($('settlementReportEndDate')?.value||'');
+    if(!start||!end||start>end) return [];
+    return settlementReportDatedCatalog().filter(x=>x.settlementDate>=start && x.settlementDate<=end);
+  }
+  function settlementReportPayrollRows(item){
+    if(!item?.result) return [];
+    const previous=state.result;
+    try{
+      state.result=item.result;
+      state.result.summary ||= {};
+      state.result.summary.settlementDate=item.settlementDate||state.result.summary.settlementDate||'';
+      state.result.summary.payDate=item.payDate||state.result.summary.payDate||'';
+      return payrollRows().map(x=>({...x}));
+    } finally { state.result=previous; }
+  }
+  function settlementReportDriverRows(items){
+    const map=new Map();
+    const ensure=(id,name)=>{
+      const key=String(id||'').trim()||`name:${String(name||'Unassigned').trim().toLowerCase()}`;
+      if(!map.has(key)) map.set(key,{fedexId:String(id||'').trim(),name:name||'Unassigned',driverPay:0,revenue:0,tripCredits:0});
+      const row=map.get(key); if(name && (!row.name || /^Driver \d+$/.test(row.name))) row.name=name; return row;
+    };
+    for(const item of items){
+      for(const d of settlementReportPayrollRows(item)){
+        const row=ensure(d.fedexId,d.name); row.driverPay+=Number(d.totalPay)||0;
+      }
+      for(const trip of [...(item.result?.linehaul||[]),...(item.result?.spots||[])]){
+        const ids=[...new Set([trip.driver1,trip.driver2].map(x=>String(x||'').trim()).filter(Boolean))];
+        if(!ids.length) continue;
+        const share=(Number(trip.revenue)||0)/ids.length;
+        for(const id of ids){ const row=ensure(id,revenueName(item.result,id)); row.revenue+=share; row.tripCredits+=1/ids.length; }
+      }
+    }
+    return [...map.values()].map(r=>{
+      r.driverPay=Math.round((r.driverPay+Number.EPSILON)*100)/100;
+      r.revenue=Math.round((r.revenue+Number.EPSILON)*100)/100;
+      r.percent=r.revenue>0 ? r.driverPay/r.revenue*100 : (r.driverPay>0?Infinity:0);
+      r.flag=r.percent>35;
+      return r;
+    }).filter(r=>r.driverPay!==0||r.revenue!==0).sort((a,b)=>{
+      const ap=Number.isFinite(a.percent)?a.percent:999999, bp=Number.isFinite(b.percent)?b.percent:999999;
+      return bp-ap || b.driverPay-a.driverPay || a.name.localeCompare(b.name);
+    });
+  }
+  function settlementReportFuelRows(items){
+    const map=new Map();
+    const ensure=tractor=>{ const key=normalizeTractor(tractor); if(!key)return null; if(!map.has(key))map.set(key,{tractor:key,miles:0,gallons:0,fuelCost:0}); return map.get(key); };
+    for(const item of items){
+      for(const trip of [...(item.result?.linehaul||[]),...(item.result?.spots||[])]){ const row=ensure(trip.vehicle); if(row) row.miles+=Number(trip.miles)||0; }
+      for(const fuel of item.result?.fuelPurchases||[]){ const row=ensure(fuel.vehicle); if(row){row.gallons+=Math.abs(Number(fuel.qty)||0);row.fuelCost+=Math.abs(Number(fuel.amount)||0);} }
+    }
+    return [...map.values()].map(r=>{
+      r.miles=Math.round(r.miles*10)/10; r.gallons=Math.round(r.gallons*1000)/1000; r.fuelCost=Math.round((r.fuelCost+Number.EPSILON)*100)/100;
+      r.mpg=r.gallons>0?r.miles/r.gallons:null; r.flag=r.mpg!=null && r.mpg<7; return r;
+    }).sort((a,b)=>{
+      if(a.mpg==null&&b.mpg!=null)return 1;if(a.mpg!=null&&b.mpg==null)return -1;
+      if(a.mpg!=null&&b.mpg!=null&&a.mpg!==b.mpg)return a.mpg-b.mpg;
+      return String(a.tractor).localeCompare(String(b.tractor),undefined,{numeric:true});
+    });
+  }
+  function settlementReportDriverBars(rows){
+    if(!rows.length) return '<div class="analysis-empty">No driver payroll/revenue data was found for this date range.</div>';
+    const finite=rows.map(x=>Number.isFinite(x.percent)?x.percent:100), max=Math.max(35,...finite,1);
+    return rows.slice(0,12).map(x=>{
+      const pct=Number.isFinite(x.percent)?x.percent:100, width=Math.max(2,Math.min(100,pct/max*100));
+      const shown=Number.isFinite(x.percent)?`${x.percent.toFixed(1)}%`:'No revenue';
+      return `<div class="analysis-bar-row ${x.flag?'report-threshold-breach':''}"><div class="analysis-bar-label"><strong>${escapeHtml(x.name)}</strong><span>${fmtMoney(x.driverPay)} pay / ${fmtMoney(x.revenue)} revenue</span></div><div class="analysis-bar-track"><div class="analysis-bar-fill" style="width:${width.toFixed(1)}%"></div></div><small>${shown}</small></div>`;
+    }).join('');
+  }
+  function settlementReportFuelBars(rows){
+    const chartRows=rows.filter(x=>x.mpg!=null);
+    if(!chartRows.length) return '<div class="analysis-empty">No tractor has both settlement miles and fuel-purchase gallons in this date range.</div>';
+    const max=Math.max(10,...chartRows.map(x=>x.mpg||0));
+    return chartRows.slice(0,12).map(x=>{
+      const width=Math.max(2,Math.min(100,(x.mpg||0)/max*100));
+      return `<div class="analysis-bar-row ${x.flag?'report-threshold-breach':''}"><div class="analysis-bar-label"><strong>Tractor ${escapeHtml(x.tractor)}</strong><span>${fmtNum(x.miles)} mi / ${x.gallons.toFixed(1)} gal</span></div><div class="analysis-bar-track"><div class="analysis-bar-fill" style="width:${width.toFixed(1)}%"></div></div><small>${x.mpg.toFixed(2)} MPG</small></div>`;
+    }).join('');
+  }
+  function renderSettlementReports(){
+    const start=String($('settlementReportStartDate')?.value||''), end=String($('settlementReportEndDate')?.value||'');
+    const note=$('settlementReportsRangeNote');
+    if(start&&end&&start>end){ if(note) note.innerHTML='<strong>Start date must be on or before end date.</strong>'; return; }
+    const items=settlementReportSelectedItems();
+    if(note) note.textContent=items.length?`${items.length} settlement${items.length===1?'':'s'} selected • ${fmtDate(start)} through ${fmtDate(end)}`:'No settlement statements fall within the selected date range.';
+    const drivers=settlementReportDriverRows(items), fuel=settlementReportFuelRows(items);
+    const totalRevenue=drivers.reduce((n,x)=>n+x.revenue,0), totalPay=drivers.reduce((n,x)=>n+x.driverPay,0), overallPct=totalRevenue>0?totalPay/totalRevenue*100:0;
+    const cards=$('settlementReportsCards');
+    if(cards) cards.innerHTML=[
+      ['Settlement Weeks',fmtNum(items.length),''],
+      ['Attributed Driver Revenue',fmtMoney(totalRevenue),''],
+      ['Total Driver Pay',fmtMoney(totalPay),''],
+      ['Driver Pay % of Revenue',`${overallPct.toFixed(1)}%`,overallPct>35?'danger':'accent']
+    ].map(x=>`<div class="summary-card ${x[2]}"><span>${x[0]}</span><strong>${x[1]}</strong></div>`).join('');
+    if($('driverPayRevenueCount')) $('driverPayRevenueCount').textContent=`${drivers.length} driver${drivers.length===1?'':'s'}`;
+    if($('driverPayRevenueBars')) $('driverPayRevenueBars').innerHTML=settlementReportDriverBars(drivers);
+    const dt=$('driverPayRevenueTable');
+    if(dt){
+      dt.querySelector('thead').innerHTML='<tr><th>Driver</th><th>FedEx ID</th><th>Revenue Generated</th><th>Driver Pay</th><th>Pay % of Revenue</th><th>Status</th></tr>';
+      dt.querySelector('tbody').innerHTML=drivers.length?drivers.map(x=>`<tr class="${x.flag?'report-threshold-row':''}"><td><strong>${escapeHtml(x.name)}</strong></td><td>${escapeHtml(x.fedexId||'—')}</td><td>${fmtMoney(x.revenue)}</td><td>${fmtMoney(x.driverPay)}</td><td><strong>${Number.isFinite(x.percent)?x.percent.toFixed(1)+'%':'No revenue'}</strong></td><td>${x.flag?'<span class="status-pill overdue">Above 35%</span>':'<span class="status-pill ok">Within 35%</span>'}</td></tr>`).join(''):'<tr><td colspan="6" class="empty-table-cell">No driver payroll/revenue data in the selected range.</td></tr>';
+      dt.querySelector('tfoot').innerHTML=`<tr><td><strong>Total</strong></td><td></td><td><strong>${fmtMoney(totalRevenue)}</strong></td><td><strong>${fmtMoney(totalPay)}</strong></td><td><strong>${totalRevenue?overallPct.toFixed(1)+'%':'—'}</strong></td><td></td></tr>`;
+    }
+    if($('fuelEfficiencyCount')) $('fuelEfficiencyCount').textContent=`${fuel.length} tractor${fuel.length===1?'':'s'}`;
+    if($('fuelEfficiencyBars')) $('fuelEfficiencyBars').innerHTML=settlementReportFuelBars(fuel);
+    const ft=$('fuelEfficiencyTable'), totalMiles=fuel.reduce((n,x)=>n+x.miles,0), totalGallons=fuel.reduce((n,x)=>n+x.gallons,0), totalFuelCost=fuel.reduce((n,x)=>n+x.fuelCost,0), fleetMpg=totalGallons>0?totalMiles/totalGallons:null;
+    if(ft){
+      ft.querySelector('thead').innerHTML='<tr><th>Tractor</th><th>Miles</th><th>Fuel Gallons</th><th>Fuel Cost</th><th>MPG</th><th>Status</th></tr>';
+      ft.querySelector('tbody').innerHTML=fuel.length?fuel.map(x=>`<tr class="${x.flag?'report-threshold-row':''}"><td><strong>${escapeHtml(x.tractor)}</strong></td><td>${fmtNum(x.miles)}</td><td>${x.gallons.toFixed(1)}</td><td>${fmtMoney(x.fuelCost)}</td><td><strong>${x.mpg==null?'—':x.mpg.toFixed(2)}</strong></td><td>${x.mpg==null?'<span class="status-pill baseline">No fuel data</span>':x.flag?'<span class="status-pill overdue">Below 7 MPG</span>':'<span class="status-pill ok">7+ MPG</span>'}</td></tr>`).join(''):'<tr><td colspan="6" class="empty-table-cell">No tractor mileage/fuel data in the selected range.</td></tr>';
+      ft.querySelector('tfoot').innerHTML=`<tr><td><strong>Fleet Total</strong></td><td><strong>${fmtNum(totalMiles)}</strong></td><td><strong>${totalGallons.toFixed(1)}</strong></td><td><strong>${fmtMoney(totalFuelCost)}</strong></td><td><strong>${fleetMpg==null?'—':fleetMpg.toFixed(2)}</strong></td><td></td></tr>`;
+    }
+  }
+
   function renderSummary() {
     if(!state.catalog.length) return;
     const latest=state.catalog[0];
@@ -2421,7 +2552,7 @@
   function requestSsnFinanceCode(){
     if(cloudConnected() && !isOwnerAccount()){ showAlert('Full SSN reveal is restricted to the NBL Owner account.','warning'); return Promise.resolve(false); }
     if(!state.finance.configured){
-      showAlert('Create a Finance Access Code first. The same code used for Driver Pay, Settlement, and Revenue Finder protects full SSNs.','warning');
+      showAlert('Create a Finance Access Code first. The same code used for Driver Pay, Settlement, Reports, and Revenue Finder protects full SSNs.','warning');
       openFinanceSecurityModal('financeSecuritySetup'); return Promise.resolve(false);
     }
     return new Promise(resolve=>{
@@ -4957,6 +5088,7 @@
   $('driverSettlementDateSelect').addEventListener('change',e=>selectStatement(e.target.value));
   document.querySelectorAll('[data-settlement-tab]').forEach(btn=>btn.addEventListener('click',()=>setSettlementTab(btn.dataset.settlementTab)));
   $('settlementAnalysisDateSelect')?.addEventListener('change',e=>{state.settlement.analysisStatementId=e.target.value;renderSettlementAnalysis();});
+  $('generateSettlementReportsBtn')?.addEventListener('click',renderSettlementReports);
   $('managePayProfilesBtn')?.addEventListener('click',openPayrollProfilesModal);
   $('addPayrollProfileBtn')?.addEventListener('click',()=>openPayrollProfileEditor($('payrollProfileDriverSelect')?.value));
   $('payrollProfileForm')?.addEventListener('submit',savePayrollProfileFromForm);
