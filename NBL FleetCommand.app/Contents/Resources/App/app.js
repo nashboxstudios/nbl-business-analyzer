@@ -106,7 +106,8 @@
     finance:{configured:false,unlocked:false,config:null,pendingScreen:null,autoLockTimer:null},
     payroll:{version:2,profiles:{},periods:{},dhMappings:{}}, payrollLoaded:false,
     payrollHos:{loading:false,lastPeriodKey:'',lastError:''},
-    reportsCloudRefreshing:false
+    reportsCloudRefreshing:false,
+    dailyDispatchHubOpen:{}
   };
   let maintenanceOdometerLookupSeq=0;
   const $ = id => document.getElementById(id);
@@ -209,7 +210,7 @@
   }
   function settlementSnapshot(){
     return {
-      version:87,
+      version:88,
       currentStatementId:state.currentStatementId||null,
       analysisStatementId:state.settlement?.analysisStatementId||null,
       catalog:(state.catalog||[]).map(x=>({
@@ -327,7 +328,7 @@
     if(!cloudConnected()||!window.NBLCloud||!state.cloud?.organization?.id) return false;
     try{
       const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'85');
-      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'87',updated_at:new Date().toISOString()};
+      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'88',updated_at:new Date().toISOString()};
       state.cloud.hasSnapshotData=true; state.cloud.lastSync=new Date().toISOString(); updateCloudUI();
       return true;
     }catch(err){
@@ -3521,13 +3522,15 @@
     if(selected&&!drivers.some(d=>d.id===selected))html+=`<option value="${escapeHtml(selected)}" selected>Previously assigned driver</option>`; return html;
   }
   function updateDailyDispatchBoardControls(){
-    let declines=0,received=0,accepted=0;
+    let declines=0,received=0,accepted=0;const hubStats={};
     document.querySelectorAll('#dailyDispatchTable tbody tr[data-daily-route-row]').forEach(tr=>{
       const call=tr.querySelector('[data-daily-call]'),status=tr.querySelector('[data-daily-status]'),driver=tr.querySelector('[data-daily-driver]'); if(!call||!status||!driver)return;
       const gotCall=call.value==='received'; status.disabled=!gotCall; if(!gotCall){status.value='';driver.value='';}
       driver.disabled=!gotCall||status.value!=='accepted'; if(status.value!=='accepted')driver.value='';
       if(gotCall)received++;if(status.value==='accepted')accepted++;if(status.value==='declined')declines++;
+      const hub=tr.dataset.routeHub||'Other',stats=hubStats[hub]||(hubStats[hub]={routes:0,received:0,accepted:0,declines:0});stats.routes++;if(gotCall)stats.received++;if(status.value==='accepted')stats.accepted++;if(status.value==='declined')stats.declines++;
     });
+    document.querySelectorAll('[data-daily-hub-toggle]').forEach(btn=>{const stats=hubStats[btn.dataset.dailyHubToggle]||{routes:0,received:0,accepted:0,declines:0},summary=btn.querySelector('[data-daily-hub-summary]');if(summary)summary.textContent=`${stats.received}/${stats.routes} calls • ${stats.accepted} accepted${stats.declines?` • ${stats.declines} decline${stats.declines===1?'':'s'}`:''}`;});
     const rows=document.querySelectorAll('#dailyDispatchTable tbody tr[data-daily-route-row]').length;
     if($('dailyDispatchDeclineCount'))$('dailyDispatchDeclineCount').textContent=String(declines);
     if($('dailyDispatchCards'))$('dailyDispatchCards').innerHTML=[['Routes',fmtNum(rows),''],['Calls Received',fmtNum(received),''],['Accepted',fmtNum(accepted),'success'],['Declines',fmtNum(declines),declines?'danger':'success']].map(x=>`<div class="summary-card ${x[2]}"><span>${x[0]}</span><strong>${x[1]}</strong></div>`).join('');
@@ -3537,7 +3540,7 @@
     $('dailyDispatchTableTitle').textContent=`Routes for ${fmtDate(date)}`;$('dailyDispatchSaveState').textContent=board?.savedAt?`Saved ${new Date(board.savedAt).toLocaleString()}`:'New date • not yet saved';
     table.querySelector('thead').innerHTML='<tr><th>Route</th><th>Call</th><th>Dispatched</th><th>Driver Assigned</th></tr>';
     const groups=new Map();for(const row of rows){const hub=row.hub||'Other';if(!groups.has(hub))groups.set(hub,[]);groups.get(hub).push(row);}const hubs=[...DAILY_DISPATCH_HUBS,...[...groups.keys()].filter(h=>!DAILY_DISPATCH_HUBS.includes(h))];const body=[];
-    for(const hub of hubs){const list=groups.get(hub)||[];if(!list.length)continue;body.push(`<tr class="daily-dispatch-hub-row"><td colspan="4">${escapeHtml(hub)} Hub</td></tr>`);for(const row of list){body.push(`<tr data-daily-route-row data-route-id="${escapeHtml(row.routeId||'')}" data-route-name="${escapeHtml(row.routeName||'')}" data-route-origin="${escapeHtml(row.origin||'')}" data-route-hub="${escapeHtml(hub)}"><td class="daily-dispatch-route" data-label="Route"><strong>${escapeHtml(row.routeName||'Unnamed Route')}</strong><small>${escapeHtml(row.origin||'—')}</small></td><td data-label="Call"><select data-daily-call><option value="not_received" ${row.callStatus!=='received'?'selected':''}>Not Received</option><option value="received" ${row.callStatus==='received'?'selected':''}>Received</option></select></td><td data-label="Dispatched"><select data-daily-status><option value="" ${!row.dispatchStatus?'selected':''}>—</option><option value="accepted" ${row.dispatchStatus==='accepted'?'selected':''}>Accepted</option><option value="declined" ${row.dispatchStatus==='declined'?'selected':''}>Declined</option></select></td><td data-label="Driver Assigned"><select class="daily-driver-select" data-daily-driver>${dailyDispatchDriverOptions(row.driverId||'')}</select></td></tr>`);}}
+    let visibleHubIndex=0;for(const hub of hubs){const list=groups.get(hub)||[];if(!list.length)continue;const stateKey=`${date}|${hub}`,isOpen=state.dailyDispatchHubOpen[stateKey]??visibleHubIndex===0;state.dailyDispatchHubOpen[stateKey]=isOpen;visibleHubIndex++;body.push(`<tr class="daily-dispatch-hub-row"><td colspan="4"><button type="button" class="daily-dispatch-hub-toggle" data-daily-hub-toggle="${escapeHtml(hub)}" data-daily-hub-key="${escapeHtml(stateKey)}" aria-expanded="${isOpen?'true':'false'}"><span><strong>${escapeHtml(hub)} Hub</strong><small data-daily-hub-summary>${list.length} route${list.length===1?'':'s'}</small></span><em aria-hidden="true">${isOpen?'−':'+'}</em></button></td></tr>`);for(const row of list){body.push(`<tr class="${isOpen?'':'daily-hub-collapsed'}" data-daily-hub-route="${escapeHtml(hub)}" data-daily-route-row data-route-id="${escapeHtml(row.routeId||'')}" data-route-name="${escapeHtml(row.routeName||'')}" data-route-origin="${escapeHtml(row.origin||'')}" data-route-hub="${escapeHtml(hub)}"><td class="daily-dispatch-route" data-label="Route"><strong>${escapeHtml(row.routeName||'Unnamed Route')}</strong><small>${escapeHtml(row.origin||'—')}</small></td><td data-label="Call"><select data-daily-call><option value="not_received" ${row.callStatus!=='received'?'selected':''}>Not Received</option><option value="received" ${row.callStatus==='received'?'selected':''}>Received</option></select></td><td data-label="Dispatched"><select data-daily-status><option value="" ${!row.dispatchStatus?'selected':''}>—</option><option value="accepted" ${row.dispatchStatus==='accepted'?'selected':''}>Accepted</option><option value="declined" ${row.dispatchStatus==='declined'?'selected':''}>Declined</option></select></td><td data-label="Driver Assigned"><select class="daily-driver-select" data-daily-driver>${dailyDispatchDriverOptions(row.driverId||'')}</select></td></tr>`);}}
     table.querySelector('tbody').innerHTML=body.join('')||'<tr class="daily-dispatch-empty"><td colspan="4">No routes are available. Add routes in the Weekly Dispatch Planner first.</td></tr>';table.querySelector('tfoot').innerHTML='<tr class="daily-dispatch-decline-row"><td colspan="3">Decline Counter</td><td><span id="dailyDispatchDeclineCount">0</span></td></tr>';
     table.querySelectorAll('select').forEach(el=>el.addEventListener('change',updateDailyDispatchBoardControls));updateDailyDispatchBoardControls();
   }
@@ -5251,6 +5254,7 @@
   $('auditNewForm')?.addEventListener('submit',saveNewAudit);
   $('optimizeDispatchBtn')?.addEventListener('click',optimizeDispatchCoverage);
   $('dailyDispatchDateInput')?.addEventListener('change',renderDailyDispatch);
+  $('dailyDispatchTable')?.addEventListener('click',e=>{const btn=e.target.closest('[data-daily-hub-toggle]');if(!btn)return;const open=btn.getAttribute('aria-expanded')!=='true';btn.setAttribute('aria-expanded',open?'true':'false');const icon=btn.querySelector('em');if(icon)icon.textContent=open?'−':'+';state.dailyDispatchHubOpen[btn.dataset.dailyHubKey]=open;document.querySelectorAll('#dailyDispatchTable [data-daily-hub-route]').forEach(row=>{if(row.dataset.dailyHubRoute===btn.dataset.dailyHubToggle)row.classList.toggle('daily-hub-collapsed',!open);});});
   $('saveDailyDispatchBtn')?.addEventListener('click',saveDailyDispatchBoard);
   $('exportDispatchExcelBtn')?.addEventListener('click',exportDispatchExcel);
   $('exportDispatchPdfBtn')?.addEventListener('click',exportDispatchTeamPdf);

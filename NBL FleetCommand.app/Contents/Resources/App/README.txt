@@ -1,3 +1,11 @@
+NBL FleetCommand — Version 88
+
+- Made Daily Dispatch entry cards more compact on phones.
+- Placed Call and Dispatched controls side by side with Driver Assigned below.
+- Added collapsible hub sections with live route, call, accepted, and decline counts.
+- Opens the first hub by default and keeps the other hubs collapsed for faster access.
+- Deferred the proposed landing dashboard to a future version.
+
 NBL FleetCommand — Version 87
 
 - Added a phone-friendly slide-out navigation drawer with tap-away and Escape closing.
