@@ -6,7 +6,7 @@
   <title>NBL FleetCommand</title>
   <meta name="theme-color" content="#35164E" />
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=90" />
+  <link rel="stylesheet" href="styles.css?v=91" />
 </head>
 <body>
 
@@ -32,7 +32,7 @@
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
         <div class="app-name">NBL FleetCommand</div>
         <div class="app-tagline">Operations Intelligence</div>
-        <div class="app-version">Version 90</div>
+        <div class="app-version">Version 91</div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-group" data-nav-group="operations">
@@ -278,13 +278,21 @@
                 <div class="financial-chart" id="financialProfitChart"></div>
               </div>
               <div class="panel financial-chart-panel">
-                <div class="panel-heading"><div><h2>Cost Ratio Trend</h2><p>Key costs shown as a percentage of Total Income.</p></div></div>
-                <div class="financial-chart" id="financialCostChart"></div>
+                <div class="panel-heading"><div><h2>Payroll &amp; Employee Costs</h2><p>Core payroll and employee-related costs as a percentage of Total Income.</p></div></div>
+                <div class="financial-chart" id="financialPayrollCostChart"></div>
+              </div>
+              <div class="panel financial-chart-panel">
+                <div class="panel-heading"><div><h2>Maintenance Percent</h2><p>Repairs, DEF, and vehicle repairs as a percentage of Total Income.</p></div></div>
+                <div class="financial-chart" id="financialMaintenanceChart"></div>
+              </div>
+              <div class="panel financial-chart-panel">
+                <div class="panel-heading"><div><h2>Fuel Percent</h2><p>Trucking fuel expense as a percentage of Total Income.</p></div></div>
+                <div class="financial-chart" id="financialFuelChart"></div>
               </div>
             </div>
 
-            <div class="panel reports-panel">
-              <div class="panel-heading"><div><h2>Weekly P&amp;L Detail</h2><p>Core payroll includes salaries and payroll deductions only. Employee-related costs remain separate.</p></div><div class="history-count" id="financialPeriodCount"></div></div>
+            <div class="panel reports-panel financial-detail-panel detail-collapsed" id="financialDetailPanel">
+              <div class="panel-heading"><div><h2>Weekly P&amp;L Detail</h2><p>Core payroll includes salaries and payroll deductions only. Employee-related costs remain separate.</p></div><div class="financial-detail-actions"><div class="history-count" id="financialPeriodCount"></div><button class="button secondary" id="toggleFinancialDetailBtn" type="button" aria-expanded="false">Show Weekly Detail</button></div></div>
               <div class="table-wrap"><table id="financialAnalysisTable" class="reports-table financial-analysis-table"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
               <div class="reports-method-note">Employee-related costs include workers’ compensation, employee incentives, and health and accident insurance. Payroll Apps remain an operating expense and are not included in either measure.</div>
             </div>
@@ -1410,8 +1418,8 @@
     </div>
   </div>
 
-  <script src="core.js?v=90"></script>
-  <script src="cloud.js?v=90"></script>
-  <script src="app.js?v=90"></script>
+  <script src="core.js?v=91"></script>
+  <script src="cloud.js?v=91"></script>
+  <script src="app.js?v=91"></script>
 </body>
 </html>

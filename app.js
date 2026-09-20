@@ -211,7 +211,7 @@
   }
   function settlementSnapshot(){
     return {
-      version:90,
+      version:91,
       currentStatementId:state.currentStatementId||null,
       analysisStatementId:state.settlement?.analysisStatementId||null,
       catalog:(state.catalog||[]).map(x=>({
@@ -4034,12 +4034,18 @@
     initializeFinancialPeriods(); const rows=selectedFinancialPeriods(),sum=key=>rows.reduce((n,r)=>n+(Number(r[key])||0),0),income=sum('income'),payroll=sum('payroll'),employee=sum('employeeCosts'),gross=sum('grossProfit'),operating=sum('operatingIncome'),net=sum('netIncome');
     $('financialRangeNote').textContent=rows.length?`${rows.length} week${rows.length===1?'':'s'} selected • ${rows[0].label} through ${rows[rows.length-1].label}`:'No periods selected.';
     $('financialPeriodCount').textContent=`${rows.length} week${rows.length===1?'':'s'}`;
-    $('financialSummaryCards').innerHTML=[['Total Income',fmtMoney(income),''],['Gross Margin',`${financialRatio(gross,income).toFixed(1)}%`,''],['Core Payroll',fmtMoney(payroll),''],['Payroll %',`${financialRatio(payroll,income).toFixed(1)}%`,'accent'],['Employee-Related Costs',fmtMoney(employee),''],['Operating Margin',`${financialRatio(operating,income).toFixed(1)}%`,operating<0?'danger':''],['Net Income',fmtMoney(net),net<0?'danger':'']].map(x=>`<div class="summary-card ${x[2]}"><span>${x[0]}</span><strong>${x[1]}</strong></div>`).join('');
+    $('financialSummaryCards').innerHTML=[['Payroll %',`${financialRatio(payroll,income).toFixed(1)}%`,'accent'],['Maintenance %',`${financialRatio(sum('maintenance'),income).toFixed(1)}%`,''],['Fuel %',`${financialRatio(sum('fuel'),income).toFixed(1)}%`,''],['Operating Income %',`${financialRatio(operating,income).toFixed(1)}%`,operating<0?'danger':'']].map(x=>`<div class="summary-card ${x[2]}"><span>${x[0]}</span><strong>${x[1]}</strong></div>`).join('');
     $('financialProfitChart').innerHTML=financialSvg(rows,[{name:'Total Income',color:'#35164e',get:r=>r.income},{name:'Gross Profit',color:'#248f6b',get:r=>r.grossProfit},{name:'Operating Income',color:'#f15a24',get:r=>r.operatingIncome},{name:'Net Income',color:'#3778b8',get:r=>r.netIncome}]);
-    $('financialCostChart').innerHTML=financialSvg(rows,[{name:'Payroll %',color:'#f15a24',get:r=>financialRatio(r.payroll,r.income)},{name:'Employee Costs %',color:'#8556a5',get:r=>financialRatio(r.employeeCosts,r.income)},{name:'Fuel %',color:'#3778b8',get:r=>financialRatio(r.fuel,r.income)},{name:'Maintenance %',color:'#248f6b',get:r=>financialRatio(r.maintenance,r.income)}],true);
+    $('financialPayrollCostChart').innerHTML=financialSvg(rows,[{name:'Payroll %',color:'#f15a24',get:r=>financialRatio(r.payroll,r.income)},{name:'Employee Costs %',color:'#8556a5',get:r=>financialRatio(r.employeeCosts,r.income)}],true);
+    $('financialMaintenanceChart').innerHTML=financialSvg(rows,[{name:'Maintenance %',color:'#248f6b',get:r=>financialRatio(r.maintenance,r.income)}],true);
+    $('financialFuelChart').innerHTML=financialSvg(rows,[{name:'Fuel %',color:'#3778b8',get:r=>financialRatio(r.fuel,r.income)}],true);
     const table=$('financialAnalysisTable'); table.querySelector('thead').innerHTML='<tr><th>Week</th><th>Total Income</th><th>Gross Profit</th><th>Core Payroll</th><th>Payroll %</th><th>Employee Costs</th><th>Fuel %</th><th>Maintenance %</th><th>Operating Income</th><th>Net Income</th></tr>';
     table.querySelector('tbody').innerHTML=rows.map(r=>`<tr><td><strong>${escapeHtml(r.label)}</strong></td><td>${fmtMoney(r.income)}</td><td>${fmtMoney(r.grossProfit)}</td><td>${fmtMoney(r.payroll)}</td><td><strong>${financialRatio(r.payroll,r.income).toFixed(1)}%</strong></td><td>${fmtMoney(r.employeeCosts)}</td><td>${financialRatio(r.fuel,r.income).toFixed(1)}%</td><td>${financialRatio(r.maintenance,r.income).toFixed(1)}%</td><td class="${r.operatingIncome<0?'financial-negative':''}">${fmtMoney(r.operatingIncome)}</td><td class="${r.netIncome<0?'financial-negative':''}">${fmtMoney(r.netIncome)}</td></tr>`).join('');
     table.querySelector('tfoot').innerHTML=`<tr><td><strong>Selected Total</strong></td><td><strong>${fmtMoney(income)}</strong></td><td><strong>${fmtMoney(gross)}</strong></td><td><strong>${fmtMoney(payroll)}</strong></td><td><strong>${financialRatio(payroll,income).toFixed(1)}%</strong></td><td><strong>${fmtMoney(employee)}</strong></td><td><strong>${financialRatio(sum('fuel'),income).toFixed(1)}%</strong></td><td><strong>${financialRatio(sum('maintenance'),income).toFixed(1)}%</strong></td><td><strong>${fmtMoney(operating)}</strong></td><td><strong>${fmtMoney(net)}</strong></td></tr>`;
+  }
+  function toggleFinancialDetail(){
+    const panel=$('financialDetailPanel'),btn=$('toggleFinancialDetailBtn'); if(!panel||!btn)return;
+    const collapsed=panel.classList.toggle('detail-collapsed'); btn.textContent=collapsed?'Show Weekly Detail':'Hide Weekly Detail'; btn.setAttribute('aria-expanded',collapsed?'false':'true');
   }
   async function importTractorSpreadsheet(file) {
     if(!file) return;
@@ -5327,6 +5333,7 @@
   $('refreshFinancialAnalysisBtn')?.addEventListener('click',renderFinancialAnalysis);
   $('financialStartPeriod')?.addEventListener('change',renderFinancialAnalysis);
   $('financialEndPeriod')?.addEventListener('change',renderFinancialAnalysis);
+  $('toggleFinancialDetailBtn')?.addEventListener('click',toggleFinancialDetail);
   $('unlockFinanceBtn')?.addEventListener('click',()=>openFinanceSecurityModal());
   $('financeSecurityBtn')?.addEventListener('click',()=>openFinanceSecurityModal());
   $('appSettingsBtn')?.addEventListener('click',()=>openModal('appSettingsModal'));
