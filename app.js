@@ -107,7 +107,8 @@
     payroll:{version:2,profiles:{},periods:{},dhMappings:{}}, payrollLoaded:false,
     payrollHos:{loading:false,lastPeriodKey:'',lastError:''},
     reportsCloudRefreshing:false,
-    dailyDispatchHubOpen:{}
+    dailyDispatchHubOpen:{},
+    financialAnalysis:{version:1,fileName:'',importedAt:'',periods:[]}
   };
   let maintenanceOdometerLookupSeq=0;
   const $ = id => document.getElementById(id);
@@ -149,7 +150,7 @@
 
   const CLOUD_MODULES=['hr','driver_pay','maintenance','meetings','audit','dispatch','settlement','ivmr'];
   const CLOUD_MODULE_LABELS={hr:'Recruitment / HR',driver_pay:'Driver Pay',maintenance:'Maintenance',meetings:'Meetings',audit:'Audit',dispatch:'Dispatch',settlement:'Settlement / Revenue Finder',ivmr:'IVMR'};
-  const SCREEN_MODULE_MAP={drivers:'driver_pay',summary:'settlement','settlement-reports':'reports',revenue:'settlement',maintenance:'maintenance',meetings:'meetings',hr:'hr',audit:'audit',dispatch:'dispatch','daily-dispatch':'dispatch',ivmr:'ivmr',motive:'motive'};
+  const SCREEN_MODULE_MAP={drivers:'driver_pay',summary:'settlement','settlement-reports':'reports','financial-analysis':'reports',revenue:'settlement',maintenance:'maintenance',meetings:'meetings',hr:'hr',audit:'audit',dispatch:'dispatch','daily-dispatch':'dispatch',ivmr:'ivmr',motive:'motive'};
   const FINANCE_MODULE_KEYS=new Set(['driver_pay','settlement','revenue','reports']);
   function cloudConnected(){ return !!state.cloud?.connected; }
   function currentRole(){ return String(state.cloud?.membership?.role||'').trim().toLowerCase(); }
@@ -172,7 +173,7 @@
     return moduleKey ? canAccessModuleKey(moduleKey,false) : true;
   }
   function firstAccessibleScreen(){
-    return ['drivers','summary','settlement-reports','revenue','maintenance','meetings','dispatch','audit','ivmr','motive','hr'].find(canAccessScreen)||'motive';
+    return ['drivers','summary','financial-analysis','settlement-reports','revenue','maintenance','meetings','dispatch','audit','ivmr','motive','hr'].find(canAccessScreen)||'motive';
   }
   function applyAccessVisibility(){
     if(!cloudConnected()) return;
@@ -210,7 +211,7 @@
   }
   function settlementSnapshot(){
     return {
-      version:89,
+      version:90,
       currentStatementId:state.currentStatementId||null,
       analysisStatementId:state.settlement?.analysisStatementId||null,
       catalog:(state.catalog||[]).map(x=>({
@@ -599,7 +600,7 @@
   function escapeHtml(s){return String(s==null?'':s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 
 
-  const FINANCE_SCREENS = new Set(['drivers','summary','settlement-reports','revenue']);
+  const FINANCE_SCREENS = new Set(['drivers','summary','settlement-reports','financial-analysis','revenue']);
   function isFinanceScreen(screen){ return FINANCE_SCREENS.has(screen); }
   function randomBytes(n){ const b=new Uint8Array(n); crypto.getRandomValues(b); return b; }
   function bytesToB64url(bytes){
@@ -766,6 +767,7 @@
     $('driversScreen').classList.toggle('hidden',screen!=='drivers' || !hasResult || financeLocked);
     $('summaryScreen').classList.toggle('hidden',screen!=='summary' || !state.catalog.length || financeLocked);
     $('reportsScreen')?.classList.toggle('hidden',screen!=='settlement-reports' || !workspace || financeLocked);
+    $('financialAnalysisScreen')?.classList.toggle('hidden',screen!=='financial-analysis' || financeLocked);
     $('maintenanceScreen').classList.toggle('hidden',screen!=='maintenance' || !workspace);
     $('meetingsScreen').classList.toggle('hidden',screen!=='meetings' || !workspace);
     $('hrScreen')?.classList.toggle('hidden',screen!=='hr' || !workspace);
@@ -777,18 +779,18 @@
     $('ivmrScreen')?.classList.toggle('hidden',screen!=='ivmr' || !workspace);
     $('motiveScreen')?.classList.toggle('hidden',screen!=='motive');
     $('financeLockedState')?.classList.toggle('hidden',!financeLocked);
-    const folderScreen = screen==='maintenance' || screen==='meetings' || screen==='hr' || screen==='users' || screen==='audit' || screen==='settlement-reports' || screen==='revenue' || screen==='dispatch' || screen==='daily-dispatch' || screen==='ivmr' || screen==='motive';
+    const folderScreen = screen==='maintenance' || screen==='meetings' || screen==='hr' || screen==='users' || screen==='audit' || screen==='settlement-reports' || screen==='financial-analysis' || screen==='revenue' || screen==='dispatch' || screen==='daily-dispatch' || screen==='ivmr' || screen==='motive';
     const requiresWorkspace = screen==='maintenance' || screen==='meetings' || screen==='hr' || screen==='audit' || screen==='settlement-reports' || screen==='revenue' || screen==='dispatch' || screen==='daily-dispatch' || screen==='ivmr';
     const needsEmpty = financeLocked ? false : (screen==='users' ? false : (requiresWorkspace ? !workspace : (screen==='motive' ? false : !hasResult)));
     $('emptyState').classList.toggle('hidden',!needsEmpty);
     if(needsEmpty && requiresWorkspace) $('emptyStateText').textContent=cloudConnected()?'This module is connected to NBL Cloud. No cloud data has been uploaded yet. Open Cloud Sync to import your existing local NBL data.':'Sign in to NBL Cloud or choose your local NBL business data folder to begin.';
     if(needsEmpty && (screen==='drivers'||screen==='summary')) $('emptyStateText').textContent=cloudConnected()?'No settlement data is stored in NBL Cloud yet. Open Cloud Sync to import your existing local NBL data, or upload a settlement CSV.':'Choose a data folder and upload a settlement CSV.';
-    const titles={drivers:'Driver Pay',summary:'Settlement','settlement-reports':'Settlement Reports',maintenance:'Maintenance',meetings:'Meetings',hr:'Recruitment',users:'User Access',audit:'Audit',revenue:'Revenue Finder',dispatch:'Weekly Dispatch Planner','daily-dispatch':'Daily Dispatch Board',ivmr:'IVMR',motive:'Motive'};
+    const titles={drivers:'Driver Pay',summary:'Settlement','settlement-reports':'Settlement Reports','financial-analysis':'Financial Analysis',maintenance:'Maintenance',meetings:'Meetings',hr:'Recruitment',users:'User Access',audit:'Audit',revenue:'Revenue Finder',dispatch:'Weekly Dispatch Planner','daily-dispatch':'Daily Dispatch Board',ivmr:'IVMR',motive:'Motive'};
     $('pageTitle').textContent=titles[screen]||'NBL FleetCommand';
     $('saveBtn').classList.toggle('hidden',folderScreen || financeLocked);
     $('exportBtn').classList.toggle('hidden',folderScreen || financeLocked);
-    if($('uploadStatementBtn')) $('uploadStatementBtn').classList.toggle('hidden',(cloudConnected()&&!isOwnerAccount()) || financeLocked);
-    if($('emptyUploadStatementBtn')) $('emptyUploadStatementBtn').classList.toggle('hidden',(cloudConnected()&&!isOwnerAccount()) || financeLocked);
+    if($('uploadStatementBtn')) $('uploadStatementBtn').classList.toggle('hidden',(cloudConnected()&&!isOwnerAccount()) || financeLocked || screen==='financial-analysis');
+    if($('emptyUploadStatementBtn')) $('emptyUploadStatementBtn').classList.toggle('hidden',(cloudConnected()&&!isOwnerAccount()) || financeLocked || screen==='financial-analysis');
     if(financeLocked) $('fileMeta').textContent='Owner-only protected module • Unlock with your Finance Access Code.';
     if(screen==='settlement-reports') {
       $('fileMeta').textContent=workspace ? `${label} • ${state.catalog.length} settlement${state.catalog.length===1?'':'s'} available for reporting` : 'Connect NBL Cloud or choose your local data folder to begin.';
@@ -796,6 +798,10 @@
         initializeSettlementReportDates();
         if(cloudConnected()&&!state.directoryHandle) refreshSettlementReportsFromCloud(false);
       }
+    } else if(screen==='financial-analysis') {
+      const count=state.financialAnalysis?.periods?.length||0;
+      $('fileMeta').textContent=count?`${state.financialAnalysis.fileName||'P&L workbook'} • ${count} weekly period${count===1?'':'s'}`:'Import a weekly QuickBooks P&L workbook to begin.';
+      if(!financeLocked) renderFinancialAnalysis();
     } else if(screen==='maintenance') {
       $('fileMeta').textContent=workspace ? `${label} • ${state.maintenance.tractors.length} tractor${state.maintenance.tractors.length===1?'':'s'} • ${state.catalog.length} settlement${state.catalog.length===1?'':'s'}` : 'Connect NBL Cloud or choose your local data folder to begin.';
       if(workspace) renderMaintenance();
@@ -3923,6 +3929,118 @@
     if(!sheetName) throw new Error('No worksheet was found in the Excel file.');
     return spreadsheetRowsFromXml(xmlText(files.get(sheetName)), files.has('xl/sharedStrings.xml')?xmlText(files.get('xl/sharedStrings.xml')):'');
   }
+
+  function financialColumnIndex(ref){
+    const m=String(ref||'').match(/^([A-Z]+)/i); if(!m) return -1;
+    let n=0; for(const ch of m[1].toUpperCase()) n=n*26+ch.charCodeAt(0)-64; return n-1;
+  }
+  function financialCellGrid(sheetText,sharedText=''){
+    const parser=new DOMParser(), sheet=parser.parseFromString(sheetText,'application/xml'), shared=[];
+    if(sheet.querySelector('parsererror')) throw new Error('Could not parse the P&L worksheet.');
+    if(sharedText){ const sx=parser.parseFromString(sharedText,'application/xml'); for(const si of sx.getElementsByTagName('si')) shared.push([...si.getElementsByTagName('t')].map(t=>t.textContent||'').join('')); }
+    const grid=new Map();
+    for(const c of sheet.getElementsByTagName('c')){
+      const ref=c.getAttribute('r')||'', type=c.getAttribute('t')||'', f=c.getElementsByTagName('f')[0]?.textContent||'';
+      let raw='';
+      if(type==='inlineStr') raw=[...c.getElementsByTagName('t')].map(t=>t.textContent||'').join('');
+      else { const v=c.getElementsByTagName('v')[0]?.textContent||''; raw=type==='s'?(shared[Number(v)]??''):v; }
+      grid.set(ref.toUpperCase(),{raw,formula:f});
+    }
+    return grid;
+  }
+  function financialEvaluateGrid(grid){
+    const memo=new Map(), active=new Set();
+    const evalRef=ref=>{
+      ref=String(ref).toUpperCase().replace(/\$/g,''); if(memo.has(ref)) return memo.get(ref);
+      if(active.has(ref)) return 0; active.add(ref);
+      const cell=grid.get(ref); let out=0;
+      if(cell){
+        const formula=String(cell.formula||'').trim();
+        if(formula){
+          let expr=formula.replace(/SUM\(\$?([A-Z]+)\$?(\d+):\$?([A-Z]+)\$?(\d+)\)/gi,(_,c1,r1,c2,r2)=>{
+            const a=financialColumnIndex(c1),b=financialColumnIndex(c2); let total=0;
+            for(let col=Math.min(a,b);col<=Math.max(a,b);col++) for(let row=Math.min(+r1,+r2);row<=Math.max(+r1,+r2);row++) total+=evalRef(`${financialColumnName(col)}${row}`);
+            return String(total);
+          });
+          expr=expr.replace(/\$?([A-Z]+)\$?(\d+)/gi,(_,c,r)=>String(evalRef(`${c}${r}`)));
+          if(/^[0-9eE+\-*/().\s]+$/.test(expr)){ try{ out=Number(Function(`"use strict";return (${expr})`)())||0; }catch(_){ out=0; } }
+        } else { const n=Number(cell.raw); out=Number.isFinite(n)?n:0; }
+      }
+      active.delete(ref); memo.set(ref,out); return out;
+    };
+    return evalRef;
+  }
+  function financialColumnName(index){ let n=index+1,s=''; while(n){ const r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26); } return s; }
+  async function parseFinancialWorkbook(file){
+    const files=await unzipXlsx(await file.arrayBuffer());
+    const sheetName=[...files.keys()].filter(n=>/^xl\/worksheets\/sheet\d+\.xml$/i.test(n)).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}))[0];
+    if(!sheetName) throw new Error('No worksheet was found in the Excel workbook.');
+    const grid=financialCellGrid(xmlText(files.get(sheetName)),files.has('xl/sharedStrings.xml')?xmlText(files.get('xl/sharedStrings.xml')):'');
+    const rowByLabel=new Map();
+    for(let row=1;row<=250;row++){ const label=String(grid.get(`A${row}`)?.raw||'').trim(); if(label) rowByLabel.set(label.toLowerCase(),row); }
+    const row=(...names)=>{ for(const name of names){ const found=rowByLabel.get(String(name).toLowerCase()); if(found)return found; } return 0; };
+    const required={income:row('Total Income'),gross:row('Gross Profit'),operating:row('Net Operating Income'),net:row('Net Income'),driverSalary:row('Driver Salaries'),managementSalary:row('Management Salaries'),driverDeductions:row('Driver Payroll Deductions'),managementDeductions:row('Management Payroll Deductions')};
+    if(Object.values(required).some(x=>!x)) throw new Error('The workbook does not match the expected Nashbox weekly P&L layout. Required income, profit, salary, or payroll deduction rows are missing.');
+    const rows={...required,incentives:row('Employee Incentives'),health:row('Health insurance & accident plans'),workersComp:row("Workers' compensation insurance"),fuel:row('Trucking - Fuel'),repairsDef:row('Trucking - Repairs/DEF'),vehicleRepairs:row('Trucking - Vehicle Repairs')};
+    const evaluate=financialEvaluateGrid(grid), periods=[];
+    for(let col=1;col<200;col++){
+      const letter=financialColumnName(col), label=String(grid.get(`${letter}5`)?.raw||'').trim();
+      if(!label || /^total$/i.test(label)) continue;
+      const get=key=>rows[key]?evaluate(`${letter}${rows[key]}`):0;
+      const income=get('income'), payroll=get('driverSalary')+get('managementSalary')+get('driverDeductions')+get('managementDeductions');
+      const employeeCosts=get('incentives')+get('health')+get('workersComp'), maintenance=get('repairsDef')+get('vehicleRepairs');
+      periods.push({label,income,grossProfit:get('gross'),operatingIncome:get('operating'),netIncome:get('net'),payroll,employeeCosts,fuel:get('fuel'),maintenance});
+    }
+    if(!periods.length) throw new Error('No weekly reporting periods were found in the workbook.');
+    return {version:1,fileName:file.name,importedAt:new Date().toISOString(),periods};
+  }
+  async function importFinancialWorkbook(file){
+    if(!file)return;
+    try{
+      state.financialAnalysis=await parseFinancialWorkbook(file);
+      try{ localStorage.setItem('nblFinancialAnalysis',JSON.stringify(state.financialAnalysis)); }catch(_){ }
+      initializeFinancialPeriods(); renderFinancialAnalysis(); setScreen('financial-analysis');
+      showAlert(`P&amp;L imported: <strong>${state.financialAnalysis.periods.length} weekly periods</strong> are ready for analysis.`,'success');
+    }catch(err){ console.error(err); showAlert(`Could not import the P&amp;L workbook: ${escapeHtml(err.message||String(err))}`,'error'); }
+  }
+  function loadStoredFinancialAnalysis(){
+    try{ const saved=JSON.parse(localStorage.getItem('nblFinancialAnalysis')||'null'); if(saved&&Array.isArray(saved.periods))state.financialAnalysis=saved; }catch(_){ }
+  }
+  function initializeFinancialPeriods(){
+    const periods=state.financialAnalysis?.periods||[], start=$('financialStartPeriod'),end=$('financialEndPeriod'); if(!start||!end)return;
+    const options=periods.map((p,i)=>`<option value="${i}">${escapeHtml(p.label)}</option>`).join('');
+    if(start.options.length!==periods.length){ start.innerHTML=options;end.innerHTML=options;start.value='0';end.value=String(Math.max(0,periods.length-1)); }
+  }
+  function selectedFinancialPeriods(){
+    const all=state.financialAnalysis?.periods||[]; let a=Number($('financialStartPeriod')?.value||0),b=Number($('financialEndPeriod')?.value||all.length-1);
+    if(a>b)[a,b]=[b,a]; return all.slice(Math.max(0,a),Math.min(all.length-1,b)+1);
+  }
+  function financialRatio(amount,income){ return income?amount/income*100:0; }
+  function financialSvg(rows,series,percent=false){
+    if(!rows.length)return '<div class="analysis-empty">No periods selected.</div>';
+    const width=760,height=270,pad={l:58,r:16,t:24,b:48},values=rows.flatMap(r=>series.map(s=>Number(s.get(r))||0));
+    let min=percent?0:Math.min(0,...values),max=Math.max(percent?10:1,...values); if(max===min)max=min+1;
+    const x=i=>pad.l+(rows.length===1?0.5:i/(rows.length-1))*(width-pad.l-pad.r), y=v=>pad.t+(max-v)/(max-min)*(height-pad.t-pad.b);
+    const grid=[0,.25,.5,.75,1].map(t=>{const v=max-(max-min)*t;return `<line x1="${pad.l}" y1="${y(v)}" x2="${width-pad.r}" y2="${y(v)}" class="chart-grid-line"/><text x="${pad.l-8}" y="${y(v)+4}" text-anchor="end">${percent?v.toFixed(0)+'%':'$'+Math.round(v/1000)+'k'}</text>`}).join('');
+    const lines=series.map(s=>`<polyline class="chart-series" stroke="${s.color}" points="${rows.map((r,i)=>`${x(i)},${y(s.get(r))}`).join(' ')}"/>`).join('');
+    const dots=series.map(s=>rows.map((r,i)=>`<circle cx="${x(i)}" cy="${y(s.get(r))}" r="3" fill="${s.color}"><title>${s.name}: ${percent?(Number(s.get(r))||0).toFixed(1)+'%':fmtMoney(s.get(r))} • ${r.label}</title></circle>`).join('')).join('');
+    const step=Math.max(1,Math.ceil(rows.length/6)),labels=rows.map((r,i)=>(i%step===0||i===rows.length-1)?`<text x="${x(i)}" y="${height-15}" text-anchor="middle">${escapeHtml(r.label.replace(/,\s*\d{4}$/,''))}</text>`:'').join('');
+    const legend=series.map((s,i)=>`<g transform="translate(${pad.l+i*155},12)"><line x1="0" y1="0" x2="18" y2="0" stroke="${s.color}" stroke-width="3"/><text x="24" y="4">${escapeHtml(s.name)}</text></g>`).join('');
+    return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Financial trend chart">${grid}${legend}${lines}${dots}${labels}</svg>`;
+  }
+  function renderFinancialAnalysis(){
+    const all=state.financialAnalysis?.periods||[],empty=$('financialAnalysisEmpty'),body=$('financialAnalysisBody'); if(!empty||!body)return;
+    empty.classList.toggle('hidden',!!all.length);body.classList.toggle('hidden',!all.length);if(!all.length)return;
+    initializeFinancialPeriods(); const rows=selectedFinancialPeriods(),sum=key=>rows.reduce((n,r)=>n+(Number(r[key])||0),0),income=sum('income'),payroll=sum('payroll'),employee=sum('employeeCosts'),gross=sum('grossProfit'),operating=sum('operatingIncome'),net=sum('netIncome');
+    $('financialRangeNote').textContent=rows.length?`${rows.length} week${rows.length===1?'':'s'} selected • ${rows[0].label} through ${rows[rows.length-1].label}`:'No periods selected.';
+    $('financialPeriodCount').textContent=`${rows.length} week${rows.length===1?'':'s'}`;
+    $('financialSummaryCards').innerHTML=[['Total Income',fmtMoney(income),''],['Gross Margin',`${financialRatio(gross,income).toFixed(1)}%`,''],['Core Payroll',fmtMoney(payroll),''],['Payroll %',`${financialRatio(payroll,income).toFixed(1)}%`,'accent'],['Employee-Related Costs',fmtMoney(employee),''],['Operating Margin',`${financialRatio(operating,income).toFixed(1)}%`,operating<0?'danger':''],['Net Income',fmtMoney(net),net<0?'danger':'']].map(x=>`<div class="summary-card ${x[2]}"><span>${x[0]}</span><strong>${x[1]}</strong></div>`).join('');
+    $('financialProfitChart').innerHTML=financialSvg(rows,[{name:'Total Income',color:'#35164e',get:r=>r.income},{name:'Gross Profit',color:'#248f6b',get:r=>r.grossProfit},{name:'Operating Income',color:'#f15a24',get:r=>r.operatingIncome},{name:'Net Income',color:'#3778b8',get:r=>r.netIncome}]);
+    $('financialCostChart').innerHTML=financialSvg(rows,[{name:'Payroll %',color:'#f15a24',get:r=>financialRatio(r.payroll,r.income)},{name:'Employee Costs %',color:'#8556a5',get:r=>financialRatio(r.employeeCosts,r.income)},{name:'Fuel %',color:'#3778b8',get:r=>financialRatio(r.fuel,r.income)},{name:'Maintenance %',color:'#248f6b',get:r=>financialRatio(r.maintenance,r.income)}],true);
+    const table=$('financialAnalysisTable'); table.querySelector('thead').innerHTML='<tr><th>Week</th><th>Total Income</th><th>Gross Profit</th><th>Core Payroll</th><th>Payroll %</th><th>Employee Costs</th><th>Fuel %</th><th>Maintenance %</th><th>Operating Income</th><th>Net Income</th></tr>';
+    table.querySelector('tbody').innerHTML=rows.map(r=>`<tr><td><strong>${escapeHtml(r.label)}</strong></td><td>${fmtMoney(r.income)}</td><td>${fmtMoney(r.grossProfit)}</td><td>${fmtMoney(r.payroll)}</td><td><strong>${financialRatio(r.payroll,r.income).toFixed(1)}%</strong></td><td>${fmtMoney(r.employeeCosts)}</td><td>${financialRatio(r.fuel,r.income).toFixed(1)}%</td><td>${financialRatio(r.maintenance,r.income).toFixed(1)}%</td><td class="${r.operatingIncome<0?'financial-negative':''}">${fmtMoney(r.operatingIncome)}</td><td class="${r.netIncome<0?'financial-negative':''}">${fmtMoney(r.netIncome)}</td></tr>`).join('');
+    table.querySelector('tfoot').innerHTML=`<tr><td><strong>Selected Total</strong></td><td><strong>${fmtMoney(income)}</strong></td><td><strong>${fmtMoney(gross)}</strong></td><td><strong>${fmtMoney(payroll)}</strong></td><td><strong>${financialRatio(payroll,income).toFixed(1)}%</strong></td><td><strong>${fmtMoney(employee)}</strong></td><td><strong>${financialRatio(sum('fuel'),income).toFixed(1)}%</strong></td><td><strong>${financialRatio(sum('maintenance'),income).toFixed(1)}%</strong></td><td><strong>${fmtMoney(operating)}</strong></td><td><strong>${fmtMoney(net)}</strong></td></tr>`;
+  }
   async function importTractorSpreadsheet(file) {
     if(!file) return;
     if(!state.directoryHandle){ showAlert('Choose your NBL business data folder before importing tractors.','warning'); return; }
@@ -5205,6 +5323,10 @@
   $('mobileMenuBtn')?.addEventListener('click',()=>setMobileSidebar(!document.body.classList.contains('mobile-sidebar-open')));
   $('mobileSidebarBackdrop')?.addEventListener('click',()=>setMobileSidebar(false));
   document.querySelectorAll('.nav-btn').forEach(b=>b.addEventListener('click',()=>{ requestScreen(b.dataset.screen); setMobileSidebar(false); }));
+  $('financialPlInput')?.addEventListener('change',e=>{ const file=e.target.files?.[0]; e.target.value=''; importFinancialWorkbook(file); });
+  $('refreshFinancialAnalysisBtn')?.addEventListener('click',renderFinancialAnalysis);
+  $('financialStartPeriod')?.addEventListener('change',renderFinancialAnalysis);
+  $('financialEndPeriod')?.addEventListener('change',renderFinancialAnalysis);
   $('unlockFinanceBtn')?.addEventListener('click',()=>openFinanceSecurityModal());
   $('financeSecurityBtn')?.addEventListener('click',()=>openFinanceSecurityModal());
   $('appSettingsBtn')?.addEventListener('click',()=>openModal('appSettingsModal'));
@@ -5432,6 +5554,7 @@
   ['pointerdown','keydown'].forEach(evt=>document.addEventListener(evt,noteFinanceActivity,{passive:true}));
 
   async function initApp(){
+    loadStoredFinancialAnalysis();
     loadIvmrEntitySettings();
     setIvmrDefaultDates();
     updateMaintenanceScope();

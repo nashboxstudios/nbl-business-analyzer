@@ -1,3 +1,16 @@
+NBL FleetCommand — Version 90
+
+Version 90 - Financial Analysis
+--------------------------------
+- Added a locked Financial Analysis module under Finance.
+- Imports the weekly QuickBooks Profit and Loss by Month .xlsx workbook.
+- Core Payroll is limited to driver and management salaries plus their payroll deductions.
+- Workers' compensation, employee incentives, and health/accident insurance are shown separately as Employee-Related Costs.
+- Payroll Apps remain a separate operating expense and are excluded from both measures.
+- Added selectable start/end weeks, seven owner-level summary metrics, responsive profitability and cost-ratio trend charts, and weekly detail.
+- The imported analysis is retained in the current browser for future review.
+
+
 NBL FleetCommand — Version 89
 
 - Changed Daily Dispatch route entry cards to a single-column phone layout.
