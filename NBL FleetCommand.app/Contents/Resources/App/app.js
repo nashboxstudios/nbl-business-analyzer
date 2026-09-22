@@ -236,7 +236,7 @@
         }
       }
     }
-    return {version:94,mileage,updatedAt:new Date().toISOString()};
+    return {version:96,mileage,updatedAt:new Date().toISOString()};
   }
   function normalizeCloudSettlementCatalog(data){
     const ss=data&&typeof data==='object'?data:{};
@@ -350,12 +350,12 @@
   async function saveCloudModule(moduleKey,silent=true){
     if(!cloudConnected()||!window.NBLCloud||!state.cloud?.organization?.id) return false;
     try{
-      const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'94');
-      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'94',updated_at:new Date().toISOString()};
+      const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'96');
+      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'96',updated_at:new Date().toISOString()};
       if(moduleKey==='settlement'){
         const dashboardData=dashboardMileageSnapshot();
-        const dashboardRow=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,'dashboard',dashboardData,'94');
-        state.cloud.snapshots.dashboard=dashboardRow||{module_key:'dashboard',data:dashboardData,source_version:'94',updated_at:new Date().toISOString()};
+        const dashboardRow=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,'dashboard',dashboardData,'96');
+        state.cloud.snapshots.dashboard=dashboardRow||{module_key:'dashboard',data:dashboardData,source_version:'96',updated_at:new Date().toISOString()};
         state.dashboard.mileage=dashboardData.mileage;
       }
       state.cloud.hasSnapshotData=true; state.cloud.lastSync=new Date().toISOString(); updateCloudUI();
@@ -3418,7 +3418,9 @@
   function dispatchDriver(driverId){ return (state.dispatch.drivers||[]).find(d=>d.id===driverId); }
   function dispatchDriverIsActive(driver){ return !!driver && driver.active!==false; }
   function dispatchDriverLocationId(driver){ const ids=new Set(dispatchLocations().map(l=>l.id)); return driver&&ids.has(driver.locationId)?driver.locationId:dispatchLocations()[0]?.id||'nashville'; }
-  function dispatchDriversForLocation(_locationId=dispatchActiveLocationId()){ return (state.dispatch.drivers||[]).filter(dispatchDriverIsActive); }
+  function dispatchDriversForLocation(locationId=dispatchActiveLocationId()){
+    return (state.dispatch.drivers||[]).filter(d=>dispatchDriverIsActive(d)&&dispatchDriverLocationId(d)===locationId);
+  }
   function dispatchDriverLocationName(driver){ return dispatchLocations().find(l=>l.id===dispatchDriverLocationId(driver))?.name||'Unassigned'; }
   function dispatchTractors(){ return Array.isArray(state.dispatch?.tractors)?state.dispatch.tractors:[]; }
   function dispatchTractor(tractorId){ return dispatchTractors().find(t=>t.id===tractorId); }
@@ -3751,22 +3753,50 @@
     return location||'Other';
   }
   function dailyDispatchDefaultRows(){
-    return (state.dispatch.runs||[]).map(run=>{const assigned=run.type==='assigned';return {routeId:run.id,routeName:run.name||'Unnamed Route',origin:run.origin||'',hub:dailyDispatchHub(run),callStatus:assigned?'received':'not_received',dispatchStatus:assigned?'accepted':'',driverId:assigned?(run.primaryDriverId||''):''};});
+    return (state.dispatch.runs||[]).map(run=>{const assigned=run.type==='assigned';return {routeId:run.id,routeName:run.name||'Unnamed Route',origin:run.origin||'',hub:dailyDispatchHub(run),callStatus:assigned?'received':'not_received',dispatchStatus:assigned?'accepted':'',driverId:assigned?(run.primaryDriverId||''):'',refusals:[],declineReason:'',declineDriverId:'',declineDriverName:'',declineTractorId:'',declineTractorNumber:'',declineOther:''};});
   }
   function dailyDispatchRows(date){
-    const saved=state.dispatch.dailyBoards?.[date]; return saved&&Array.isArray(saved.rows)?saved.rows:dailyDispatchDefaultRows();
+    const saved=state.dispatch.dailyBoards?.[date],rows=saved&&Array.isArray(saved.rows)?saved.rows:dailyDispatchDefaultRows();
+    return rows.map(r=>({...r,refusals:Array.isArray(r.refusals)?r.refusals:[],declineReason:r.declineReason||'',declineDriverId:r.declineDriverId||'',declineDriverName:r.declineDriverName||'',declineTractorId:r.declineTractorId||'',declineTractorNumber:r.declineTractorNumber||'',declineOther:r.declineOther||''}));
   }
   function dailyDispatchDriverOptions(selected=''){
     const drivers=(state.dispatch.drivers||[]).filter(dispatchDriverIsActive).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
     let html='<option value="">Select driver…</option>'+drivers.map(d=>`<option value="${escapeHtml(d.id)}" ${d.id===selected?'selected':''}>${escapeHtml(d.name)}${d.fedexId?` • ${escapeHtml(d.fedexId)}`:''}</option>`).join('');
     if(selected&&!drivers.some(d=>d.id===selected)){const prior=dispatchDriver(selected);html+=`<option value="${escapeHtml(selected)}" selected>${escapeHtml(prior?.name||'Previously assigned driver')} • inactive</option>`;} return html;
   }
+  function dailyDispatchTractorOptions(selected=''){
+    const tractors=dispatchTractors().slice().sort((a,b)=>String(a.tractorNumber||'').localeCompare(String(b.tractorNumber||''),undefined,{numeric:true}));
+    let html='<option value="">Select tractor…</option>'+tractors.map(t=>`<option value="${escapeHtml(t.id)}" ${t.id===selected?'selected':''}>Tractor ${escapeHtml(t.tractorNumber||'—')}</option>`).join('');
+    if(selected&&!tractors.some(t=>t.id===selected))html+=`<option value="${escapeHtml(selected)}" selected>Previously recorded tractor</option>`;return html;
+  }
+  function dailyRefusalChips(refusals=[]){
+    return refusals.length?`<div class="daily-refusal-list"><span>Refused:</span>${refusals.map((r,i)=>`<button type="button" class="daily-refusal-chip" data-daily-remove-refusal="${i}" title="Remove refusal">${escapeHtml(r.driverName||dispatchDriver(r.driverId)?.name||'Driver')}${r.note?` <small>• ${escapeHtml(r.note)}</small>`:''}<b>×</b></button>`).join('')}</div>`:'';
+  }
+  function dailyDispatchOutcomeHtml(row){
+    const refusals=Array.isArray(row.refusals)?row.refusals:[],encoded=encodeURIComponent(JSON.stringify(refusals));
+    return `<div class="daily-outcome" data-daily-refusals="${escapeHtml(encoded)}"><div class="daily-assigned-driver"><select class="daily-driver-select" data-daily-driver>${dailyDispatchDriverOptions(row.driverId||'')}</select></div><button type="button" class="daily-refusal-add" data-daily-add-refusal>+ Record Refusal</button><div data-daily-refusal-chips>${dailyRefusalChips(refusals)}</div><div class="daily-decline-details ${row.dispatchStatus==='declined'?'':'hidden'}" data-daily-decline-details><label>Decline Reason<select data-daily-decline-reason><option value="">Select reason…</option><option value="driver_unavailable" ${row.declineReason==='driver_unavailable'?'selected':''}>Driver Unavailable</option><option value="truck_unavailable" ${row.declineReason==='truck_unavailable'?'selected':''}>Truck Unavailable</option><option value="other" ${row.declineReason==='other'?'selected':''}>Other</option></select></label><label class="daily-decline-conditional ${row.declineReason==='driver_unavailable'?'':'hidden'}" data-daily-decline-driver-wrap>Unavailable Driver<select data-daily-decline-driver>${dailyDispatchDriverOptions(row.declineDriverId||'')}</select></label><label class="daily-decline-conditional ${row.declineReason==='truck_unavailable'?'':'hidden'}" data-daily-decline-tractor-wrap>Unavailable Tractor<select data-daily-decline-tractor>${dailyDispatchTractorOptions(row.declineTractorId||'')}</select></label><label class="daily-decline-conditional ${row.declineReason==='other'?'':'hidden'}" data-daily-decline-other-wrap>Explanation<input data-daily-decline-other maxlength="160" value="${escapeHtml(row.declineOther||'')}" placeholder="Brief reason"></label></div></div>`;
+  }
+  function dailyDispatchRefusalsFromRow(tr){
+    try{return JSON.parse(decodeURIComponent(tr.querySelector('[data-daily-refusals]')?.dataset.dailyRefusals||'%5B%5D'));}catch(_){return [];}
+  }
+  function setDailyDispatchRefusals(tr,refusals){
+    const outcome=tr.querySelector('[data-daily-refusals]');if(!outcome)return;outcome.dataset.dailyRefusals=encodeURIComponent(JSON.stringify(refusals||[]));const chips=tr.querySelector('[data-daily-refusal-chips]');if(chips)chips.innerHTML=dailyRefusalChips(refusals||[]);
+  }
+  function openDailyRefusalModal(tr){
+    if(!tr||tr.querySelector('[data-daily-call]')?.value!=='received')return;
+    $('dailyRefusalRouteId').value=tr.dataset.routeId||'';$('dailyRefusalRouteName').textContent=tr.dataset.routeName||'Route';$('dailyRefusalDriverInput').innerHTML=dailyDispatchDriverOptions('');$('dailyRefusalNoteInput').value='';openModal('dailyRefusalModal');
+  }
+  function saveDailyRefusalFromForm(e){
+    e.preventDefault();const routeId=$('dailyRefusalRouteId').value,driverId=$('dailyRefusalDriverInput').value,tr=[...document.querySelectorAll('#dailyDispatchTable [data-daily-route-row]')].find(x=>x.dataset.routeId===routeId);if(!tr||!driverId)return;const refusals=dailyDispatchRefusalsFromRow(tr),driver=dispatchDriver(driverId);if(refusals.some(r=>r.driverId===driverId)){showAlert(`${escapeHtml(driver?.name||'That driver')} is already recorded as refusing this route.`,'warning');return;}refusals.push({driverId,driverName:driver?.name||$('dailyRefusalDriverInput').selectedOptions[0]?.textContent||'Driver',note:$('dailyRefusalNoteInput').value.trim(),recordedAt:new Date().toISOString()});setDailyDispatchRefusals(tr,refusals);closeModal('dailyRefusalModal');
+  }
   function updateDailyDispatchBoardControls(){
     let declines=0,received=0,accepted=0;const hubStats={};
     document.querySelectorAll('#dailyDispatchTable tbody tr[data-daily-route-row]').forEach(tr=>{
-      const call=tr.querySelector('[data-daily-call]'),status=tr.querySelector('[data-daily-status]'),driver=tr.querySelector('[data-daily-driver]'); if(!call||!status||!driver)return;
-      const gotCall=call.value==='received'; status.disabled=!gotCall; if(!gotCall){status.value='';driver.value='';}
-      driver.disabled=!gotCall||status.value!=='accepted'; if(status.value!=='accepted')driver.value='';
+      const call=tr.querySelector('[data-daily-call]'),status=tr.querySelector('[data-daily-status]'),driver=tr.querySelector('[data-daily-driver]'),addRefusal=tr.querySelector('[data-daily-add-refusal]'),details=tr.querySelector('[data-daily-decline-details]'),reason=tr.querySelector('[data-daily-decline-reason]'); if(!call||!status||!driver)return;
+      const gotCall=call.value==='received'; status.disabled=!gotCall;if(addRefusal)addRefusal.disabled=!gotCall;if(!gotCall){status.value='';driver.value='';setDailyDispatchRefusals(tr,[]);}
+      const declined=gotCall&&status.value==='declined',isAccepted=gotCall&&status.value==='accepted';driver.disabled=!isAccepted;if(!isAccepted)driver.value='';details?.classList.toggle('hidden',!declined);
+      if(!declined&&reason){reason.value='';for(const el of tr.querySelectorAll('[data-daily-decline-driver],[data-daily-decline-tractor],[data-daily-decline-other]'))el.value='';}
+      const declineReason=declined?(reason?.value||''):'';tr.querySelector('[data-daily-decline-driver-wrap]')?.classList.toggle('hidden',declineReason!=='driver_unavailable');tr.querySelector('[data-daily-decline-tractor-wrap]')?.classList.toggle('hidden',declineReason!=='truck_unavailable');tr.querySelector('[data-daily-decline-other-wrap]')?.classList.toggle('hidden',declineReason!=='other');
       if(gotCall)received++;if(status.value==='accepted')accepted++;if(status.value==='declined')declines++;
       const hub=tr.dataset.routeHub||'Other',stats=hubStats[hub]||(hubStats[hub]={routes:0,received:0,accepted:0,declines:0});stats.routes++;if(gotCall)stats.received++;if(status.value==='accepted')stats.accepted++;if(status.value==='declined')stats.declines++;
     });
@@ -3778,15 +3808,16 @@
   function renderDailyDispatch(){
     const table=$('dailyDispatchTable'),dateInput=$('dailyDispatchDateInput');if(!table||!dateInput)return;if(!dateInput.value)dateInput.value=todayIso();const date=dateInput.value,board=state.dispatch.dailyBoards?.[date],rows=dailyDispatchRows(date);
     $('dailyDispatchTableTitle').textContent=`Routes for ${fmtDate(date)}`;$('dailyDispatchSaveState').textContent=board?.savedAt?`Saved ${new Date(board.savedAt).toLocaleString()}`:'New date • not yet saved';
-    table.querySelector('thead').innerHTML='<tr><th>Route</th><th>Call</th><th>Dispatched</th><th>Driver Assigned</th></tr>';
+    table.querySelector('thead').innerHTML='<tr><th>Route</th><th>Call</th><th>Dispatched</th><th>Assignment / Outcome</th></tr>';
     const groups=new Map();for(const row of rows){const hub=row.hub||'Other';if(!groups.has(hub))groups.set(hub,[]);groups.get(hub).push(row);}const hubs=[...DAILY_DISPATCH_HUBS,...[...groups.keys()].filter(h=>!DAILY_DISPATCH_HUBS.includes(h))];const body=[];
-    let visibleHubIndex=0;for(const hub of hubs){const list=groups.get(hub)||[];if(!list.length)continue;const stateKey=`${date}|${hub}`,isOpen=state.dailyDispatchHubOpen[stateKey]??visibleHubIndex===0;state.dailyDispatchHubOpen[stateKey]=isOpen;visibleHubIndex++;body.push(`<tr class="daily-dispatch-hub-row"><td colspan="4"><button type="button" class="daily-dispatch-hub-toggle" data-daily-hub-toggle="${escapeHtml(hub)}" data-daily-hub-key="${escapeHtml(stateKey)}" aria-expanded="${isOpen?'true':'false'}"><span><strong>${escapeHtml(hub)} Hub</strong><small data-daily-hub-summary>${list.length} route${list.length===1?'':'s'}</small></span><em aria-hidden="true">${isOpen?'−':'+'}</em></button></td></tr>`);for(const row of list){body.push(`<tr class="${isOpen?'':'daily-hub-collapsed'}" data-daily-hub-route="${escapeHtml(hub)}" data-daily-route-row data-route-id="${escapeHtml(row.routeId||'')}" data-route-name="${escapeHtml(row.routeName||'')}" data-route-origin="${escapeHtml(row.origin||'')}" data-route-hub="${escapeHtml(hub)}"><td class="daily-dispatch-route" data-label="Route"><strong>${escapeHtml(row.routeName||'Unnamed Route')}</strong><small>${escapeHtml(row.origin||'—')}</small></td><td data-label="Call"><select data-daily-call><option value="not_received" ${row.callStatus!=='received'?'selected':''}>Not Received</option><option value="received" ${row.callStatus==='received'?'selected':''}>Received</option></select></td><td data-label="Dispatched"><select data-daily-status><option value="" ${!row.dispatchStatus?'selected':''}>—</option><option value="accepted" ${row.dispatchStatus==='accepted'?'selected':''}>Accepted</option><option value="declined" ${row.dispatchStatus==='declined'?'selected':''}>Declined</option></select></td><td data-label="Driver Assigned"><select class="daily-driver-select" data-daily-driver>${dailyDispatchDriverOptions(row.driverId||'')}</select></td></tr>`);}}
+    let visibleHubIndex=0;for(const hub of hubs){const list=groups.get(hub)||[];if(!list.length)continue;const stateKey=`${date}|${hub}`,isOpen=state.dailyDispatchHubOpen[stateKey]??visibleHubIndex===0;state.dailyDispatchHubOpen[stateKey]=isOpen;visibleHubIndex++;body.push(`<tr class="daily-dispatch-hub-row"><td colspan="4"><button type="button" class="daily-dispatch-hub-toggle" data-daily-hub-toggle="${escapeHtml(hub)}" data-daily-hub-key="${escapeHtml(stateKey)}" aria-expanded="${isOpen?'true':'false'}"><span><strong>${escapeHtml(hub)} Hub</strong><small data-daily-hub-summary>${list.length} route${list.length===1?'':'s'}</small></span><em aria-hidden="true">${isOpen?'−':'+'}</em></button></td></tr>`);for(const row of list){body.push(`<tr class="${isOpen?'':'daily-hub-collapsed'}" data-daily-hub-route="${escapeHtml(hub)}" data-daily-route-row data-route-id="${escapeHtml(row.routeId||'')}" data-route-name="${escapeHtml(row.routeName||'')}" data-route-origin="${escapeHtml(row.origin||'')}" data-route-hub="${escapeHtml(hub)}"><td class="daily-dispatch-route" data-label="Route"><strong>${escapeHtml(row.routeName||'Unnamed Route')}</strong><small>${escapeHtml(row.origin||'—')}</small></td><td data-label="Call"><select data-daily-call><option value="not_received" ${row.callStatus!=='received'?'selected':''}>Not Received</option><option value="received" ${row.callStatus==='received'?'selected':''}>Received</option></select></td><td data-label="Dispatched"><select data-daily-status><option value="" ${!row.dispatchStatus?'selected':''}>—</option><option value="accepted" ${row.dispatchStatus==='accepted'?'selected':''}>Accepted</option><option value="declined" ${row.dispatchStatus==='declined'?'selected':''}>Declined</option></select></td><td data-label="Assignment / Outcome">${dailyDispatchOutcomeHtml(row)}</td></tr>`);}}
     table.querySelector('tbody').innerHTML=body.join('')||'<tr class="daily-dispatch-empty"><td colspan="4">No routes are available. Add routes in the Weekly Dispatch Planner first.</td></tr>';table.querySelector('tfoot').innerHTML='<tr class="daily-dispatch-decline-row"><td colspan="3">Decline Counter</td><td><span id="dailyDispatchDeclineCount">0</span></td></tr>';
     table.querySelectorAll('select').forEach(el=>el.addEventListener('change',updateDailyDispatchBoardControls));updateDailyDispatchBoardControls();
   }
   async function saveDailyDispatchBoard(){
-    const date=$('dailyDispatchDateInput')?.value;if(!date){showAlert('Select a dispatch date.','warning');return;}const rows=[...document.querySelectorAll('#dailyDispatchTable tbody tr[data-daily-route-row]')].map(tr=>({routeId:tr.dataset.routeId,routeName:tr.dataset.routeName,origin:tr.dataset.routeOrigin,hub:tr.dataset.routeHub,callStatus:tr.querySelector('[data-daily-call]').value,dispatchStatus:tr.querySelector('[data-daily-status]').value,driverId:tr.querySelector('[data-daily-driver]').value}));
+    const date=$('dailyDispatchDateInput')?.value;if(!date){showAlert('Select a dispatch date.','warning');return;}const rows=[...document.querySelectorAll('#dailyDispatchTable tbody tr[data-daily-route-row]')].map(tr=>{const driverId=tr.querySelector('[data-daily-driver]').value,declineDriverId=tr.querySelector('[data-daily-decline-driver]')?.value||'',declineTractorId=tr.querySelector('[data-daily-decline-tractor]')?.value||'';return {routeId:tr.dataset.routeId,routeName:tr.dataset.routeName,origin:tr.dataset.routeOrigin,hub:tr.dataset.routeHub,callStatus:tr.querySelector('[data-daily-call]').value,dispatchStatus:tr.querySelector('[data-daily-status]').value,driverId,driverName:dispatchDriver(driverId)?.name||'',refusals:dailyDispatchRefusalsFromRow(tr),declineReason:tr.querySelector('[data-daily-decline-reason]')?.value||'',declineDriverId,declineDriverName:dispatchDriver(declineDriverId)?.name||'',declineTractorId,declineTractorNumber:dispatchTractor(declineTractorId)?.tractorNumber||'',declineOther:tr.querySelector('[data-daily-decline-other]')?.value.trim()||''};});
     const missing=rows.filter(r=>r.dispatchStatus==='accepted'&&!r.driverId);if(missing.length){showAlert(`Assign a driver to every accepted route. ${missing.length} accepted route${missing.length===1?' is':'s are'} missing a driver.`,'warning');return;}
+    const incomplete=rows.filter(r=>r.dispatchStatus==='declined'&&(!r.declineReason||(r.declineReason==='driver_unavailable'&&!r.declineDriverId)||(r.declineReason==='truck_unavailable'&&!r.declineTractorId)||(r.declineReason==='other'&&!r.declineOther)));if(incomplete.length){showAlert(`Complete the decline reason and required detail for ${incomplete.length} declined route${incomplete.length===1?'':'s'}.`,'warning');return;}
     state.dispatch.dailyBoards={...(state.dispatch.dailyBoards||{}),[date]:{date,rows,savedAt:new Date().toISOString()}};await saveDispatchData(true);renderDailyDispatch();setScreen('daily-dispatch');const declines=rows.filter(r=>r.dispatchStatus==='declined').length;showAlert(`Daily dispatch saved for <strong>${fmtDate(date)}</strong> • ${declines} decline${declines===1?'':'s'}.`,'success');
   }
   function exportDispatchExcel(){const subset=dispatchSubsetForActiveLocation();if(!subset.runs.length){showAlert('There are no runs at this location to export.','warning');return;}try{const safe=dispatchActiveLocationName().replace(/[^a-z0-9]+/gi,'_').replace(/^_|_$/g,'');const name=`NBL_${safe}_Team_Run_Coverage_${todayIso()}.xlsx`;downloadBlob(Core.makeDispatchXlsx(subset,DISPATCH_DAYS),name,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');showAlert(`${escapeHtml(dispatchActiveLocationName())} team run coverage workbook exported. Financial information is excluded.`,'success');}catch(err){console.error(err);showAlert('Could not export the team run coverage workbook: '+err.message,'error');}}
@@ -5631,7 +5662,8 @@
   $('auditNewForm')?.addEventListener('submit',saveNewAudit);
   $('optimizeDispatchBtn')?.addEventListener('click',optimizeDispatchCoverage);
   $('dailyDispatchDateInput')?.addEventListener('change',renderDailyDispatch);
-  $('dailyDispatchTable')?.addEventListener('click',e=>{const btn=e.target.closest('[data-daily-hub-toggle]');if(!btn)return;const open=btn.getAttribute('aria-expanded')!=='true';btn.setAttribute('aria-expanded',open?'true':'false');const icon=btn.querySelector('em');if(icon)icon.textContent=open?'−':'+';state.dailyDispatchHubOpen[btn.dataset.dailyHubKey]=open;document.querySelectorAll('#dailyDispatchTable [data-daily-hub-route]').forEach(row=>{if(row.dataset.dailyHubRoute===btn.dataset.dailyHubToggle)row.classList.toggle('daily-hub-collapsed',!open);});});
+  $('dailyDispatchTable')?.addEventListener('click',e=>{const add=e.target.closest('[data-daily-add-refusal]');if(add){openDailyRefusalModal(add.closest('[data-daily-route-row]'));return;}const remove=e.target.closest('[data-daily-remove-refusal]');if(remove){const tr=remove.closest('[data-daily-route-row]'),refusals=dailyDispatchRefusalsFromRow(tr);refusals.splice(Number(remove.dataset.dailyRemoveRefusal),1);setDailyDispatchRefusals(tr,refusals);return;}const btn=e.target.closest('[data-daily-hub-toggle]');if(!btn)return;const open=btn.getAttribute('aria-expanded')!=='true';btn.setAttribute('aria-expanded',open?'true':'false');const icon=btn.querySelector('em');if(icon)icon.textContent=open?'−':'+';state.dailyDispatchHubOpen[btn.dataset.dailyHubKey]=open;document.querySelectorAll('#dailyDispatchTable [data-daily-hub-route]').forEach(row=>{if(row.dataset.dailyHubRoute===btn.dataset.dailyHubToggle)row.classList.toggle('daily-hub-collapsed',!open);});});
+  $('dailyRefusalForm')?.addEventListener('submit',saveDailyRefusalFromForm);
   $('saveDailyDispatchBtn')?.addEventListener('click',saveDailyDispatchBoard);
   $('exportDispatchExcelBtn')?.addEventListener('click',exportDispatchExcel);
   $('exportDispatchPdfBtn')?.addEventListener('click',exportDispatchTeamPdf);

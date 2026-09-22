@@ -1,3 +1,24 @@
+NBL FleetCommand — Version 96
+
+Version 96 - Daily Dispatch Outcomes and Driver Refusals
+
+- Added a compact Record Refusal action to each Daily Dispatch route so one or more drivers who refused can be recorded independently of the final route outcome.
+- Added conditional decline reasons: Driver Unavailable, Truck Unavailable, and Other.
+- Captures the unavailable driver's name, unavailable tractor number, or a brief explanation only when the selected decline reason requires it.
+- Validates decline details and accepted-route assignments before saving the board.
+- Saves driver and tractor snapshots with the board so historical records remain understandable if the active roster later changes.
+- Keeps the phone layout compact by hiding outcome details until they are needed.
+
+NBL FleetCommand — Version 95
+
+Version 95 - Station-Specific Weekly Driver Pool
+-------------------------------------------------
+- Weekly Dispatch Planner now shows only active drivers assigned to the selected dispatch station.
+- Nashville, Spartanburg, and Marietta driver pools remain separate when switching locations.
+- The shared roster synchronization from Motive, Recruitment, and settlements remains in place.
+- Daily Dispatch continues to use the complete active driver roster, while historical assignments remain unchanged.
+
+
 NBL FleetCommand — Version 94
 
 Version 94 - Shared Active Driver Roster
