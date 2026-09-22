@@ -93,7 +93,7 @@
   let state = {
     result:null, file:null, rawBytes:null, rawText:'', directoryHandle:null,
     catalog:[], currentStatementId:null, currentScreen:'drivers', autosaveTimer:null,
-    settlement:{activeTab:'summary',analysisStatementId:null},
+    settlement:{activeTab:'summary',analysisStatementId:null,duplicates:[]},
     maintenance:{version:2,tractors:[],records:[]}, maintenanceLoaded:false, lastMmrPdf:null,
     meetings:defaultMeetingData(), meetingsLoaded:false,
     hr:defaultHrData(), hrLoaded:false, recruitmentSearch:'', recruitmentStatusFilter:'', recruitmentSort:{key:'',dir:'asc'}, hrSsn:{draftFull:'',legacyLast4:'',revealed:false,existingCandidate:false,accessResolver:null}, hrApplicationMismatch:{resolver:null},
@@ -210,12 +210,16 @@
     return data;
   }
   function settlementSnapshot(){
+    const all=[],seen=new Set();
+    for(const item of [...(state.catalog||[]),...(state.settlement?.duplicates||[]).map(x=>x.item).filter(Boolean)]){
+      const key=String(item.id||item.relativePath||`${item.settlementDate}:${item.fingerprint||settlementFingerprint(item.result)}`);if(seen.has(key))continue;seen.add(key);all.push(item);
+    }
     return {
-      version:91,
+      version:92,
       currentStatementId:state.currentStatementId||null,
       analysisStatementId:state.settlement?.analysisStatementId||null,
-      catalog:(state.catalog||[]).map(x=>({
-        id:x.id,relativePath:x.relativePath||x.id,fileName:x.fileName||'',settlementDate:x.settlementDate||'',payDate:x.payDate||'',result:cloneJson(x.result||{})
+      catalog:all.map(x=>({
+        id:x.id,relativePath:x.relativePath||x.id,fileName:x.fileName||'',settlementDate:x.settlementDate||'',payDate:x.payDate||'',fingerprint:x.fingerprint||settlementFingerprint(x.result),result:cloneJson(x.result||{})
       })),
       updatedAt:new Date().toISOString()
     };
@@ -236,7 +240,7 @@
         payDate:ss.payDate||result.summary?.payDate||'',result
       }];
     }
-    return source.map((entry,index)=>{
+    source=source.map((entry,index)=>{
       const result=cloneJson(entry?.result||entry?.analysis||entry?.data||{});
       result.summary ||= {};
       const settlementDate=String(entry?.settlementDate||result.summary.settlementDate||'');
@@ -244,9 +248,12 @@
       result.summary.settlementDate=settlementDate;
       result.summary.payDate=payDate;
       const id=String(entry?.id||entry?.relativePath||`cloud/settlement-${settlementDate||index+1}`);
-      return {...entry,id,relativePath:entry?.relativePath||id,fileName:entry?.fileName||entry?.name||'Cloud settlement',settlementDate,payDate,result,file:null,rawBytes:null,rawText:''};
+      return {...entry,id,relativePath:entry?.relativePath||id,fileName:entry?.fileName||entry?.name||'Cloud settlement',settlementDate,payDate,fingerprint:String(entry?.fingerprint||settlementFingerprint(result)),file:null,rawBytes:null,rawText:'',lastModified:Number(entry?.lastModified)||0};
     }).filter(x=>x.result&&typeof x.result==='object')
       .sort((a,b)=>String(b.settlementDate||'').localeCompare(String(a.settlementDate||''))||String(a.fileName||'').localeCompare(String(b.fileName||'')));
+    const deduped=dedupeSettlementCatalog(source);
+    state.settlement.duplicates=deduped.duplicates;
+    return deduped.active;
   }
   function ivmrCloudSnapshot(){
     return {
@@ -329,7 +336,7 @@
     if(!cloudConnected()||!window.NBLCloud||!state.cloud?.organization?.id) return false;
     try{
       const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'85');
-      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'89',updated_at:new Date().toISOString()};
+      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'92',updated_at:new Date().toISOString()};
       state.cloud.hasSnapshotData=true; state.cloud.lastSync=new Date().toISOString(); updateCloudUI();
       return true;
     }catch(err){
@@ -960,6 +967,39 @@
   function getRates() {
     return { mileage:Number($('mileageRate').value)||0, singleDH:Number($('singleRate').value)||0, doubleDH:Number($('doubleRate').value)||0 };
   }
+  function stableSettlementJson(value){
+    if(Array.isArray(value)) return `[${value.map(stableSettlementJson).join(',')}]`;
+    if(value&&typeof value==='object') return `{${Object.keys(value).sort().map(k=>`${JSON.stringify(k)}:${stableSettlementJson(value[k])}`).join(',')}}`;
+    return JSON.stringify(value==null?null:value);
+  }
+  function settlementFingerprint(result){
+    const r=result||{}, s=r.summary||{};
+    const payload=stableSettlementJson({
+      linehaul:r.linehaul||[],spots:r.spots||[],fuelPurchases:r.fuelPurchases||[],misc:r.misc||[],
+      summary:{totalMiles:s.totalMiles,totalRevenue:s.totalRevenue,totalAuthorizedChargebacks:s.totalAuthorizedChargebacks,netAmount:s.netAmount,periodStart:s.periodStart,periodEnd:s.periodEnd}
+    });
+    let a=2166136261,b=2246822507;
+    for(let i=0;i<payload.length;i++){const c=payload.charCodeAt(i);a=Math.imul(a^c,16777619);b=Math.imul(b^c,3266489917);}
+    return `${(a>>>0).toString(16).padStart(8,'0')}${(b>>>0).toString(16).padStart(8,'0')}`;
+  }
+  function settlementCatalogPriority(item){
+    const canonical=/^Statements\/\d{4}-\d{2}-\d{2}_settlement\.csv$/i.test(String(item?.relativePath||''))?1e16:0;
+    return canonical+(Number(item?.lastModified)||0);
+  }
+  function dedupeSettlementCatalog(items){
+    const sorted=(items||[]).map(x=>({...x,fingerprint:String(x.fingerprint||settlementFingerprint(x.result))})).sort((a,b)=>{
+      const date=String(b.settlementDate||'').localeCompare(String(a.settlementDate||''));
+      return date || settlementCatalogPriority(b)-settlementCatalogPriority(a) || String(a.fileName||'').localeCompare(String(b.fileName||''));
+    });
+    const active=[],duplicates=[],byDate=new Map(),byFingerprint=new Map();
+    for(const item of sorted){
+      const exact=byFingerprint.get(item.fingerprint), dated=item.settlementDate&&byDate.get(item.settlementDate);
+      if(exact){duplicates.push({item,active:exact,reason:'exact'});continue;}
+      if(dated){duplicates.push({item,active:dated,reason:'same_date'});continue;}
+      active.push(item);byFingerprint.set(item.fingerprint,item);if(item.settlementDate)byDate.set(item.settlementDate,item);
+    }
+    return {active,duplicates};
+  }
   async function analyzeFileEntry(file, relativePath) {
     const {ab,text}=await decodeFile(file);
     const result=Core.analyzeSettlement(text,file.name,getRates());
@@ -968,7 +1008,7 @@
     const payDate=payDateForSettlement(settlementDate);
     result.summary.settlementDate=settlementDate;
     result.summary.payDate=payDate;
-    return {id:relativePath,relativePath,fileName:file.name,file,result,rawText:text,rawBytes:new Uint8Array(ab),settlementDate,payDate};
+    return {id:relativePath,relativePath,fileName:file.name,file,result,rawText:text,rawBytes:new Uint8Array(ab),settlementDate,payDate,fingerprint:settlementFingerprint(result),lastModified:Number(file.lastModified)||0};
   }
 
   async function collectCsvFiles(dir, prefix='', depth=0, out=[]) {
@@ -999,9 +1039,9 @@
         try { const file=await c.handle.getFile(); const item=await analyzeFileEntry(file,c.path); if(item) catalog.push(item); }
         catch(err){ console.warn('Skipped CSV',c.path,err); }
       }
-      catalog.sort((a,b)=>String(b.settlementDate).localeCompare(String(a.settlementDate)) || a.fileName.localeCompare(b.fileName));
-      state.catalog=catalog;
-      if(!state.settlement.analysisStatementId || !catalog.find(x=>x.id===state.settlement.analysisStatementId)) state.settlement.analysisStatementId=catalog[0]?.id||null;
+      const deduped=dedupeSettlementCatalog(catalog);
+      state.catalog=deduped.active; state.settlement.duplicates=deduped.duplicates;
+      if(!state.settlement.analysisStatementId || !state.catalog.find(x=>x.id===state.settlement.analysisStatementId)) state.settlement.analysisStatementId=state.catalog[0]?.id||null;
       await loadMaintenanceData();
       await loadIvmrLocationData();
       await loadMeetingData();
@@ -1011,14 +1051,14 @@
       await loadPayrollData();
       updateFolderUI();
       populateDateSelectors();
-      let target=preferredId && catalog.find(x=>x.id===preferredId) ? preferredId : state.currentStatementId;
-      if(!target || !catalog.find(x=>x.id===target)) target=catalog[0]?.id || null;
+      let target=preferredId && state.catalog.find(x=>x.id===preferredId) ? preferredId : state.currentStatementId;
+      if(!target || !state.catalog.find(x=>x.id===target)) target=state.catalog[0]?.id || null;
       if(target) selectStatement(target,false);
       else clearCurrent('No settlement statements were found in this folder. Upload a FedEx settlement CSV to add the first one.');
-      const undatedCount=catalog.filter(x=>!isValidIsoDate(x.settlementDate)).length;
+      const undatedCount=state.catalog.filter(x=>!isValidIsoDate(x.settlementDate)).length, duplicateCount=deduped.duplicates.length;
       if(!silent) {
-        if(undatedCount) showAlert(`Found <strong>${catalog.length}</strong> settlement statement${catalog.length===1?'':'s'}. <strong>${undatedCount}</strong> file${undatedCount===1?' does':'s do'} not contain dated settlement activity and ${undatedCount===1?'is':'are'} excluded from the date dropdowns.`,'warning');
-        else showAlert(catalog.length ? `Found <strong>${catalog.length}</strong> settlement statement${catalog.length===1?'':'s'} in ${escapeHtml(state.directoryHandle.name)}.` : 'Folder connected. No settlement statements found yet.','success');
+        if(undatedCount||duplicateCount) showAlert(`Found <strong>${state.catalog.length}</strong> active settlement statement${state.catalog.length===1?'':'s'}.${duplicateCount?` <strong>${duplicateCount}</strong> duplicate${duplicateCount===1?' was':'s were'} excluded from calculations.`:''}${undatedCount?` <strong>${undatedCount}</strong> file${undatedCount===1?' does':'s do'} not contain dated settlement activity.`:''}`,'warning');
+        else showAlert(state.catalog.length ? `Found <strong>${state.catalog.length}</strong> settlement statement${state.catalog.length===1?'':'s'} in ${escapeHtml(state.directoryHandle.name)}.` : 'Folder connected. No settlement statements found yet.','success');
       }
       await writeCatalogIndex();
     } catch(err){ console.error(err); showAlert('Could not scan the selected folder: '+err.message,'error'); }
@@ -1365,40 +1405,68 @@
     if(announce && item.result.warnings.length) showAlert(item.result.warnings.map(w=>`• ${w}`).join('<br>'),'warning');
   }
 
-  async function handleFile(file) {
-    if(!file) return;
+  async function parseUploadedSettlement(file){
+    const {ab,text}=await decodeFile(file);
+    const result=Core.analyzeSettlement(text,file.name,getRates());
+    if(!result.linehaul.length && !result.spots.length) throw new Error('No FedEx linehaul or spot trip rows were found. Please confirm this is a settlement-detail CSV.');
+    const settlementDate=deriveSettlementDate(text,result,file.name);
+    if(!settlementDate) throw new Error('No dated settlement activity was found. The app needs at least one dated trip, fuel, or Tractor Repair/Misc row to calculate the Settlement Date.');
+    const payDate=payDateForSettlement(settlementDate);
+    result.summary.settlementDate=settlementDate;result.summary.payDate=payDate;
+    return {file,ab,text,result,settlementDate,payDate,fingerprint:settlementFingerprint(result)};
+  }
+  function confirmSettlementReplacement(upload,existing){
+    return confirm(`A different settlement is already active for ${fmtDate(upload.settlementDate)}.\n\nExisting: ${existing.fileName||'Saved settlement'}\nNew: ${upload.file.name}\n\nChoose OK to replace the active statement with the new file. Choose Cancel to keep the existing statement.`);
+  }
+  async function handleFiles(fileList) {
+    const files=[...(fileList||[])].filter(Boolean); if(!files.length)return;
     if(!state.directoryHandle && !cloudConnected()) {
       showAlert('Sign in to <strong>NBL Cloud</strong> or choose the <strong>Data Folder</strong> first.','warning');
       return;
     }
-    try {
-      showAlert(state.directoryHandle?'Reading and storing settlement…':'Reading settlement and saving it to NBL Cloud…','success');
-      const {ab,text}=await decodeFile(file);
-      const result=Core.analyzeSettlement(text,file.name,getRates());
-      if(!result.linehaul.length && !result.spots.length) throw new Error('No FedEx linehaul or spot trip rows were found. Please confirm this is a settlement-detail CSV.');
-      const settlementDate=deriveSettlementDate(text,result,file.name);
-      if(!settlementDate) throw new Error('No dated settlement activity was found. The app needs at least one dated trip, fuel, or Tractor Repair/Misc row to calculate the Settlement Date.');
-      const payDate=payDateForSettlement(settlementDate);
-      result.summary.settlementDate=settlementDate; result.summary.payDate=payDate;
+    const stats={added:0,replaced:0,duplicates:0,kept:0,errors:[]}; let working=[...(state.catalog||[])],preferredId='';
+    try{
+      showAlert(`Processing <strong>${files.length}</strong> settlement file${files.length===1?'':'s'}…`,'success');
+      let statementsDir=null;
       if(state.directoryHandle){
         if(!(await requestPermission(state.directoryHandle,'readwrite'))) throw new Error('Write permission is required for the NBL business data folder.');
-        const statementsDir=await state.directoryHandle.getDirectoryHandle('Statements',{create:true});
-        const destName=sanitize(`${settlementDate}_${file.name.replace(/^\d{4}-\d{2}-\d{2}_/,'')}`) || `settlement_${Date.now()}.csv`;
-        await writeFile(statementsDir,destName,new Uint8Array(ab),'text/csv');
-        const preferredId=`Statements/${destName}`;
-        await scanFolder(preferredId,true);
-        await saveToFolder(true);
-        if(cloudConnected()) await saveCloudModule('settlement',true);
-        showAlert(`Settlement stored in <strong>${escapeHtml(state.directoryHandle.name)}/Statements</strong>${cloudConnected()?' and synced to <strong>NBL Cloud</strong>':''} and loaded for ${fmtDate(state.result?.summary?.settlementDate)}.`,'success');
-      }else{
-        const id=`cloud/${settlementDate}/${sanitize(file.name)||'settlement'}_${Date.now()}`;
-        const item={id,relativePath:id,fileName:file.name,file:null,result,rawText:'',rawBytes:null,settlementDate,payDate};
-        state.catalog=[item,...state.catalog].sort((a,b)=>String(b.settlementDate||'').localeCompare(String(a.settlementDate||''))||String(a.fileName||'').localeCompare(String(b.fileName||'')));
-        state.settlement.analysisStatementId=id; populateDateSelectors(); selectStatement(id,false);
-        const ok=await saveCloudModule('settlement',false); if(!ok) throw new Error('The settlement was analyzed but could not be saved to NBL Cloud.');
-        showAlert(`Settlement loaded for ${fmtDate(settlementDate)} and saved to <strong>NBL Cloud</strong>.`,'success');
+        statementsDir=await state.directoryHandle.getDirectoryHandle('Statements',{create:true});
       }
-    } catch(err) { console.error(err); showAlert(err.message || 'Could not analyze this CSV.','error'); }
+      for(let index=0;index<files.length;index++){
+        const file=files[index];
+        try{
+          showAlert(`Processing settlement ${index+1} of ${files.length}: <strong>${escapeHtml(file.name)}</strong>…`,'success');
+          const upload=await parseUploadedSettlement(file);
+          const exact=working.find(x=>(x.fingerprint||settlementFingerprint(x.result))===upload.fingerprint);
+          if(exact){stats.duplicates++;continue;}
+          const conflict=working.find(x=>x.settlementDate===upload.settlementDate);
+          if(conflict&&!confirmSettlementReplacement(upload,conflict)){stats.kept++;continue;}
+          const nextWorking=conflict?working.filter(x=>x.settlementDate!==upload.settlementDate):[...working];
+          if(statementsDir){
+            const destName=`${upload.settlementDate}_settlement.csv`;
+            await writeFile(statementsDir,destName,new Uint8Array(upload.ab),'text/csv');
+            preferredId=`Statements/${destName}`;
+            nextWorking.push({id:preferredId,relativePath:preferredId,fileName:file.name,result:upload.result,settlementDate:upload.settlementDate,payDate:upload.payDate,fingerprint:upload.fingerprint,lastModified:Date.now()});
+          }else{
+            const id=`cloud/${upload.settlementDate}/settlement`;
+            const item={id,relativePath:id,fileName:file.name,file:null,result:upload.result,rawText:'',rawBytes:null,settlementDate:upload.settlementDate,payDate:upload.payDate,fingerprint:upload.fingerprint,lastModified:Date.now()};
+            nextWorking.push(item);preferredId=id;
+          }
+          working=nextWorking;if(conflict)stats.replaced++;else stats.added++;
+        }catch(err){console.error('Settlement upload failed',file.name,err);stats.errors.push(`${file.name}: ${err.message||String(err)}`);}
+      }
+      if(state.directoryHandle&&(stats.added||stats.replaced)){
+        await scanFolder(preferredId,true);await saveToFolder(true);if(cloudConnected())await saveCloudModule('settlement',true);
+      }else if(!state.directoryHandle&&(stats.added||stats.replaced)){
+        const deduped=dedupeSettlementCatalog(working);state.catalog=deduped.active;state.settlement.duplicates=deduped.duplicates;
+        state.settlement.analysisStatementId=preferredId||state.catalog[0]?.id||null;populateDateSelectors();if(state.settlement.analysisStatementId)selectStatement(state.settlement.analysisStatementId,false);
+        const ok=await saveCloudModule('settlement',false);if(!ok)throw new Error('The settlements were analyzed but could not be saved to NBL Cloud.');
+      }
+      const parts=[];
+      if(stats.added)parts.push(`<strong>${stats.added}</strong> added`);if(stats.replaced)parts.push(`<strong>${stats.replaced}</strong> replaced`);if(stats.duplicates)parts.push(`<strong>${stats.duplicates}</strong> exact duplicate${stats.duplicates===1?'':'s'} skipped`);if(stats.kept)parts.push(`<strong>${stats.kept}</strong> existing statement${stats.kept===1?'':'s'} kept`);if(stats.errors.length)parts.push(`<strong>${stats.errors.length}</strong> error${stats.errors.length===1?'':'s'}`);
+      const detail=stats.errors.length?`<br>${stats.errors.slice(0,3).map(escapeHtml).join('<br>')}${stats.errors.length>3?'<br>…':''}`:'';
+      showAlert(`Settlement upload complete: ${parts.join(' • ')||'no changes'}.${detail}`,stats.errors.length?'warning':'success');
+    }catch(err){console.error(err);showAlert(err.message||'Could not upload the settlement files.','error');}
   }
 
   function ratesChanged() {
@@ -1817,6 +1885,11 @@
       ['Other Expense',fmtMoney(s.otherExpense)]
     ];
     $('latestDetailGrid').innerHTML=detailRows.map(r=>`<div class="latest-detail"><span>${r[0]}</span><strong>${r[1]}</strong></div>`).join('');
+
+    const duplicates=state.settlement?.duplicates||[], duplicatePanel=$('settlementDuplicatePanel'), duplicateTable=$('settlementDuplicateTable');
+    if(duplicatePanel) duplicatePanel.classList.toggle('hidden',!duplicates.length);
+    if($('settlementDuplicateCount')) $('settlementDuplicateCount').textContent=`${duplicates.length} duplicate${duplicates.length===1?'':'s'}`;
+    if(duplicateTable) duplicateTable.querySelector('tbody').innerHTML=duplicates.map(d=>`<tr><td><strong>${fmtDate(d.item?.settlementDate)}</strong></td><td>${escapeHtml(d.item?.fileName||d.item?.relativePath||'—')}</td><td>${escapeHtml(d.active?.fileName||d.active?.relativePath||'—')}</td><td><span class="status-pill baseline">${d.reason==='exact'?'Exact duplicate':'Same date — alternate version'}</span></td></tr>`).join('');
 
     const headers=['Settlement Date','Total Miles','Linehaul Miles','Spot Miles','Linehaul Revenue','Spot Revenue','Fuel Expense','DEF Expense','Other Expense','Net Amount'];
     const table=$('settlementHistoryTable');
@@ -5357,8 +5430,8 @@
   $('refreshFolderBtn').addEventListener('click',()=>scanFolder(null,false));
   $('saveBtn').addEventListener('click',()=>saveToFolder(false));
   $('exportBtn').addEventListener('click',exportExcel);
-  $('fileInput').addEventListener('change',e=>{handleFile(e.target.files[0]); e.target.value='';});
-  $('emptyFileInput').addEventListener('change',e=>{handleFile(e.target.files[0]); e.target.value='';});
+  $('fileInput').addEventListener('change',e=>{handleFiles(e.target.files); e.target.value='';});
+  $('emptyFileInput').addEventListener('change',e=>{handleFiles(e.target.files); e.target.value='';});
   ['mileageRate','singleRate','doubleRate'].forEach(id=>$(id)?.addEventListener('input',ratesChanged));
   $('saveDhMappingsBtn')?.addEventListener('click',saveDhMappings);
   $('refreshHosWorkDaysBtn')?.addEventListener('click',()=>refreshPayrollHosWorkDays(false));
