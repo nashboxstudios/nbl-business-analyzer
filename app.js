@@ -92,14 +92,15 @@
   }
   let state = {
     result:null, file:null, rawBytes:null, rawText:'', directoryHandle:null,
-    catalog:[], currentStatementId:null, currentScreen:'drivers', autosaveTimer:null,
+    catalog:[], currentStatementId:null, currentScreen:'dashboard', autosaveTimer:null,
+    dashboard:{mileage:[],preferences:null},
     settlement:{activeTab:'summary',analysisStatementId:null,duplicates:[]},
     maintenance:{version:2,tractors:[],records:[]}, maintenanceLoaded:false, lastMmrPdf:null,
     meetings:defaultMeetingData(), meetingsLoaded:false,
     hr:defaultHrData(), hrLoaded:false, recruitmentSearch:'', recruitmentStatusFilter:'', recruitmentSort:{key:'',dir:'asc'}, hrSsn:{draftFull:'',legacyLast4:'',revealed:false,existingCandidate:false,accessResolver:null}, hrApplicationMismatch:{resolver:null},
     audit:{version:1,audits:[],findings:[],activeTab:'dashboard',selectedAuditId:''}, auditLoaded:false,
     dispatch:defaultDispatchData(), dispatchLoaded:false, dispatchSelectedDriverId:null,
-    motive:{backendAvailable:false,configured:false,keyHint:'',storage:'',vehicles:[],lastSync:null,test:null,loading:false},
+    motive:{backendAvailable:false,configured:false,keyHint:'',storage:'',vehicles:[],drivers:[],lastSync:null,test:null,loading:false},
     ivmr:{startDate:'',endDate:'',rawTrips:[],trips:[],formatBuilt:false,loadedAt:null,loading:false,routeLoading:false,routeCancelRequested:false,routeStats:null,routeProgress:null,lastPdf:null,historyTest:{loading:false,result:null,error:''}},
     ivmrLocations:defaultIvmrLocationData(), ivmrLocationsLoaded:false,
     cloud:{connected:false,user:null,profile:null,membership:null,organization:null,snapshots:{},hasSnapshotData:false,lastSync:null,syncing:false,users:[],usersLoading:false},
@@ -148,9 +149,9 @@
   ];
   const AUDIT_CATEGORIES = [...new Set(AUDIT_TEMPLATE.map(x=>x.category))];
 
-  const CLOUD_MODULES=['hr','driver_pay','maintenance','meetings','audit','dispatch','settlement','ivmr'];
-  const CLOUD_MODULE_LABELS={hr:'Recruitment / HR',driver_pay:'Driver Pay',maintenance:'Maintenance',meetings:'Meetings',audit:'Audit',dispatch:'Dispatch',settlement:'Settlement / Revenue Finder',ivmr:'IVMR'};
-  const SCREEN_MODULE_MAP={drivers:'driver_pay',summary:'settlement','settlement-reports':'reports','financial-analysis':'reports',revenue:'settlement',maintenance:'maintenance',meetings:'meetings',hr:'hr',audit:'audit',dispatch:'dispatch','daily-dispatch':'dispatch',ivmr:'ivmr',motive:'motive'};
+  const CLOUD_MODULES=['dashboard','hr','driver_pay','maintenance','meetings','audit','dispatch','settlement','ivmr'];
+  const CLOUD_MODULE_LABELS={dashboard:'Dashboard',hr:'Recruitment / HR',driver_pay:'Driver Pay',maintenance:'Maintenance',meetings:'Meetings',audit:'Audit',dispatch:'Dispatch',settlement:'Settlement / Revenue Finder',ivmr:'IVMR'};
+  const SCREEN_MODULE_MAP={dashboard:'dashboard',drivers:'driver_pay',summary:'settlement','settlement-reports':'reports','financial-analysis':'reports',revenue:'settlement',maintenance:'maintenance',meetings:'meetings',hr:'hr',audit:'audit',dispatch:'dispatch','daily-dispatch':'dispatch',ivmr:'ivmr',motive:'motive'};
   const FINANCE_MODULE_KEYS=new Set(['driver_pay','settlement','revenue','reports']);
   function cloudConnected(){ return !!state.cloud?.connected; }
   function currentRole(){ return String(state.cloud?.membership?.role||'').trim().toLowerCase(); }
@@ -163,6 +164,7 @@
     if(FINANCE_MODULE_KEYS.has(key)) return role==='owner';
     if(role==='owner'||role==='admin'||perms.all===true) return true;
     if(role==='hr' && key==='hr') return true;
+    if(key==='dashboard') return true;
     if(role==='operations' && ['maintenance','meetings','dispatch','audit','ivmr','motive'].includes(key)) return true;
     if(role==='read_only' && writeAccess) return false;
     return perms[key]===true;
@@ -173,7 +175,7 @@
     return moduleKey ? canAccessModuleKey(moduleKey,false) : true;
   }
   function firstAccessibleScreen(){
-    return ['drivers','summary','financial-analysis','settlement-reports','revenue','maintenance','meetings','dispatch','audit','ivmr','motive','hr'].find(canAccessScreen)||'motive';
+    return ['dashboard','drivers','summary','financial-analysis','settlement-reports','revenue','maintenance','meetings','dispatch','audit','ivmr','motive','hr'].find(canAccessScreen)||'dashboard';
   }
   function applyAccessVisibility(){
     if(!cloudConnected()) return;
@@ -223,6 +225,18 @@
       })),
       updatedAt:new Date().toISOString()
     };
+  }
+  function dashboardMileageSnapshot(){
+    const mileage=[];
+    for(const item of state.catalog||[]){
+      for(const [type,list] of [['linehaul',item.result?.linehaul||[]],['spot',item.result?.spots||[]]]){
+        for(const trip of list){
+          const d=parseFlexibleDate(trip.date), miles=Number(trip.miles)||0;
+          if(d&&!isNaN(d)&&miles) mileage.push({date:isoLocal(d),type,miles});
+        }
+      }
+    }
+    return {version:94,mileage,updatedAt:new Date().toISOString()};
   }
   function normalizeCloudSettlementCatalog(data){
     const ss=data&&typeof data==='object'?data:{};
@@ -282,6 +296,7 @@
     populateDateSelectors();
   }
   function cloudSnapshotForModule(moduleKey){
+    if(moduleKey==='dashboard') return dashboardMileageSnapshot();
     if(moduleKey==='hr') return sanitizedHrForCloud();
     if(moduleKey==='driver_pay') return cloneJson(state.payroll||{version:2,profiles:{},periods:{},dhMappings:{}});
     if(moduleKey==='maintenance') return cloneJson(state.maintenance||{version:2,tractors:[],records:[]});
@@ -335,8 +350,14 @@
   async function saveCloudModule(moduleKey,silent=true){
     if(!cloudConnected()||!window.NBLCloud||!state.cloud?.organization?.id) return false;
     try{
-      const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'85');
-      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'92',updated_at:new Date().toISOString()};
+      const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'94');
+      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'94',updated_at:new Date().toISOString()};
+      if(moduleKey==='settlement'){
+        const dashboardData=dashboardMileageSnapshot();
+        const dashboardRow=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,'dashboard',dashboardData,'94');
+        state.cloud.snapshots.dashboard=dashboardRow||{module_key:'dashboard',data:dashboardData,source_version:'94',updated_at:new Date().toISOString()};
+        state.dashboard.mileage=dashboardData.mileage;
+      }
       state.cloud.hasSnapshotData=true; state.cloud.lastSync=new Date().toISOString(); updateCloudUI();
       return true;
     }catch(err){
@@ -347,6 +368,7 @@
   }
   function hydrateCloudSnapshots(snapshots){
     const get=k=>snapshots?.[k]?.data;
+    if(get('dashboard')) state.dashboard.mileage=Array.isArray(get('dashboard').mileage)?cloneJson(get('dashboard').mileage):[];
     if(get('driver_pay')){ state.payroll={version:2,profiles:{},periods:{},dhMappings:{},...cloneJson(get('driver_pay'))}; state.payrollLoaded=true; }
     if(get('maintenance')){ state.maintenance={version:2,tractors:[],records:[],...cloneJson(get('maintenance'))}; state.maintenanceLoaded=true; }
     if(get('meetings')){ state.meetings={...defaultMeetingData(),...cloneJson(get('meetings'))}; ensureMeetingLayout(); state.meetingsLoaded=true; }
@@ -362,12 +384,14 @@
       state.catalog=normalizeCloudSettlementCatalog(ss);
       state.currentStatementId=ss.currentStatementId||state.catalog[0]?.id||null;
       state.settlement.analysisStatementId=ss.analysisStatementId||state.catalog[0]?.id||null;
+      if(!state.dashboard.mileage.length) state.dashboard.mileage=dashboardMileageSnapshot().mileage;
     }
     if(get('ivmr')){
       const iv=cloneJson(get('ivmr'))||{};
       if(iv.locations){ state.ivmrLocations=normalizeIvmrLocationData(iv.locations); state.ivmrLocationsLoaded=true; }
       if(iv.current){ state.ivmr={...state.ivmr,...iv.current,routeLoading:false,routeCancelRequested:false,loading:false,historyTest:state.ivmr.historyTest}; }
     }
+    syncSharedDriverRoster();
     populateDateSelectors();
     let target=state.currentStatementId&&state.catalog.find(x=>x.id===state.currentStatementId)?state.currentStatementId:state.catalog[0]?.id;
     if(target) selectStatement(target,false); else { state.result=null; state.file=null; state.rawBytes=null; state.rawText=''; }
@@ -771,6 +795,7 @@
     });
     const hasResult=!!state.result, workspace=hasWorkspace(), label=workspaceLabel();
     const financeLocked=isFinanceScreen(screen) && !state.finance.unlocked;
+    $('dashboardScreen')?.classList.toggle('hidden',screen!=='dashboard');
     $('driversScreen').classList.toggle('hidden',screen!=='drivers' || !hasResult || financeLocked);
     $('summaryScreen').classList.toggle('hidden',screen!=='summary' || !state.catalog.length || financeLocked);
     $('reportsScreen')?.classList.toggle('hidden',screen!=='settlement-reports' || !workspace || financeLocked);
@@ -786,20 +811,24 @@
     $('ivmrScreen')?.classList.toggle('hidden',screen!=='ivmr' || !workspace);
     $('motiveScreen')?.classList.toggle('hidden',screen!=='motive');
     $('financeLockedState')?.classList.toggle('hidden',!financeLocked);
-    const folderScreen = screen==='maintenance' || screen==='meetings' || screen==='hr' || screen==='users' || screen==='audit' || screen==='settlement-reports' || screen==='financial-analysis' || screen==='revenue' || screen==='dispatch' || screen==='daily-dispatch' || screen==='ivmr' || screen==='motive';
+    const folderScreen = screen==='dashboard' || screen==='maintenance' || screen==='meetings' || screen==='hr' || screen==='users' || screen==='audit' || screen==='settlement-reports' || screen==='financial-analysis' || screen==='revenue' || screen==='dispatch' || screen==='daily-dispatch' || screen==='ivmr' || screen==='motive';
     const requiresWorkspace = screen==='maintenance' || screen==='meetings' || screen==='hr' || screen==='audit' || screen==='settlement-reports' || screen==='revenue' || screen==='dispatch' || screen==='daily-dispatch' || screen==='ivmr';
-    const needsEmpty = financeLocked ? false : (screen==='users' ? false : (requiresWorkspace ? !workspace : (screen==='motive' ? false : !hasResult)));
+    const needsEmpty = financeLocked ? false : ((screen==='users'||screen==='dashboard') ? false : (requiresWorkspace ? !workspace : (screen==='motive' ? false : !hasResult)));
     $('emptyState').classList.toggle('hidden',!needsEmpty);
     if(needsEmpty && requiresWorkspace) $('emptyStateText').textContent=cloudConnected()?'This module is connected to NBL Cloud. No cloud data has been uploaded yet. Open Cloud Sync to import your existing local NBL data.':'Sign in to NBL Cloud or choose your local NBL business data folder to begin.';
     if(needsEmpty && (screen==='drivers'||screen==='summary')) $('emptyStateText').textContent=cloudConnected()?'No settlement data is stored in NBL Cloud yet. Open Cloud Sync to import your existing local NBL data, or upload a settlement CSV.':'Choose a data folder and upload a settlement CSV.';
-    const titles={drivers:'Driver Pay',summary:'Settlement','settlement-reports':'Settlement Reports','financial-analysis':'Financial Analysis',maintenance:'Maintenance',meetings:'Meetings',hr:'Recruitment',users:'User Access',audit:'Audit',revenue:'Revenue Finder',dispatch:'Weekly Dispatch Planner','daily-dispatch':'Daily Dispatch Board',ivmr:'IVMR',motive:'Motive'};
+    const titles={dashboard:'Dashboard',drivers:'Driver Pay',summary:'Settlement','settlement-reports':'Settlement Reports','financial-analysis':'Financial Analysis',maintenance:'Maintenance',meetings:'Meetings',hr:'Recruitment',users:'User Access',audit:'Audit',revenue:'Revenue Finder',dispatch:'Weekly Dispatch Planner','daily-dispatch':'Daily Dispatch Board',ivmr:'IVMR',motive:'Motive'};
     $('pageTitle').textContent=titles[screen]||'NBL FleetCommand';
     $('saveBtn').classList.toggle('hidden',folderScreen || financeLocked);
     $('exportBtn').classList.toggle('hidden',folderScreen || financeLocked);
-    if($('uploadStatementBtn')) $('uploadStatementBtn').classList.toggle('hidden',(cloudConnected()&&!isOwnerAccount()) || financeLocked || screen==='financial-analysis');
+    if($('uploadStatementBtn')) $('uploadStatementBtn').classList.toggle('hidden',(cloudConnected()&&!isOwnerAccount()) || financeLocked || screen==='financial-analysis' || screen==='dashboard');
     if($('emptyUploadStatementBtn')) $('emptyUploadStatementBtn').classList.toggle('hidden',(cloudConnected()&&!isOwnerAccount()) || financeLocked || screen==='financial-analysis');
     if(financeLocked) $('fileMeta').textContent='Owner-only protected module • Unlock with your Finance Access Code.';
-    if(screen==='settlement-reports') {
+    if(screen==='dashboard') {
+      const boards=Object.values(state.dispatch.dailyBoards||{}).filter(x=>x?.savedAt).length;
+      $('fileMeta').textContent=`${label} • Nonfinancial operations overview${boards?` • ${boards} saved dispatch board${boards===1?'':'s'}`:''}`;
+      renderDashboard();
+    } else if(screen==='settlement-reports') {
       $('fileMeta').textContent=workspace ? `${label} • ${state.catalog.length} settlement${state.catalog.length===1?'':'s'} available for reporting` : 'Connect NBL Cloud or choose your local data folder to begin.';
       if(workspace && !financeLocked){
         initializeSettlementReportDates();
@@ -1083,6 +1112,10 @@
     for(const item of state.catalog||[]){
       for(const [id,name] of Object.entries(item.result?.names||{})){ const k=String(id||'').trim(); if(k) map.set(k,{fedexId:k,name:name||`Driver ${k}`}); }
       for(const d of item.result?.drivers||[]){ const k=String(d.fedexId||'').trim(); if(k) map.set(k,{fedexId:k,name:d.name||map.get(k)?.name||`Driver ${k}`}); }
+    }
+    for(const d of state.dispatch?.drivers||[]){
+      const id=String(d.fedexId||'').trim();
+      if(id&&d.active!==false) map.set(id,{fedexId:id,name:d.name||map.get(id)?.name||`Driver ${id}`});
     }
     for(const [id,p] of Object.entries(state.payroll?.profiles||{})){ if(id) map.set(id,{fedexId:id,name:p.name||map.get(id)?.name||`Driver ${id}`}); }
     return [...map.values()].sort((a,b)=>a.name.localeCompare(b.name)||a.fedexId.localeCompare(b.fedexId));
@@ -1392,6 +1425,7 @@
     item.result.summary.settlementDate=item.settlementDate;
     item.result.summary.payDate=item.payDate;
     state.currentStatementId=item.id; state.result=item.result; state.file=item.file; state.rawBytes=item.rawBytes; state.rawText=item.rawText;
+    syncSharedDriverRoster();
     $('emptyState').classList.add('hidden');
     $('exportBtn').disabled=false; $('saveBtn').disabled=false;
     const settlementOption=[...$('driverSettlementDateSelect').options].find(o=>state.catalog.find(x=>x.id===o.value)?.settlementDate===item.settlementDate);
@@ -1480,7 +1514,86 @@
     state.autosaveTimer=setTimeout(()=>{ if(state.result){ if(state.directoryHandle) saveToFolder(true).catch(()=>{}); if(cloudConnected()) saveCloudModule('settlement',true).catch(()=>{}); } },700);
   }
 
-  function renderAll(){ renderDriverTable(); renderSummary(); renderMaintenance(); renderMeetings(); renderHr(); renderAudit(); renderRevenueFinder(); renderDispatch(); renderDailyDispatch(); renderIvmr(); renderMotive(); setScreen(state.currentScreen); }
+  const DASHBOARD_PREFS_DEFAULT={showMiles:true,showDispatch:true,showMaintenance:true,showAttention:true,milesWeeks:8};
+  function dashboardPrefsKey(){ return `nbl_dashboard_preferences_${state.cloud?.user?.id||'local'}`; }
+  function dashboardPreferences(){
+    if(state.dashboard.preferences) return state.dashboard.preferences;
+    try{ state.dashboard.preferences={...DASHBOARD_PREFS_DEFAULT,...JSON.parse(localStorage.getItem(dashboardPrefsKey())||'{}')}; }
+    catch(_){ state.dashboard.preferences={...DASHBOARD_PREFS_DEFAULT}; }
+    return state.dashboard.preferences;
+  }
+  function dateAtNoon(iso){ const d=new Date(`${iso}T12:00:00`); return isNaN(d)?null:d; }
+  function addDays(date,n){ const d=new Date(date); d.setDate(d.getDate()+n); return d; }
+  function saturdayStart(date){ const d=new Date(date); d.setHours(12,0,0,0); d.setDate(d.getDate()-((d.getDay()+1)%7)); return d; }
+  function dashboardRanges(){
+    const today=dateAtNoon(todayIso()), week=saturdayStart(today), lastStart=addDays(week,-7), lastEnd=addDays(lastStart,6);
+    return [
+      {key:'yesterday',label:'Yesterday',start:addDays(today,-1),end:addDays(today,-1)},
+      {key:'wtd',label:'Week to Date',start:week,end:today},
+      {key:'last',label:'Last Week',start:lastStart,end:lastEnd},
+      {key:'mtd',label:'Month to Date',start:new Date(today.getFullYear(),today.getMonth(),1,12),end:today},
+      {key:'ytd',label:'Year to Date',start:new Date(today.getFullYear(),0,1,12),end:today}
+    ];
+  }
+  function dashboardMileageRows(){
+    if(state.catalog?.length){ const data=dashboardMileageSnapshot().mileage; state.dashboard.mileage=data; return data; }
+    return state.dashboard.mileage||[];
+  }
+  function mileageInRange(rows,start,end){
+    return rows.reduce((a,x)=>{ const d=dateAtNoon(x.date); if(!d||d<start||d>end)return a; const n=Number(x.miles)||0; a.total+=n; a[x.type==='spot'?'spot':'linehaul']+=n; return a; },{total:0,linehaul:0,spot:0});
+  }
+  function dashboardMilesSvg(weeks){
+    if(!weeks.length) return '<div class="dashboard-empty">No completed-week mileage data is available yet.</div>';
+    const W=920,H=280,p={l:58,r:22,t:20,b:48},max=Math.max(1,...weeks.map(x=>x.total));
+    const x=i=>p.l+(weeks.length===1?0:(W-p.l-p.r)*i/(weeks.length-1)), y=v=>p.t+(H-p.t-p.b)*(1-v/max);
+    const ticks=[0,.25,.5,.75,1];
+    const path=key=>weeks.map((w,i)=>`${i?'L':'M'} ${x(i).toFixed(1)} ${y(w[key]).toFixed(1)}`).join(' ');
+    const lines=ticks.map(t=>`<line x1="${p.l}" y1="${y(max*t)}" x2="${W-p.r}" y2="${y(max*t)}" class="grid"/><text x="${p.l-9}" y="${y(max*t)+4}" text-anchor="end">${escapeHtml(max*t>=1000?`${Math.round(max*t/1000)}k`:fmtNum(max*t))}</text>`).join('');
+    const step=Math.max(1,Math.ceil(weeks.length/8));
+    const labels=weeks.map((w,i)=>i%step===0||i===weeks.length-1?`<text x="${x(i)}" y="${H-17}" text-anchor="middle">${escapeHtml(new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric'}).format(w.end))}</text>`:'').join('');
+    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Weekly total, linehaul, and spot miles"><g>${lines}${labels}<path d="${path('total')}" class="series total"/><path d="${path('linehaul')}" class="series linehaul"/><path d="${path('spot')}" class="series spot"/></g></svg>`;
+  }
+  function dashboardOutOfService(tractor){
+    const v=typeof motiveVehicleForMaintenanceTractor==='function'?motiveVehicleForMaintenanceTractor(tractor):null;
+    return /out[ _-]*of[ _-]*service|\boos\b/i.test(String(tractor?.status||v?.status||''));
+  }
+  function renderDashboard(){
+    if(!$('dashboardScreen')) return;
+    const prefs=dashboardPreferences();
+    $('dashboardMilesSection').classList.toggle('hidden',!prefs.showMiles); $('dashboardDispatchSection').classList.toggle('hidden',!prefs.showDispatch);
+    $('dashboardMaintenanceSection').classList.toggle('hidden',!prefs.showMaintenance); $('dashboardAttentionSection').classList.toggle('hidden',!prefs.showAttention);
+    const name=state.cloud?.profile?.full_name||state.cloud?.user?.email?.split('@')[0]||'';
+    $('dashboardGreeting').textContent=name?`Welcome back, ${name}`:'Welcome to FleetCommand';
+    const rows=dashboardMileageRows(), ranges=dashboardRanges(), last=ranges.find(x=>x.key==='last'), mtd=ranges.find(x=>x.key==='mtd'), ytd=ranges.find(x=>x.key==='ytd');
+    const mileCards=[['Last Week',last],['Month to Date',mtd],['Year to Date',ytd]].map(([label,r])=>[label,mileageInRange(rows,r.start,r.end)]);
+    $('dashboardMilesCards').innerHTML=mileCards.map(([label,m])=>`<div class="dashboard-mile-card"><span>${label}</span><strong>${fmtNum(m.total)}</strong><small><b>${fmtNum(m.linehaul)}</b> linehaul <i>•</i> <b>${fmtNum(m.spot)}</b> spot</small></div>`).join('');
+    const latest=rows.map(x=>x.date).filter(Boolean).sort().at(-1); $('dashboardMilesAsOf').textContent=latest?`Uploaded activity through ${fmtDate(latest)}. Current week is excluded from the trend.`:'Upload settlement statements to populate mileage.';
+    const selectedWeeks=Number($('dashboardMilesRange')?.value||prefs.milesWeeks||8); if($('dashboardMilesRange')) $('dashboardMilesRange').value=String(selectedWeeks);
+    const today=dateAtNoon(todayIso()), currentStart=saturdayStart(today), buckets=[];
+    for(let i=selectedWeeks;i>=1;i--){ const start=addDays(currentStart,-7*i),end=addDays(start,6),m=mileageInRange(rows,start,end);buckets.push({...m,start,end}); }
+    $('dashboardMilesChart').innerHTML=dashboardMilesSvg(buckets);
+
+    const boards=Object.values(state.dispatch.dailyBoards||{}).filter(x=>x&&x.savedAt&&Array.isArray(x.rows));
+    const hubs=['Nashville','Spartanburg','Marietta'];
+    for(const b of boards) for(const r of b.rows) if(r.hub&&!hubs.includes(r.hub)&&r.hub!=='Other') hubs.push(r.hub);
+    const dispatchRanges=ranges;
+    $('dashboardDispatchHead').innerHTML=`<tr><th>Hub</th>${dispatchRanges.map(r=>`<th>${escapeHtml(r.label)}</th>`).join('')}</tr>`;
+    $('dashboardDispatchBody').innerHTML=hubs.map(hub=>`<tr><td><strong>${escapeHtml(hub)}</strong></td>${dispatchRanges.map(range=>{let accepted=0,declined=0,days=0;for(const b of boards){const d=dateAtNoon(b.date);if(!d||d<range.start||d>range.end)continue;days++;for(const row of b.rows.filter(x=>(x.hub||dailyDispatchHub(x))===hub)){if(row.dispatchStatus==='accepted')accepted++;if(row.dispatchStatus==='declined')declined++;}}return `<td data-label="${escapeHtml(range.label)}"><strong>${accepted}</strong><small>dispatched</small><em>${declined} decline${declined===1?'':'s'}</em></td>`;}).join('')}</tr>`).join('');
+    $('dashboardDispatchNote').textContent=boards.length?`Calculated from ${boards.length} saved daily dispatch board${boards.length===1?'':'s'}. Periods with no saved board are not counted.`:'Save a Daily Dispatch Board to begin tracking dispatch activity.';
+
+    const statuses=maintenanceStatuses(), oos=statuses.filter(x=>dashboardOutOfService(x.tractor)), active=statuses.filter(x=>!dashboardOutOfService(x.tractor));
+    const current=active.filter(x=>x.status==='ok').length,due=active.filter(x=>x.status==='due-soon').length,overdue=active.filter(x=>x.status==='overdue').length;
+    $('dashboardMaintenanceCards').innerHTML=[['Current',current,'ok'],['Due Soon',due,'warning'],['Overdue',overdue,'danger'],['Out of Service',oos.length,'oos']].map(x=>`<button type="button" class="dashboard-maintenance-card ${x[2]}" data-dashboard-screen="maintenance"><span>${x[0]}</span><strong>${x[1]}</strong></button>`).join('');
+    const attention=[];
+    for(const x of oos) attention.push({level:'danger',title:`Tractor ${x.tractor.tractorNumber||'—'} is out of service`,detail:'Review fleet status in Maintenance.',screen:'maintenance'});
+    for(const x of active.filter(x=>x.status==='overdue')) attention.push({level:'danger',title:`Tractor ${x.tractor.tractorNumber||'—'} maintenance is overdue`,detail:x.milesRemaining!=null?`${fmtNum(Math.abs(x.milesRemaining))} miles past due`:'Preventive maintenance is past due',screen:'maintenance'});
+    for(const x of active.filter(x=>x.status==='due-soon')) attention.push({level:'warning',title:`Tractor ${x.tractor.tractorNumber||'—'} is due soon`,detail:x.milesRemaining!=null?`${fmtNum(Math.max(0,x.milesRemaining))} miles remaining`:'Maintenance due within approximately four weeks',screen:'maintenance'});
+    for(const x of active.filter(x=>x.status==='baseline')) attention.push({level:'neutral',title:`Tractor ${x.tractor.tractorNumber||'—'} needs a PM baseline`,detail:'Add the most recent maintenance record.',screen:'maintenance'});
+    for(const x of (state.meetings.inspections||[]).filter(x=>x.addressed!=='Y')) attention.push({level:Number(x.priority)===1?'danger':'warning',title:`Open inspection: Tractor ${x.tractorNumber||x.tractor||'—'}`,detail:x.issue||'Inspection issue needs review.',screen:'meetings'});
+    $('dashboardAttentionCount').textContent=`${attention.length} item${attention.length===1?'':'s'}`;
+    $('dashboardAttentionList').innerHTML=attention.length?attention.slice(0,10).map(x=>`<button type="button" class="dashboard-attention-item ${x.level}" data-dashboard-screen="${x.screen}"><span></span><div><strong>${escapeHtml(x.title)}</strong><small>${escapeHtml(x.detail)}</small></div><em>View</em></button>`).join(''):'<div class="dashboard-empty compact">Nothing requires attention right now.</div>';
+  }
+  function renderAll(){ renderDashboard(); renderDriverTable(); renderSummary(); renderMaintenance(); renderMeetings(); renderHr(); renderAudit(); renderRevenueFinder(); renderDispatch(); renderDailyDispatch(); renderIvmr(); renderMotive(); setScreen(state.currentScreen); }
   function payrollTableTotals(ds){
     return ds.reduce((a,d)=>({days:a.days+(Number(d.daysWorked)||0),lm:a.lm+(Number(d.linehaulMiles)||0),sm:a.sm+(Number(d.spotMiles)||0),tm:a.tm+(Number(d.totalMiles)||0),dhe:a.dhe+(Number(d.dhEventCount)||0),dhp:a.dhp+(Number(d.dhPay)||0),base:a.base+(Number(d.basePay)||0),min:a.min+(Number(d.minimumTopUp)||0),bonus:a.bonus+(Number(d.adjustmentBuckets?.bonus)||0),holiday:a.holiday+(Number(d.adjustmentBuckets?.holiday)||0),vacation:a.vacation+(Number(d.adjustmentBuckets?.vacation)||0),training:a.training+(Number(d.adjustmentBuckets?.training)||0),other:a.other+(Number(d.adjustmentBuckets?.other)||0),tp:a.tp+(Number(d.totalPay)||0)}),{days:0,lm:0,sm:0,tm:0,dhe:0,dhp:0,base:0,min:0,bonus:0,holiday:0,vacation:0,training:0,other:0,tp:0});
   }
@@ -2420,10 +2533,12 @@
       if(parsed && Array.isArray(parsed.candidates)) data={...data,...parsed,version:10,candidates:parsed.candidates.map(c=>{ const legacyDigits=String(c.ssnFull||c.ssn||'').replace(/\D/g,''); const full=legacyDigits.length===9?legacyDigits:''; const last4=String(c.ssnLast4||full||c.ssn||'').replace(/\D/g,'').slice(-4); const migrated={...c,recruitmentStatus:normalizeRecruitmentStatus(c.recruitmentStatus),drugTest:c.drugTest||'Not Taken',doubles:(c.doubles==='Yes'?'Yes':'No'),notes:String(c.notes||c.reasonStuck||''),dob:c.dob||'',cdlNumber:c.cdlNumber||'',cdlIssuingState:c.cdlIssuingState||'',cdlExpiry:c.cdlExpiry||'',ssnFull:full,ssnLast4:last4,sourceApplicationName:c.sourceApplicationName||'',roadTestForm:(c.roadTestForm&&typeof c.roadTestForm==='object'?c.roadTestForm:{})}; delete migrated.ssn; delete migrated.reasonStuck; return migrated; })};
     }catch(err){ if(err?.name!=='NotFoundError') console.warn('Could not load HR data',err); }
     ensureRecruitmentLayout(data);
-    state.hr=data; state.hrLoaded=true; renderHr();
+    state.hr=data; state.hrLoaded=true; if(state.dispatchLoaded)syncSharedDriverRoster(); renderHr(); renderDispatch(); renderDailyDispatch();
   }
   async function saveHrData(silent=true){
+    const rosterChanged=state.dispatchLoaded?syncSharedDriverRoster():false;
     const cloudSaved=cloudConnected()?await saveCloudModule('hr',true):false;
+    if(rosterChanged&&canAccessModuleKey('dispatch',true)) await saveDispatchData(true);
     if(!state.directoryHandle){ if(!silent&&cloudSaved) showAlert('HR records saved to NBL Cloud. Full SSNs are excluded from cloud storage.','success'); return cloudSaved; }
     if(!(await requestPermission(state.directoryHandle,'readwrite'))){ if(!silent) showAlert('Folder write permission is required to save HR records.','error'); return false; }
     try{
@@ -3301,8 +3416,9 @@
   function dispatchRuns(locationId=dispatchActiveLocationId()){ return (state.dispatch.runs||[]).filter(r=>(r.locationId||'nashville')===locationId); }
   function dispatchRun(runId){ return (state.dispatch.runs||[]).find(r=>r.id===runId); }
   function dispatchDriver(driverId){ return (state.dispatch.drivers||[]).find(d=>d.id===driverId); }
+  function dispatchDriverIsActive(driver){ return !!driver && driver.active!==false; }
   function dispatchDriverLocationId(driver){ const ids=new Set(dispatchLocations().map(l=>l.id)); return driver&&ids.has(driver.locationId)?driver.locationId:dispatchLocations()[0]?.id||'nashville'; }
-  function dispatchDriversForLocation(locationId=dispatchActiveLocationId()){ return (state.dispatch.drivers||[]).filter(d=>dispatchDriverLocationId(d)===locationId); }
+  function dispatchDriversForLocation(_locationId=dispatchActiveLocationId()){ return (state.dispatch.drivers||[]).filter(dispatchDriverIsActive); }
   function dispatchDriverLocationName(driver){ return dispatchLocations().find(l=>l.id===dispatchDriverLocationId(driver))?.name||'Unassigned'; }
   function dispatchTractors(){ return Array.isArray(state.dispatch?.tractors)?state.dispatch.tractors:[]; }
   function dispatchTractor(tractorId){ return dispatchTractors().find(t=>t.id===tractorId); }
@@ -3348,6 +3464,48 @@
     }
     return [...map.values()].sort((a,b)=>a.name.localeCompare(b.name)||a.fedexId.localeCompare(b.fedexId));
   }
+  function dispatchPersonNameKey(name){
+    const suffixes=new Set(['jr','sr','ii','iii','iv']);
+    const parts=String(name||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().split(/\s+/).filter(Boolean).filter(x=>!suffixes.has(x));
+    return parts.length>1?`${parts[0]} ${parts.at(-1)}`:(parts[0]||'');
+  }
+  function motiveDriverEmployeeId(driver){ return String(driver?.employee_id||driver?.driver_company_id||driver?.company_id||driver?.employeeId||'').trim(); }
+  function motiveDriverIsActive(driver){ return !/deactivat|inactive|disabled|terminated/i.test(String(driver?.status||'')); }
+  function dispatchLocationForDomicile(domicile){
+    const text=String(domicile||'').toLowerCase();
+    return dispatchLocations().find(l=>text.includes(String(l.name||'').toLowerCase()))?.id||dispatchLocations()[0]?.id||'nashville';
+  }
+  function syncSharedDriverRoster(){
+    state.dispatch.drivers=Array.isArray(state.dispatch.drivers)?state.dispatch.drivers:[];
+    const roster=state.dispatch.drivers, byFedex=new Map(), byName=new Map(); let changed=false;
+    const index=driver=>{const id=String(driver.fedexId||'').trim(),nk=dispatchPersonNameKey(driver.name);if(id)byFedex.set(id,driver);if(nk&&!byName.has(nk))byName.set(nk,driver);};
+    roster.forEach(index);
+    const recruitment=(state.hr?.candidates||[]).filter(c=>normalizeRecruitmentStatus(c.recruitmentStatus)==='Hired');
+    const recruitById=new Map(recruitment.map(c=>[String(c.fedexId||'').trim(),c]).filter(x=>x[0]));
+    const recruitByName=new Map(recruitment.map(c=>[dispatchPersonNameKey(c.name),c]).filter(x=>x[0]));
+    const motiveById=new Map(), motiveByName=new Map();
+    for(const m of state.motive.drivers||[]){const id=motiveDriverEmployeeId(m),nk=dispatchPersonNameKey(m.name||[m.first_name,m.last_name].filter(Boolean).join(' '));if(id)motiveById.set(id,m);if(nk&&!motiveByName.has(nk))motiveByName.set(nk,m);}
+    const ensure=(source,kind)=>{
+      const fedexId=String(source.fedexId||'').trim(),nk=dispatchPersonNameKey(source.name),m=(fedexId&&motiveById.get(fedexId))||(nk&&motiveByName.get(nk)),r=(fedexId&&recruitById.get(fedexId))||(nk&&recruitByName.get(nk));
+      const motiveId=motiveDriverEmployeeId(m),canonicalId=fedexId||motiveId,canonicalName=String(r?.name||source.name||m?.name||[m?.first_name,m?.last_name].filter(Boolean).join(' ')||`Driver ${canonicalId}`).trim();
+      let driver=(canonicalId&&byFedex.get(canonicalId))||(nk&&byName.get(nk));
+      if(!driver){
+        const base=`${kind}_${canonicalId||String(m?.id||r?.id||dispatchPersonNameKey(canonicalName)).replace(/[^a-z0-9]+/g,'_')}`;
+        driver={id:base,fedexId:canonicalId,name:canonicalName,role:'urr',locationId:dispatchLocationForDomicile(r?.domicile),availability:[0,1,2,3,4,5,6],availabilityLabel:'Daily',origins:['*'],baseLabel:r?.domicile||'All origins',source:kind,active:true};
+        roster.push(driver);index(driver);changed=true;
+      }
+      const active=m?motiveDriverIsActive(m):true;
+      const updates={fedexId:canonicalId||driver.fedexId||'',name:canonicalName||driver.name,motiveDriverId:m?.id==null?(driver.motiveDriverId||''):String(m.id),motiveStatus:m?.status||driver.motiveStatus||'',active,source:driver.source||kind};
+      for(const [key,value] of Object.entries(updates))if(driver[key]!==value){driver[key]=value;changed=true;}
+      index(driver);
+    };
+    for(const m of state.motive.drivers||[]) ensure({fedexId:motiveDriverEmployeeId(m),name:m.name||[m.first_name,m.last_name].filter(Boolean).join(' ')},'motive');
+    for(const c of recruitment) ensure({fedexId:c.fedexId,name:c.name},'recruitment');
+    for(const d of settlementDispatchDrivers()) ensure(d,'settlement');
+    // Motive is authoritative: a matched deactivated driver is not offered for new work.
+    for(const d of roster){const id=String(d.fedexId||'').trim(),nk=dispatchPersonNameKey(d.name),m=(id&&motiveById.get(id))||(nk&&motiveByName.get(nk));if(m){const active=motiveDriverIsActive(m);if(d.active!==active){d.active=active;changed=true;}if(d.motiveStatus!==String(m.status||'')){d.motiveStatus=String(m.status||'');changed=true;}}else if(d.active==null){d.active=true;changed=true;}}
+    return changed;
+  }
   function availableDispatchDrivers(){
     const rows=[],byFedex=new Map(),byName=new Map();
     const add=(row,source)=>{
@@ -3356,10 +3514,13 @@
       if(existing){existing.sources.add(source);if(row.lastSeen&&(!existing.lastSeen||row.lastSeen>existing.lastSeen))existing.lastSeen=row.lastSeen;if(!existing.fedexId&&fedexId){existing.fedexId=fedexId;byFedex.set(fedexId,existing);}if(!existing.hrId&&row.hrId)existing.hrId=row.hrId;return;}
       const item={key:fedexId?`fedex:${fedexId}`:`hr:${row.hrId||nameKey}`,fedexId,name:name||`Driver ${fedexId}`,hrId:row.hrId||'',lastSeen:row.lastSeen||'',sources:new Set([source])};rows.push(item);if(fedexId)byFedex.set(fedexId,item);if(nameKey)byName.set(nameKey,item);
     };
+    for(const m of state.motive.drivers||[])if(motiveDriverIsActive(m))add({name:m.name||[m.first_name,m.last_name].filter(Boolean).join(' '),fedexId:motiveDriverEmployeeId(m),motiveDriverId:m.id},'Motive');
     for(const d of settlementDispatchDrivers())add(d,'Settlement');
     for(const c of state.hr?.candidates||[])if(normalizeRecruitmentStatus(c.recruitmentStatus)==='Hired')add({name:c.name,fedexId:c.fedexId,hrId:c.id},'Recruitment');
-    return rows.map(r=>({...r,sourceLabel:[...r.sources].sort().join(' + ')})).sort((a,b)=>a.name.localeCompare(b.name)||a.fedexId.localeCompare(b.fedexId));
+    return rows.filter(r=>{const m=(r.fedexId&&motiveByEmployeeId(r.fedexId))||(r.name&&motiveDriverByName(r.name));return !m||motiveDriverIsActive(m);}).map(r=>({...r,sourceLabel:[...r.sources].sort().join(' + ')})).sort((a,b)=>a.name.localeCompare(b.name)||a.fedexId.localeCompare(b.fedexId));
   }
+  function motiveByEmployeeId(id){ const key=String(id||'').trim();return key?(state.motive.drivers||[]).find(d=>motiveDriverEmployeeId(d)===key):null; }
+  function motiveDriverByName(name){ const key=dispatchPersonNameKey(name);return key?(state.motive.drivers||[]).find(d=>dispatchPersonNameKey(d.name||[d.first_name,d.last_name].filter(Boolean).join(' '))===key):null; }
   function dispatchExistingByFedexId(fedexId){ const id=String(fedexId||'').trim(); return id?(state.dispatch.drivers||[]).find(d=>String(d.fedexId||'').trim()===id):null; }
   function dispatchNameKey(name){ return String(name||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,' ' ).trim(); }
   function dispatchExistingSettlementDriver(row){ return dispatchExistingByFedexId(row?.fedexId)||(state.dispatch.drivers||[]).find(d=>dispatchNameKey(d.name)===dispatchNameKey(row?.name)); }
@@ -3377,8 +3538,8 @@
     }
     const roster=$('dispatchCurrentRosterTable');
     if(roster){
-      roster.querySelector('thead').innerHTML='<tr>'+['Driver','FedEx ID','Location','Schedule','Source','Actions'].map(h=>`<th>${h}</th>`).join('')+'</tr>';
-      roster.querySelector('tbody').innerHTML=(state.dispatch.drivers||[]).slice().sort((a,b)=>dispatchDriverLocationName(a).localeCompare(dispatchDriverLocationName(b))||a.name.localeCompare(b.name)).map(d=>`<tr><td><strong>${escapeHtml(d.name)}</strong></td><td>${escapeHtml(d.fedexId||'—')}</td><td><span class="dispatch-location-pill">${escapeHtml(dispatchDriverLocationName(d))}</span></td><td>${escapeHtml(d.availabilityLabel||dispatchAvailabilityLabel(d.availability||[]))}</td><td>${d.source==='settlement'?'Settlement':d.source==='recruitment'?'Recruitment':d.source==='recruitment_settlement'?'Recruitment + Settlement':d.source==='seed'?'Starting roster':'Manual'}</td><td class="dispatch-roster-row-actions"><button class="button secondary" type="button" data-edit-dispatch-driver="${escapeHtml(d.id)}">Edit</button><button class="button danger-outline" type="button" data-delete-dispatch-driver="${escapeHtml(d.id)}">Remove</button></td></tr>`).join('')||'<tr><td colspan="6" class="empty-table-cell">No dispatch drivers have been added.</td></tr>';
+      roster.querySelector('thead').innerHTML='<tr>'+['Driver','FedEx ID','Status','Location','Schedule','Source','Actions'].map(h=>`<th>${h}</th>`).join('')+'</tr>';
+      roster.querySelector('tbody').innerHTML=(state.dispatch.drivers||[]).slice().sort((a,b)=>Number(dispatchDriverIsActive(b))-Number(dispatchDriverIsActive(a))||dispatchDriverLocationName(a).localeCompare(dispatchDriverLocationName(b))||a.name.localeCompare(b.name)).map(d=>`<tr class="${dispatchDriverIsActive(d)?'':'dispatch-driver-inactive'}"><td><strong>${escapeHtml(d.name)}</strong></td><td>${escapeHtml(d.fedexId||'—')}</td><td>${dispatchDriverIsActive(d)?'<span class="status-pill yes">Active</span>':`<span class="status-pill baseline">Inactive${d.motiveStatus?` • ${escapeHtml(d.motiveStatus)}`:''}</span>`}</td><td><span class="dispatch-location-pill">${escapeHtml(dispatchDriverLocationName(d))}</span></td><td>${escapeHtml(d.availabilityLabel||dispatchAvailabilityLabel(d.availability||[]))}</td><td>${escapeHtml(d.source||'Manual')}</td><td class="dispatch-roster-row-actions"><button class="button secondary" type="button" data-edit-dispatch-driver="${escapeHtml(d.id)}" ${dispatchDriverIsActive(d)?'':'disabled'}>Edit</button><button class="button danger-outline" type="button" data-delete-dispatch-driver="${escapeHtml(d.id)}">Remove</button></td></tr>`).join('')||'<tr><td colspan="7" class="empty-table-cell">No dispatch drivers have been added.</td></tr>';
     }
   }
   function openDispatchDriverRosterModal(){ renderDispatchDriverRosterModal(); openModal('dispatchDriverRosterModal'); }
@@ -3493,7 +3654,7 @@
   async function loadDispatchData(){
     if(!state.directoryHandle)return; let data=defaultDispatchData();
     try{const dir=await state.directoryHandle.getDirectoryHandle('Dispatch');const fh=await dir.getFileHandle('dispatch_data.json');const file=await fh.getFile();data=migrateDispatchData(JSON.parse(await file.text()));}catch(err){if(err&&err.name!=='NotFoundError')console.warn('Could not load dispatch data',err);}
-    state.dispatch=data;state.dispatchLoaded=true;state.dispatchSelectedDriverId=null;renderDispatch();renderDailyDispatch();
+    state.dispatch=data;state.dispatchLoaded=true;state.dispatchSelectedDriverId=null;syncSharedDriverRoster();renderDispatch();renderDailyDispatch();
   }
   async function saveDispatchData(silent=true){
     const cloudSaved=cloudConnected()?await saveCloudModule('dispatch',true):false;
@@ -3596,9 +3757,9 @@
     const saved=state.dispatch.dailyBoards?.[date]; return saved&&Array.isArray(saved.rows)?saved.rows:dailyDispatchDefaultRows();
   }
   function dailyDispatchDriverOptions(selected=''){
-    const drivers=(state.dispatch.drivers||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+    const drivers=(state.dispatch.drivers||[]).filter(dispatchDriverIsActive).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
     let html='<option value="">Select driver…</option>'+drivers.map(d=>`<option value="${escapeHtml(d.id)}" ${d.id===selected?'selected':''}>${escapeHtml(d.name)}${d.fedexId?` • ${escapeHtml(d.fedexId)}`:''}</option>`).join('');
-    if(selected&&!drivers.some(d=>d.id===selected))html+=`<option value="${escapeHtml(selected)}" selected>Previously assigned driver</option>`; return html;
+    if(selected&&!drivers.some(d=>d.id===selected)){const prior=dispatchDriver(selected);html+=`<option value="${escapeHtml(selected)}" selected>${escapeHtml(prior?.name||'Previously assigned driver')} • inactive</option>`;} return html;
   }
   function updateDailyDispatchBoardControls(){
     let declines=0,received=0,accepted=0;const hubStats={};
@@ -5300,7 +5461,7 @@
     if(!state.motive.backendAvailable) return;
     try{
       await localApi('/api/motive/disconnect',{method:'POST',body:'{}'});
-      state.motive.configured=false; state.motive.keyHint=''; state.motive.vehicles=[]; state.motive.lastSync=null; state.motive.test=null;
+      state.motive.configured=false; state.motive.keyHint=''; state.motive.vehicles=[]; state.motive.drivers=[]; state.motive.lastSync=null; state.motive.test=null;
       renderMotive(); showAlert('Motive disconnected on this computer.','success');
     }catch(err){ showAlert(`Could not disconnect Motive: ${escapeHtml(err.message)}`,'error'); }
   }
@@ -5318,10 +5479,20 @@
     if(!state.motive.configured){ if(!silent) showAlert('Connect Motive first.','warning'); return; }
     state.motive.loading=true; renderMotive();
     try{
-      const data=await localApi('/api/motive/vehicles');
-      state.motive.vehicles=Array.isArray(data.vehicles)?data.vehicles:[]; state.motive.lastSync=new Date().toISOString();
-      if(state.dispatchLoaded){ syncDispatchTractorMetadataFromMotive(); renderDispatch(); }
-      if(!silent) showAlert(`Loaded <strong>${state.motive.vehicles.length}</strong> vehicle${state.motive.vehicles.length===1?'':'s'} from Motive.`,'success');
+      const [vehicleData,driverResult]=await Promise.all([
+        localApi('/api/motive/vehicles'),
+        localApi('/api/motive/drivers').then(data=>({data,error:null})).catch(error=>({data:null,error}))
+      ]);
+      state.motive.vehicles=Array.isArray(vehicleData.vehicles)?vehicleData.vehicles:[];
+      if(driverResult.data) state.motive.drivers=Array.isArray(driverResult.data.drivers)?driverResult.data.drivers:[];
+      state.motive.lastSync=new Date().toISOString();
+      if(state.dispatchLoaded){
+        syncDispatchTractorMetadataFromMotive();
+        const rosterChanged=syncSharedDriverRoster();
+        if(rosterChanged&&canAccessModuleKey('dispatch',true)) await saveDispatchData(true);
+        renderDispatch(); renderDailyDispatch();
+      }
+      if(!silent) showAlert(`Loaded <strong>${state.motive.vehicles.length}</strong> vehicle${state.motive.vehicles.length===1?'':'s'} and <strong>${state.motive.drivers.length}</strong> driver${state.motive.drivers.length===1?'':'s'} from Motive.${driverResult.error?' Driver status could not be refreshed; the last known roster was retained.':''}`,driverResult.error?'warning':'success');
     }catch(err){ if(!silent) showAlert(`Could not load the Motive fleet: ${escapeHtml(err.message)}`,'error'); }
     finally{ state.motive.loading=false; renderMotive(); }
   }
@@ -5402,6 +5573,10 @@
   $('mobileMenuBtn')?.addEventListener('click',()=>setMobileSidebar(!document.body.classList.contains('mobile-sidebar-open')));
   $('mobileSidebarBackdrop')?.addEventListener('click',()=>setMobileSidebar(false));
   document.querySelectorAll('.nav-btn').forEach(b=>b.addEventListener('click',()=>{ requestScreen(b.dataset.screen); setMobileSidebar(false); }));
+  document.addEventListener('click',e=>{ const btn=e.target.closest('[data-dashboard-screen]'); if(btn) requestScreen(btn.dataset.dashboardScreen); });
+  $('dashboardMilesRange')?.addEventListener('change',e=>{ const p=dashboardPreferences();p.milesWeeks=Number(e.target.value)||8;localStorage.setItem(dashboardPrefsKey(),JSON.stringify(p));renderDashboard(); });
+  $('dashboardCustomizeBtn')?.addEventListener('click',()=>{ const p=dashboardPreferences();$('dashboardShowMiles').checked=p.showMiles;$('dashboardShowDispatch').checked=p.showDispatch;$('dashboardShowMaintenance').checked=p.showMaintenance;$('dashboardShowAttention').checked=p.showAttention;openModal('dashboardCustomizeModal'); });
+  $('saveDashboardPreferencesBtn')?.addEventListener('click',()=>{ const p=dashboardPreferences();p.showMiles=$('dashboardShowMiles').checked;p.showDispatch=$('dashboardShowDispatch').checked;p.showMaintenance=$('dashboardShowMaintenance').checked;p.showAttention=$('dashboardShowAttention').checked;localStorage.setItem(dashboardPrefsKey(),JSON.stringify(p));closeModal('dashboardCustomizeModal');renderDashboard(); });
   $('financialPlInput')?.addEventListener('change',e=>{ const file=e.target.files?.[0]; e.target.value=''; importFinancialWorkbook(file); });
   $('refreshFinancialAnalysisBtn')?.addEventListener('click',renderFinancialAnalysis);
   $('financialStartPeriod')?.addEventListener('change',renderFinancialAnalysis);
@@ -5643,7 +5818,7 @@
     await initCloudBridge();
     if(state.cloud.connected) await loadMotiveStatus();
     if(state.motive.backendAvailable && state.motive.configured) await refreshMotiveFleet(true);
-    setScreen(cloudConnected()?firstAccessibleScreen():'drivers');
+    setScreen('dashboard');
     await restoreFolder();
     updateCloudUI();
   }

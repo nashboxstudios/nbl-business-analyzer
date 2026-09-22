@@ -6,7 +6,7 @@
   <title>NBL FleetCommand</title>
   <meta name="theme-color" content="#35164E" />
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=92" />
+  <link rel="stylesheet" href="styles.css?v=94" />
 </head>
 <body>
 
@@ -32,9 +32,12 @@
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
         <div class="app-name">NBL FleetCommand</div>
         <div class="app-tagline">Operations Intelligence</div>
-        <div class="app-version">Version 92</div>
+        <div class="app-version">Version 94</div>
       </div>
       <nav class="sidebar-nav">
+        <div class="nav-standalone">
+          <button class="nav-btn nav-btn-child active" data-icon="H" data-screen="dashboard">Dashboard</button>
+        </div>
         <div class="nav-group" data-nav-group="operations">
           <button type="button" class="nav-group-toggle" aria-expanded="true"><span class="nav-group-title">Operations</span><span class="nav-group-chevron" aria-hidden="true">▾</span></button>
           <div class="nav-group-items">
@@ -102,6 +105,36 @@
 
       <section class="content">
         <div id="alertArea"></div>
+        <div id="dashboardScreen" class="screen hidden">
+          <div class="dashboard-intro">
+            <div><span class="eyebrow">Operations overview</span><h2 id="dashboardGreeting">Welcome to FleetCommand</h2><p>Key activity across mileage, dispatch, and fleet maintenance.</p></div>
+            <button class="button secondary compact" id="dashboardCustomizeBtn" type="button">Customize</button>
+          </div>
+
+          <section class="dashboard-section" id="dashboardMilesSection">
+            <div class="dashboard-section-heading"><div><h2>Miles</h2><p id="dashboardMilesAsOf">Based on uploaded settlement activity.</p></div></div>
+            <div class="dashboard-mile-cards" id="dashboardMilesCards"></div>
+            <div class="panel dashboard-chart-panel">
+              <div class="panel-heading"><div><h2>Weekly Mileage Trend</h2><p>Completed Saturday–Friday weeks only.</p></div><div class="selector-field compact"><label>Trend period</label><select id="dashboardMilesRange"><option value="4">4 weeks</option><option value="8" selected>8 weeks</option><option value="12">12 weeks</option><option value="26">26 weeks</option></select></div></div>
+              <div class="dashboard-chart-legend"><span class="total">Total</span><span class="linehaul">Linehaul</span><span class="spot">Spot</span></div>
+              <div class="dashboard-chart" id="dashboardMilesChart"></div>
+            </div>
+          </section>
+
+          <section class="dashboard-section" id="dashboardDispatchSection">
+            <div class="dashboard-section-heading"><div><h2>Dispatch</h2><p>Accepted routes and declines by hub.</p></div><button class="table-action" type="button" data-dashboard-screen="daily-dispatch">Open Daily Board</button></div>
+            <div class="panel dashboard-dispatch-panel"><div class="table-wrap"><table class="dashboard-dispatch-table"><thead id="dashboardDispatchHead"></thead><tbody id="dashboardDispatchBody"></tbody></table></div><div class="dashboard-data-note" id="dashboardDispatchNote"></div></div>
+          </section>
+
+          <section class="dashboard-section" id="dashboardMaintenanceSection">
+            <div class="dashboard-section-heading"><div><h2>Fleet Maintenance</h2><p>Current preventive-maintenance readiness.</p></div><button class="table-action" type="button" data-dashboard-screen="maintenance">Open Maintenance</button></div>
+            <div class="dashboard-maintenance-cards" id="dashboardMaintenanceCards"></div>
+          </section>
+
+          <section class="dashboard-section" id="dashboardAttentionSection">
+            <div class="panel"><div class="panel-heading"><div><h2>Needs Attention</h2><p>Priority maintenance and open inspection items.</p></div><div class="history-count" id="dashboardAttentionCount">0 items</div></div><div class="dashboard-attention-list" id="dashboardAttentionList"></div></div>
+          </section>
+        </div>
         <div id="emptyState" class="empty-state">
           <div class="upload-icon">↥</div>
           <h2>Connect your NBL workspace</h2>
@@ -1422,8 +1455,22 @@
     </div>
   </div>
 
-  <script src="core.js?v=92"></script>
-  <script src="cloud.js?v=92"></script>
-  <script src="app.js?v=92"></script>
+  <div class="modal-backdrop hidden" id="dashboardCustomizeModal">
+    <div class="modal-card dashboard-customize-card">
+      <div class="modal-heading"><div><span class="eyebrow">Personal dashboard</span><h2>Customize Dashboard</h2></div><button class="icon-btn" data-close-modal="dashboardCustomizeModal">×</button></div>
+      <p class="dashboard-customize-note">Choose the sections you want to see. These preferences are saved on this device.</p>
+      <div class="dashboard-customize-options">
+        <label><input type="checkbox" id="dashboardShowMiles"> Miles and trend</label>
+        <label><input type="checkbox" id="dashboardShowDispatch"> Dispatch by hub</label>
+        <label><input type="checkbox" id="dashboardShowMaintenance"> Maintenance summary</label>
+        <label><input type="checkbox" id="dashboardShowAttention"> Needs attention</label>
+      </div>
+      <div class="modal-actions"><button class="button secondary" type="button" data-close-modal="dashboardCustomizeModal">Cancel</button><button class="button primary" id="saveDashboardPreferencesBtn" type="button">Save Preferences</button></div>
+    </div>
+  </div>
+
+  <script src="core.js?v=94"></script>
+  <script src="cloud.js?v=94"></script>
+  <script src="app.js?v=94"></script>
 </body>
 </html>

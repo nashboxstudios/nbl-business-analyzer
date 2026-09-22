@@ -469,6 +469,44 @@ def fetch_motive_vehicles():
     return result
 
 
+def fetch_motive_drivers():
+    """Fetch the Motive driver directory used to reconcile FleetCommand rosters."""
+    out, page, per_page = [], 1, 100
+    while page <= 50:
+        payload, _ = motive_request('/v1/driver_locations', {'per_page': per_page, 'page_no': page})
+        raw_items = extract_list(payload, 'driver_locations') or extract_list(payload, 'drivers') or extract_list(payload, 'users')
+        for raw in raw_items:
+            row = unwrap_item(raw, 'driver_location')
+            user = row.get('user') if isinstance(row.get('user'), dict) else row
+            if isinstance(user.get('driver'), dict):
+                user = user['driver']
+            role = str(user.get('role') or 'driver').strip().lower()
+            if role and role != 'driver':
+                continue
+            first = str(user.get('first_name') or '').strip()
+            last = str(user.get('last_name') or '').strip()
+            employee_id = str(user.get('driver_company_id') or row.get('driver_company_id') or user.get('company_id') or user.get('employee_id') or '').strip()
+            out.append({
+                'id': user.get('id'),
+                'employee_id': employee_id,
+                'driver_company_id': employee_id,
+                'first_name': first,
+                'last_name': last,
+                'name': ' '.join(x for x in (first, last) if x).strip() or str(user.get('username') or '').strip(),
+                'email': str(user.get('email') or '').strip(),
+                'username': str(user.get('username') or '').strip(),
+                'status': str(user.get('status') or row.get('status') or '').strip(),
+            })
+        total = payload.get('total') if isinstance(payload, dict) else None
+        if total is None and isinstance(payload, dict) and isinstance(payload.get('pagination'), dict):
+            total = payload['pagination'].get('total')
+        if not raw_items or len(raw_items) < per_page or (isinstance(total, (int, float)) and len(out) >= int(total)):
+            break
+        page += 1
+    out.sort(key=lambda d: (str(d.get('last_name') or '').lower(), str(d.get('first_name') or '').lower(), str(d.get('id') or '')))
+    return out
+
+
 
 def extract_gps_points(payload):
     """Recursively find breadcrumb-like records containing latitude/longitude."""
@@ -2926,7 +2964,7 @@ class NBLHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == '/health':
-            return self.send_json({'ok': True, 'app': 'NBL FleetCommand', 'version': 89})
+            return self.send_json({'ok': True, 'app': 'NBL FleetCommand', 'version': 94})
         if parsed.path.startswith('/api/') and not require_nbl_api_access(self, parsed.path, 'GET'):
             return
         if parsed.path == '/api/admin/users':
@@ -3005,6 +3043,9 @@ class NBLHandler(SimpleHTTPRequestHandler):
             if parsed.path == '/api/motive/vehicles':
                 vehicles = fetch_motive_vehicles()
                 return self.send_json({'ok': True, 'vehicles': vehicles, 'count': len(vehicles)})
+            if parsed.path == '/api/motive/drivers':
+                drivers = fetch_motive_drivers()
+                return self.send_json({'ok': True, 'drivers': drivers, 'count': len(drivers)})
             if parsed.path == '/api/motive/odometer':
                 qs = parse_qs(parsed.query)
                 vehicle_id = str((qs.get('vehicle_id') or [''])[0]).strip()
@@ -3138,7 +3179,7 @@ def main():
     # that is still running from hijacking a newer build's browser window.
     server = ThreadingHTTPServer((HOST, REQUESTED_PORT), NBLHandler)
     actual_port = int(server.server_address[1])
-    url = f'http://localhost:{actual_port}/index.html?v=92'
+    url = f'http://localhost:{actual_port}/index.html?v=94'
     if PORT_FILE:
         try:
             Path(PORT_FILE).write_text(url, encoding='utf-8')
