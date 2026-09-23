@@ -6,7 +6,7 @@
   <title>NBL FleetCommand</title>
   <meta name="theme-color" content="#35164E" />
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=96" />
+  <link rel="stylesheet" href="styles.css?v=97" />
 </head>
 <body>
 
@@ -32,7 +32,7 @@
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
         <div class="app-name">NBL FleetCommand</div>
         <div class="app-tagline">Operations Intelligence</div>
-        <div class="app-version">Version 96</div>
+        <div class="app-version">Version 97</div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-standalone">
@@ -41,15 +41,12 @@
         <div class="nav-group" data-nav-group="operations">
           <button type="button" class="nav-group-toggle" aria-expanded="true"><span class="nav-group-title">Operations</span><span class="nav-group-chevron" aria-hidden="true">▾</span></button>
           <div class="nav-group-items">
-            <div class="nav-subgroup">
-              <div class="nav-subgroup-label"><span class="nav-section-icon">D</span> Dispatch</div>
-              <button class="nav-btn nav-btn-grandchild" data-icon="D" data-screen="daily-dispatch">Daily Dispatch Board</button>
-              <button class="nav-btn nav-btn-grandchild" data-icon="W" data-screen="dispatch">Weekly Dispatch Planner</button>
-            </div>
-            <button class="nav-btn nav-btn-child" data-icon="M" data-screen="maintenance">Fleet Maintenance</button>
-            <button class="nav-btn nav-btn-child" data-icon="M" data-screen="motive">Motive</button>
+            <button class="nav-btn nav-btn-child" data-icon="D" data-screen="daily-dispatch">Daily Dispatch Board</button>
+            <button class="nav-btn nav-btn-child" data-icon="W" data-screen="dispatch">Weekly Dispatch Planner</button>
             <button class="nav-btn nav-btn-child" data-icon="M" data-screen="meetings">Meetings</button>
+            <button class="nav-btn nav-btn-child" data-icon="F" data-screen="maintenance">Fleet Maintenance</button>
             <button class="nav-btn nav-btn-child" data-icon="A" data-screen="audit">Audit</button>
+            <button class="nav-btn nav-btn-child" data-icon="M" data-screen="motive">Motive</button>
           </div>
         </div>
 
@@ -67,10 +64,7 @@
             <button class="nav-btn nav-btn-child active protected-nav" data-icon="$" data-screen="drivers">Driver Pay <em class="nav-lock">Locked</em></button>
             <button class="nav-btn nav-btn-child protected-nav" data-icon="$" data-screen="summary">Settlements <em class="nav-lock">Locked</em></button>
             <button class="nav-btn nav-btn-child protected-nav" data-icon="P" data-screen="financial-analysis">Financial Analysis <em class="nav-lock">Locked</em></button>
-            <div class="nav-subgroup protected-nav" data-finance-nav="reports">
-              <div class="nav-subgroup-label"><span class="nav-section-icon">R</span> Reports <em class="nav-lock">Locked</em></div>
-              <button class="nav-btn nav-btn-grandchild protected-nav" data-icon="S" data-screen="settlement-reports">Settlement Reports</button>
-            </div>
+            <button class="nav-btn nav-btn-child protected-nav" data-finance-nav="reports" data-icon="S" data-screen="settlement-reports">Settlement Reports <em class="nav-lock">Locked</em></button>
             <button class="nav-btn nav-btn-child protected-nav" data-icon="R" data-screen="revenue">Revenue Finder <em class="nav-lock">Locked</em></button>
           </div>
         </div>
@@ -1482,8 +1476,8 @@
     </div>
   </div>
 
-  <script src="core.js?v=96"></script>
-  <script src="cloud.js?v=96"></script>
-  <script src="app.js?v=96"></script>
+  <script src="core.js?v=97"></script>
+  <script src="cloud.js?v=97"></script>
+  <script src="app.js?v=97"></script>
 </body>
 </html>
