@@ -6,7 +6,7 @@
   <title>NBL FleetCommand</title>
   <meta name="theme-color" content="#35164E" />
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=104" />
+  <link rel="stylesheet" href="styles.css?v=105" />
 </head>
 <body>
 
@@ -32,7 +32,7 @@
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
         <div class="app-name">NBL FleetCommand</div>
         <div class="app-tagline">Operations Intelligence</div>
-        <div class="app-version">Version 104</div>
+        <div class="app-version">Version 105</div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-standalone nav-main-modules">
@@ -471,7 +471,7 @@
             <div>
               <span class="eyebrow">Owner / Access Control</span>
               <h2>User Access</h2>
-              <p>Create individual NBL profiles and control which non-finance role each person uses. Driver Pay, Settlement, Reports, and Revenue Finder remain owner-only.</p>
+              <p>Create individual NBL profiles as Operations Managers or Lead Drivers. Both roles can access Safety, Operations, and Recruitment; all other business modules remain owner-only.</p>
             </div>
             <button class="button secondary" id="refreshUserAccessBtn" type="button">Refresh Users</button>
           </div>
@@ -487,9 +487,9 @@
               </div>
               <div class="form-grid two">
                 <div class="form-field"><label>Temporary Password</label><input id="newNblUserPassword" type="password" minlength="10" required autocomplete="new-password" placeholder="At least 10 characters"></div>
-                <div class="form-field"><label>Role</label><select id="newNblUserRole"><option value="operations">Operations</option><option value="admin">Admin</option><option value="hr">HR</option></select></div>
+                <div class="form-field"><label>Role</label><select id="newNblUserRole"><option value="operations">Operations Manager</option><option value="lead_driver">Lead Driver</option></select></div>
               </div>
-              <div class="form-note">Non-owner roles can never access Driver Pay, Settlement, Reports, Revenue Finder, the Finance Access Code, or full SSN reveal.</div>
+              <div class="form-note">Operations Managers and Lead Drivers can access Dashboard, Safety, Operations, and Recruitment only. Owner-only areas, finance controls, and full SSN reveal remain unavailable.</div>
               <div class="modal-actions"><button class="button primary" id="createNblUserBtn" type="submit">Create User</button></div>
             </form>
           </div>
@@ -1531,8 +1531,8 @@
     </div>
   </div>
 
-  <script src="core.js?v=104"></script>
-  <script src="cloud.js?v=104"></script>
-  <script src="app.js?v=104"></script>
+  <script src="core.js?v=105"></script>
+  <script src="cloud.js?v=105"></script>
+  <script src="app.js?v=105"></script>
 </body>
 </html>

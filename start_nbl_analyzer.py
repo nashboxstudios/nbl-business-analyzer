@@ -120,14 +120,14 @@ def api_role_allowed(user, path, method='GET'):
     perms = membership.get('module_permissions') if isinstance(membership.get('module_permissions'), dict) else {}
     if path.startswith('/api/admin/'):
         return role == 'owner'
-    if role in ('owner', 'admin') or perms.get('all') is True:
+    if role == 'owner':
         return True
     if path.startswith('/api/hr/'):
-        return role == 'hr' or bool(perms.get('hr'))
+        return role in ('operations', 'lead_driver')
     if path.startswith('/api/motive/'):
         if path in ('/api/motive/config', '/api/motive/disconnect'):
             return False
-        return role in ('operations', 'finance') or bool(perms.get('motive')) or bool(perms.get('driver_pay')) or bool(perms.get('ivmr'))
+        return role in ('operations', 'lead_driver')
     return False
 
 
@@ -224,7 +224,7 @@ def create_nbl_user(user, data):
     full_name = str((data or {}).get('full_name') or '').strip()
     password = str((data or {}).get('password') or '')
     role = str((data or {}).get('role') or 'operations').strip().lower()
-    allowed_roles = {'admin', 'operations', 'hr'}
+    allowed_roles = {'operations', 'lead_driver'}
     if not org_id:
         raise RuntimeError('No NBL organization is assigned to this owner account.')
     if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):
@@ -232,7 +232,7 @@ def create_nbl_user(user, data):
     if len(password) < 10:
         raise RuntimeError('Temporary password must be at least 10 characters.')
     if role not in allowed_roles:
-        raise RuntimeError('Choose Admin, Operations, or HR. Owner and Finance roles cannot be assigned here.')
+        raise RuntimeError('Choose Operations Manager or Lead Driver. The Owner role cannot be assigned here.')
     created = supabase_service_request('/auth/v1/admin/users', 'POST', {
         'email': email,
         'password': password,
@@ -267,13 +267,13 @@ def update_nbl_user(user, data):
     full_name = str((data or {}).get('full_name') or '').strip()
     role = str((data or {}).get('role') or '').strip().lower()
     status = str((data or {}).get('status') or '').strip().lower()
-    allowed_roles = {'admin', 'operations', 'hr'}
+    allowed_roles = {'operations', 'lead_driver'}
     if not org_id or not uid:
         raise RuntimeError('Organization and user ID are required.')
     if uid == str(user.get('id') or ''):
         raise RuntimeError('Use My Profile to edit the Owner account. The Owner role cannot be changed here.')
     if role not in allowed_roles:
-        raise RuntimeError('Owner and Finance roles cannot be assigned to another profile.')
+        raise RuntimeError('Choose Operations Manager or Lead Driver. The Owner role cannot be assigned to another profile.')
     if status not in {'active', 'inactive'}:
         raise RuntimeError('Status must be active or inactive.')
     # Ensure the target already belongs to this organization and is not an owner.
@@ -3005,7 +3005,7 @@ class NBLHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == '/health':
-            return self.send_json({'ok': True, 'app': 'NBL FleetCommand', 'version': 104})
+            return self.send_json({'ok': True, 'app': 'NBL FleetCommand', 'version': 105})
         if parsed.path.startswith('/api/') and not require_nbl_api_access(self, parsed.path, 'GET'):
             return
         if parsed.path == '/api/admin/users':
@@ -3297,13 +3297,13 @@ def main():
     # that is still running from hijacking a newer build's browser window.
     server = ThreadingHTTPServer((HOST, REQUESTED_PORT), NBLHandler)
     actual_port = int(server.server_address[1])
-    url = f'http://localhost:{actual_port}/index.html?v=104'
+    url = f'http://localhost:{actual_port}/index.html?v=105'
     if PORT_FILE:
         try:
             Path(PORT_FILE).write_text(url, encoding='utf-8')
         except Exception:
             pass
-    print('NBL FleetCommand v104 is running.')
+    print('NBL FleetCommand v105 is running.')
     print(f'Open: {url}')
     print('Motive API credentials use MOTIVE_API_KEY when provided; local builds fall back to the protected local key file.')
     print('Keep this process running while using the app.')

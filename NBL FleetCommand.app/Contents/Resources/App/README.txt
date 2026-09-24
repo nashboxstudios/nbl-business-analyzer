@@ -1,4 +1,11 @@
-NBL FleetCommand — Version 104
+NBL FleetCommand — Version 105
+
+Version 105 - Role-Based Module Access
+
+- Owner has access to all FleetCommand modules and User Access controls.
+- Operations Manager and Lead Driver can access Dashboard, Safety, all Operations tools, and Recruitment only.
+- Finance, Compliance, Users, finance security, and full SSN reveal remain owner-only.
+- Role restrictions are enforced in both the navigation and authenticated server endpoints.
 
 Version 104 - Consolidated Safety Events
 
