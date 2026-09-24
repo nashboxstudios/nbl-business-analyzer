@@ -101,6 +101,7 @@
     audit:{version:1,audits:[],findings:[],activeTab:'dashboard',selectedAuditId:''}, auditLoaded:false,
     dispatch:defaultDispatchData(), dispatchLoaded:false, dispatchSelectedDriverId:null,
     motive:{backendAvailable:false,configured:false,keyHint:'',storage:'',vehicles:[],drivers:[],lastSync:null,test:null,loading:false},
+    safety:{version:1,startDate:'',endDate:'',scorecards:[],performanceEvents:[],speedingEvents:[],assignments:{},loadedAt:null,loading:false,error:'',accessErrors:{},driverFilter:'all',eventTypeFilter:'all'},
     ivmr:{startDate:'',endDate:'',rawTrips:[],trips:[],formatBuilt:false,loadedAt:null,loading:false,routeLoading:false,routeCancelRequested:false,routeStats:null,routeProgress:null,lastPdf:null,historyTest:{loading:false,result:null,error:''}},
     ivmrLocations:defaultIvmrLocationData(), ivmrLocationsLoaded:false,
     cloud:{connected:false,user:null,profile:null,membership:null,organization:null,snapshots:{},hasSnapshotData:false,lastSync:null,syncing:false,users:[],usersLoading:false},
@@ -149,9 +150,9 @@
   ];
   const AUDIT_CATEGORIES = [...new Set(AUDIT_TEMPLATE.map(x=>x.category))];
 
-  const CLOUD_MODULES=['dashboard','hr','driver_pay','maintenance','meetings','audit','dispatch','settlement','ivmr'];
-  const CLOUD_MODULE_LABELS={dashboard:'Dashboard',hr:'Recruitment / HR',driver_pay:'Driver Pay',maintenance:'Maintenance',meetings:'Meetings',audit:'Audit',dispatch:'Dispatch',settlement:'Settlement / Revenue Finder',ivmr:'IVMR'};
-  const SCREEN_MODULE_MAP={dashboard:'dashboard',drivers:'driver_pay',summary:'settlement','settlement-reports':'reports','financial-analysis':'reports',revenue:'settlement',maintenance:'maintenance',meetings:'meetings',hr:'hr',audit:'audit',dispatch:'dispatch','daily-dispatch':'dispatch',ivmr:'ivmr',motive:'motive'};
+  const CLOUD_MODULES=['dashboard','safety','hr','driver_pay','maintenance','meetings','audit','dispatch','settlement','ivmr'];
+  const CLOUD_MODULE_LABELS={dashboard:'Dashboard',safety:'Safety',hr:'Recruitment / HR',driver_pay:'Driver Pay',maintenance:'Maintenance',meetings:'Meetings',audit:'Audit',dispatch:'Dispatch',settlement:'Settlement / Revenue Finder',ivmr:'IVMR'};
+  const SCREEN_MODULE_MAP={dashboard:'dashboard',safety:'safety',drivers:'driver_pay',summary:'settlement','settlement-reports':'reports','financial-analysis':'reports',revenue:'settlement',maintenance:'maintenance',meetings:'meetings',hr:'hr',audit:'audit',dispatch:'dispatch','daily-dispatch':'dispatch',ivmr:'ivmr',motive:'motive'};
   const FINANCE_MODULE_KEYS=new Set(['driver_pay','settlement','revenue','reports']);
   function cloudConnected(){ return !!state.cloud?.connected; }
   function currentRole(){ return String(state.cloud?.membership?.role||'').trim().toLowerCase(); }
@@ -165,7 +166,7 @@
     if(role==='owner'||role==='admin'||perms.all===true) return true;
     if(role==='hr' && key==='hr') return true;
     if(key==='dashboard') return true;
-    if(role==='operations' && ['maintenance','meetings','dispatch','audit','ivmr','motive'].includes(key)) return true;
+    if(role==='operations' && ['safety','maintenance','meetings','dispatch','audit','ivmr','motive'].includes(key)) return true;
     if(role==='read_only' && writeAccess) return false;
     return perms[key]===true;
   }
@@ -175,7 +176,7 @@
     return moduleKey ? canAccessModuleKey(moduleKey,false) : true;
   }
   function firstAccessibleScreen(){
-    return ['dashboard','drivers','summary','financial-analysis','settlement-reports','revenue','maintenance','meetings','dispatch','audit','ivmr','motive','hr'].find(canAccessScreen)||'dashboard';
+    return ['dashboard','safety','drivers','summary','financial-analysis','settlement-reports','revenue','maintenance','meetings','dispatch','audit','ivmr','motive','hr'].find(canAccessScreen)||'dashboard';
   }
   function applyAccessVisibility(){
     if(!cloudConnected()) return;
@@ -236,7 +237,7 @@
         }
       }
     }
-    return {version:99,mileage,updatedAt:new Date().toISOString()};
+    return {version:100,mileage,updatedAt:new Date().toISOString()};
   }
   function normalizeCloudSettlementCatalog(data){
     const ss=data&&typeof data==='object'?data:{};
@@ -290,6 +291,7 @@
     state.hr=defaultHrData(); state.hrLoaded=false; state.recruitmentSearch=''; state.recruitmentStatusFilter='';
     state.audit={version:1,audits:[],findings:[],activeTab:'dashboard',selectedAuditId:''}; state.auditLoaded=false;
     state.dispatch=defaultDispatchData(); state.dispatchLoaded=false; state.dispatchSelectedDriverId=null;
+    state.safety={version:1,startDate:'',endDate:'',scorecards:[],performanceEvents:[],speedingEvents:[],assignments:{},loadedAt:null,loading:false,error:'',accessErrors:{},driverFilter:'all',eventTypeFilter:'all'};
     state.ivmr={startDate:'',endDate:'',rawTrips:[],trips:[],formatBuilt:false,loadedAt:null,loading:false,routeLoading:false,routeCancelRequested:false,routeStats:null,routeProgress:null,lastPdf:null,historyTest:{loading:false,result:null,error:''}};
     setIvmrDefaultDates(); state.ivmrLocations=defaultIvmrLocationData(); state.ivmrLocationsLoaded=false;
     state.payroll={version:2,profiles:{},periods:{},dhMappings:{}}; state.payrollLoaded=false;
@@ -297,6 +299,7 @@
   }
   function cloudSnapshotForModule(moduleKey){
     if(moduleKey==='dashboard') return dashboardMileageSnapshot();
+    if(moduleKey==='safety') return {version:1,assignments:cloneJson(state.safety?.assignments||{})};
     if(moduleKey==='hr') return sanitizedHrForCloud();
     if(moduleKey==='driver_pay') return cloneJson(state.payroll||{version:2,profiles:{},periods:{},dhMappings:{}});
     if(moduleKey==='maintenance') return cloneJson(state.maintenance||{version:2,tractors:[],records:[]});
@@ -350,12 +353,12 @@
   async function saveCloudModule(moduleKey,silent=true){
     if(!cloudConnected()||!window.NBLCloud||!state.cloud?.organization?.id) return false;
     try{
-      const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'99');
-      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'99',updated_at:new Date().toISOString()};
+      const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'100');
+      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'100',updated_at:new Date().toISOString()};
       if(moduleKey==='settlement'){
         const dashboardData=dashboardMileageSnapshot();
-        const dashboardRow=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,'dashboard',dashboardData,'99');
-        state.cloud.snapshots.dashboard=dashboardRow||{module_key:'dashboard',data:dashboardData,source_version:'99',updated_at:new Date().toISOString()};
+        const dashboardRow=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,'dashboard',dashboardData,'100');
+        state.cloud.snapshots.dashboard=dashboardRow||{module_key:'dashboard',data:dashboardData,source_version:'100',updated_at:new Date().toISOString()};
         state.dashboard.mileage=dashboardData.mileage;
       }
       state.cloud.hasSnapshotData=true; state.cloud.lastSync=new Date().toISOString(); updateCloudUI();
@@ -378,6 +381,7 @@
       ensureRecruitmentLayout(data); state.hr=data; state.hrLoaded=true;
     }
     if(get('audit')){ state.audit={version:1,audits:[],findings:[],activeTab:'dashboard',selectedAuditId:'',...cloneJson(get('audit'))}; state.auditLoaded=true; }
+    if(get('safety')){ state.safety.assignments=cloneJson(get('safety')?.assignments||{}); }
     if(get('dispatch')){ state.dispatch={...defaultDispatchData(),...cloneJson(get('dispatch'))}; state.dispatchLoaded=true; }
     if(get('settlement')){
       const ss=cloneJson(get('settlement'))||{};
@@ -800,6 +804,7 @@
     const hasResult=!!state.result, workspace=hasWorkspace(), label=workspaceLabel();
     const financeLocked=isFinanceScreen(screen) && !state.finance.unlocked;
     $('dashboardScreen')?.classList.toggle('hidden',screen!=='dashboard');
+    $('safetyScreen')?.classList.toggle('hidden',screen!=='safety');
     $('driversScreen').classList.toggle('hidden',screen!=='drivers' || !hasResult || financeLocked);
     $('summaryScreen').classList.toggle('hidden',screen!=='summary' || !state.catalog.length || financeLocked);
     $('reportsScreen')?.classList.toggle('hidden',screen!=='settlement-reports' || !workspace || financeLocked);
@@ -815,13 +820,13 @@
     $('ivmrScreen')?.classList.toggle('hidden',screen!=='ivmr' || !workspace);
     $('motiveScreen')?.classList.toggle('hidden',screen!=='motive');
     $('financeLockedState')?.classList.toggle('hidden',!financeLocked);
-    const folderScreen = screen==='dashboard' || screen==='maintenance' || screen==='meetings' || screen==='hr' || screen==='users' || screen==='audit' || screen==='settlement-reports' || screen==='financial-analysis' || screen==='revenue' || screen==='dispatch' || screen==='daily-dispatch' || screen==='ivmr' || screen==='motive';
+    const folderScreen = screen==='dashboard' || screen==='safety' || screen==='maintenance' || screen==='meetings' || screen==='hr' || screen==='users' || screen==='audit' || screen==='settlement-reports' || screen==='financial-analysis' || screen==='revenue' || screen==='dispatch' || screen==='daily-dispatch' || screen==='ivmr' || screen==='motive';
     const requiresWorkspace = screen==='maintenance' || screen==='meetings' || screen==='hr' || screen==='audit' || screen==='settlement-reports' || screen==='revenue' || screen==='dispatch' || screen==='daily-dispatch' || screen==='ivmr';
     const needsEmpty = financeLocked ? false : ((screen==='users'||screen==='dashboard') ? false : (requiresWorkspace ? !workspace : (screen==='motive' ? false : !hasResult)));
     $('emptyState').classList.toggle('hidden',!needsEmpty);
     if(needsEmpty && requiresWorkspace) $('emptyStateText').textContent=cloudConnected()?'This module is connected to NBL Cloud. No cloud data has been uploaded yet. Open Cloud Sync to import your existing local NBL data.':'Sign in to NBL Cloud or choose your local NBL business data folder to begin.';
     if(needsEmpty && (screen==='drivers'||screen==='summary')) $('emptyStateText').textContent=cloudConnected()?'No settlement data is stored in NBL Cloud yet. Open Cloud Sync to import your existing local NBL data, or upload a settlement CSV.':'Choose a data folder and upload a settlement CSV.';
-    const titles={dashboard:'Dashboard',drivers:'Driver Pay',summary:'Settlement','settlement-reports':'Settlement Reports','financial-analysis':'Financial Analysis',maintenance:'Maintenance',meetings:'Meetings',hr:'Recruitment',users:'User Access',audit:'Audit',revenue:'Revenue Finder',dispatch:'Weekly Dispatch Planner','daily-dispatch':'Daily Dispatch Board',ivmr:'IVMR',motive:'Motive'};
+    const titles={dashboard:'Dashboard',safety:'Safety',drivers:'Driver Pay',summary:'Settlement','settlement-reports':'Settlement Reports','financial-analysis':'Financial Analysis',maintenance:'Maintenance',meetings:'Meetings',hr:'Recruitment',users:'User Access',audit:'Audit',revenue:'Revenue Finder',dispatch:'Weekly Dispatch Planner','daily-dispatch':'Daily Dispatch Board',ivmr:'IVMR',motive:'Motive'};
     $('pageTitle').textContent=titles[screen]||'NBL FleetCommand';
     $('saveBtn').classList.toggle('hidden',folderScreen || financeLocked);
     $('exportBtn').classList.toggle('hidden',folderScreen || financeLocked);
@@ -832,6 +837,11 @@
       const boards=Object.values(state.dispatch.dailyBoards||{}).filter(x=>x?.savedAt).length;
       $('fileMeta').textContent=`${label} • Nonfinancial operations overview${boards?` • ${boards} saved dispatch board${boards===1?'':'s'}`:''}`;
       renderDashboard();
+    } else if(screen==='safety') {
+      const s=state.safety;
+      $('fileMeta').textContent=s.loadedAt?`Motive Safety • ${fmtDate(s.startDate)} to ${fmtDate(s.endDate)} • refreshed ${new Date(s.loadedAt).toLocaleString()}`:'Choose a reporting period and load Motive safety data.';
+      renderSafety();
+      if(!s.loadedAt&&!s.loading&&state.motive.configured) loadSafetyData(true);
     } else if(screen==='settlement-reports') {
       $('fileMeta').textContent=workspace ? `${label} • ${state.catalog.length} settlement${state.catalog.length===1?'':'s'} available for reporting` : 'Connect NBL Cloud or choose your local data folder to begin.';
       if(workspace && !financeLocked){
@@ -1597,7 +1607,7 @@
     $('dashboardAttentionCount').textContent=`${attention.length} item${attention.length===1?'':'s'}`;
     $('dashboardAttentionList').innerHTML=attention.length?attention.slice(0,10).map(x=>`<button type="button" class="dashboard-attention-item ${x.level}" data-dashboard-screen="${x.screen}"><span></span><div><strong>${escapeHtml(x.title)}</strong><small>${escapeHtml(x.detail)}</small></div><em>View</em></button>`).join(''):'<div class="dashboard-empty compact">Nothing requires attention right now.</div>';
   }
-  function renderAll(){ renderDashboard(); renderDriverTable(); renderSummary(); renderMaintenance(); renderMeetings(); renderHr(); renderAudit(); renderRevenueFinder(); renderDispatch(); renderDailyDispatch(); renderIvmr(); renderMotive(); setScreen(state.currentScreen); }
+  function renderAll(){ renderDashboard(); renderSafety(); renderDriverTable(); renderSummary(); renderMaintenance(); renderMeetings(); renderHr(); renderAudit(); renderRevenueFinder(); renderDispatch(); renderDailyDispatch(); renderIvmr(); renderMotive(); setScreen(state.currentScreen); }
   function payrollTableTotals(ds){
     return ds.reduce((a,d)=>({days:a.days+(Number(d.daysWorked)||0),lm:a.lm+(Number(d.linehaulMiles)||0),sm:a.sm+(Number(d.spotMiles)||0),tm:a.tm+(Number(d.totalMiles)||0),dhe:a.dhe+(Number(d.dhEventCount)||0),dhp:a.dhp+(Number(d.dhPay)||0),base:a.base+(Number(d.basePay)||0),min:a.min+(Number(d.minimumTopUp)||0),bonus:a.bonus+(Number(d.adjustmentBuckets?.bonus)||0),holiday:a.holiday+(Number(d.adjustmentBuckets?.holiday)||0),vacation:a.vacation+(Number(d.adjustmentBuckets?.vacation)||0),training:a.training+(Number(d.adjustmentBuckets?.training)||0),other:a.other+(Number(d.adjustmentBuckets?.other)||0),tp:a.tp+(Number(d.totalPay)||0)}),{days:0,lm:0,sm:0,tm:0,dhe:0,dhp:0,base:0,min:0,bonus:0,holiday:0,vacation:0,training:0,other:0,tp:0});
   }
@@ -5473,6 +5483,79 @@
     else setMaintenanceMotiveOdometerStatus('For past service dates, Motive mileage will be looked up automatically when available.','');
   }
 
+  function safetyDefaultDates(){
+    if(state.safety.startDate&&state.safety.endDate) return;
+    const end=new Date(),start=new Date();start.setDate(end.getDate()-29);
+    state.safety.startDate=start.toISOString().slice(0,10);state.safety.endDate=end.toISOString().slice(0,10);
+  }
+  function safetyDriverName(driver){return displayPersonName(driver?.name||[driver?.first_name,driver?.last_name].filter(Boolean).join(' ')||'');}
+  function safetyDriverId(driver){return String(driver?.id??driver?.driver_id??'').trim();}
+  function safetyEventId(event,source){return `${source}:${String(event?.id??event?.event_id??'unknown')}`;}
+  function safetyEventDriver(event,source){
+    const direct=event?.driver&&typeof event.driver==='object'?event.driver:null;
+    if(direct&&safetyDriverId(direct)) return {id:safetyDriverId(direct),name:safetyDriverName(direct),source:'Motive'};
+    const assigned=state.safety.assignments?.[safetyEventId(event,source)];
+    return assigned?{...assigned,source:'FleetCommand'}:null;
+  }
+  function safetyEventType(event,source){return source==='speeding'?'speeding':String(event?.type||event?.event_type||event?.primary_behavior||'unknown').trim().toLowerCase();}
+  function safetyEventTime(event){return event?.start_time||event?.event_time||event?.created_at||event?.end_time||'';}
+  function safetyEventVehicle(event){const v=event?.vehicle||{};return String(v.number||v.vehicle_number||event?.vehicle_number||'').trim();}
+  function safetyEventMediaUrl(event){
+    const m=event?.camera_media||{},videos=m.downloadable_videos||{},images=m.downloadable_images||{};
+    const url=videos.dual_facing_enhanced_url||videos.front_facing_enhanced_url||videos.front_facing_plain_url||images.front_facing_jpg_url||images.driver_facing_jpg_url||'';
+    return /^https:\/\//i.test(String(url))?String(url):'';
+  }
+  function safetyDriverPool(){
+    const map=new Map(),add=(id,name,employeeId='')=>{id=String(id||'').trim();name=displayPersonName(name);if(!name)return;const key=id||`name:${dispatchPersonNameKey(name)}`;if(!map.has(key))map.set(key,{id:key,name,employeeId:String(employeeId||'')});};
+    for(const row of state.safety.scorecards||[]){const d=row.driver||{};add(safetyDriverId(d),safetyDriverName(d),d.driver_company_id);}
+    for(const d of state.motive.drivers||[])if(motiveDriverIsActive(d))add(safetyDriverId(d),safetyDriverName(d),motiveDriverEmployeeId(d));
+    for(const d of state.dispatch.drivers||[])if(dispatchDriverIsActive(d))add(d.motiveDriverId||d.id,d.name,d.fedexId);
+    return [...map.values()].sort((a,b)=>a.name.localeCompare(b.name));
+  }
+  function safetyAllEvents(){return [...(state.safety.performanceEvents||[]).map(event=>({source:'performance',event})),...(state.safety.speedingEvents||[]).map(event=>({source:'speeding',event}))];}
+  function safetyScoreBand(score){score=Number(score);if(!Number.isFinite(score))return 'Not Scored';if(score>=85)return 'Good';if(score>=70)return 'Average';return 'Needs Improvement';}
+  function safetyMediaLink(event){const url=safetyEventMediaUrl(event);return url?`<a class="safety-media-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">View Media</a>`:'—';}
+  function safetyAssignmentHtml(item){
+    const assigned=safetyEventDriver(item.event,item.source),key=safetyEventId(item.event,item.source),pool=safetyDriverPool();
+    if(assigned?.source==='Motive')return `<strong>${escapeHtml(assigned.name||'Assigned')}</strong><small>Motive assignment</small>`;
+    const options=['<option value="">Select driver…</option>',...pool.map(d=>`<option value="${escapeHtml(d.id)}" ${assigned?.id===d.id?'selected':''}>${escapeHtml(d.name)}</option>`)].join('');
+    return `<div class="safety-assignment"><select data-safety-assignment="${escapeHtml(key)}">${options}</select><button class="button secondary" type="button" data-save-safety-assignment="${escapeHtml(key)}">Save</button></div>${assigned?`<small class="safety-assigned-note">FleetCommand assignment • official Motive score unchanged</small>`:''}`;
+  }
+  async function loadSafetyData(silent=false){
+    safetyDefaultDates();const start=$('safetyStartDate')?.value||state.safety.startDate,end=$('safetyEndDate')?.value||state.safety.endDate;
+    if(!state.motive.configured){if(!silent)showAlert('Connect Motive before loading Safety data.','warning');return false;}
+    state.safety.loading=true;state.safety.error='';renderSafety();
+    try{
+      const q=new URLSearchParams({start_date:start,end_date:end});const data=await localApi('/api/motive/safety?'+q.toString(),{timeoutMs:120000});
+      state.safety.startDate=start;state.safety.endDate=end;state.safety.scorecards=Array.isArray(data.scorecards)?data.scorecards:[];state.safety.performanceEvents=Array.isArray(data.performance_events)?data.performance_events:[];state.safety.speedingEvents=Array.isArray(data.speeding_events)?data.speeding_events:[];state.safety.accessErrors=data.errors&&typeof data.errors==='object'?data.errors:{};state.safety.loadedAt=new Date().toISOString();
+      const partial=Object.keys(state.safety.accessErrors).length>0;if(!silent)showAlert(`Loaded <strong>${fmtNum(state.safety.scorecards.length)}</strong> driver scorecard${state.safety.scorecards.length===1?'':'s'} and <strong>${fmtNum(safetyAllEvents().length)}</strong> safety event${safetyAllEvents().length===1?'':'s'} from Motive.${partial?' One or more Safety feeds were unavailable.':''}`,partial?'warning':'success');
+      return true;
+    }catch(err){state.safety.error=err.message||String(err);if(!silent)showAlert(`Could not load Motive Safety data: ${escapeHtml(state.safety.error)}`,'error');return false;}
+    finally{state.safety.loading=false;renderSafety();if(state.currentScreen==='safety')setScreen('safety');}
+  }
+  async function saveSafetyAssignment(key){
+    const select=document.querySelector(`[data-safety-assignment="${CSS.escape(key)}"]`),driverId=select?.value||'',driver=safetyDriverPool().find(d=>d.id===driverId);
+    if(!driver){showAlert('Select a driver first.','warning');return;}
+    state.safety.assignments[key]={id:driver.id,name:driver.name,employeeId:driver.employeeId||'',assignedAt:new Date().toISOString(),assignedBy:state.cloud?.user?.id||''};
+    const saved=await saveCloudModule('safety',true);renderSafety();showAlert(`${escapeHtml(driver.name)} assigned to this event in FleetCommand.${saved?' Assignment saved to NBL Cloud.':''} Motive's official score is unchanged.`,'success');
+  }
+  function renderSafety(){
+    if(!$('safetyScreen'))return;safetyDefaultDates();const s=state.safety;
+    if($('safetyStartDate'))$('safetyStartDate').value=s.startDate;if($('safetyEndDate'))$('safetyEndDate').value=s.endDate;
+    const all=safetyAllEvents(),unassigned=all.filter(x=>!safetyEventDriver(x.event,x.source)).length,speeding=(s.speedingEvents||[]).length,scored=(s.scorecards||[]).filter(x=>Number.isFinite(Number(x.score))).length;
+    $('safetyCards').innerHTML=[['Drivers Scored',fmtNum(scored),''],['All Events',fmtNum(all.length),''],['Speeding Events',fmtNum(speeding),speeding?'warning-card':''],['Unassigned Events',fmtNum(unassigned),unassigned?'warning-card':'']].map(x=>`<div class="summary-card ${x[2]}"><span>${x[0]}</span><strong>${x[1]}</strong></div>`).join('');
+    $('refreshSafetyBtn').disabled=s.loading||!state.motive.configured;$('refreshSafetyBtn').textContent=s.loading?'Loading…':'Load Safety Data';
+    const accessText=Object.entries(s.accessErrors||{}).map(([key,value])=>`${key.replaceAll('_',' ')}: ${value}`).join(' • ');$('safetyNotice').innerHTML=s.error?`<strong>Safety data could not be loaded:</strong> ${escapeHtml(s.error)}`:(accessText?`<strong>Some Motive Safety data is unavailable.</strong> ${escapeHtml(accessText)}`:`Scores shown are Motive's official scores. FleetCommand assignments are saved for internal tracking and do not alter Motive's official score.${s.loadedAt?` Last loaded ${escapeHtml(new Date(s.loadedAt).toLocaleString())}.`:''}`);
+    const scorecards=(s.scorecards||[]).slice().sort((a,b)=>(Number(b.score)||-1)-(Number(a.score)||-1)||safetyDriverName(a.driver).localeCompare(safetyDriverName(b.driver)));
+    $('safetyDriverCount').textContent=`${scorecards.length} driver${scorecards.length===1?'':'s'}`;
+    const rankTable=$('safetyRankingsTable');rankTable.querySelector('thead').innerHTML='<tr><th>Rank</th><th>Driver</th><th>Motive Score</th><th>Band</th><th>Miles</th><th>Hard Brakes</th><th>Hard Accels</th><th>Hard Corners</th><th>Coached</th><th>Events</th></tr>';
+    rankTable.querySelector('tbody').innerHTML=scorecards.length?scorecards.map((r,i)=>{const d=r.driver||{},id=safetyDriverId(d),assignedLocal=all.filter(x=>safetyEventDriver(x.event,x.source)?.id===id).length,score=Number(r.score);const band=safetyScoreBand(score),bandClass=`safety-band-${band.toLowerCase().replaceAll(' ','-')}`;return `<tr><td><span class="safety-rank">${i+1}</span></td><td><strong>${escapeHtml(safetyDriverName(d)||'Unknown Driver')}</strong><small>${escapeHtml(d.driver_company_id||d.email||'')}</small></td><td><span class="safety-score">${Number.isFinite(score)?fmtNum(score):'—'}</span></td><td><strong class="${bandClass}">${escapeHtml(band)}</strong></td><td>${r.total_kilometers==null?'—':fmtNum(Number(r.total_kilometers)*0.621371)}</td><td>${fmtNum(r.num_hard_brakes)}</td><td>${fmtNum(r.num_hard_accels)}</td><td>${fmtNum(r.num_hard_corners)}</td><td>${fmtNum(r.num_coached_events)}</td><td><button class="button secondary" type="button" data-safety-driver-view="${escapeHtml(id)}">${fmtNum(assignedLocal)} events</button></td></tr>`;}).join(''):'<tr><td colspan="10" class="empty-table-cell">Load Safety data to display Motive driver rankings.</td></tr>';
+    const driverFilter=$('safetyDriverFilter'),pool=safetyDriverPool(),current=s.driverFilter||'all';driverFilter.innerHTML='<option value="all">All Drivers</option><option value="unassigned">Unassigned Only</option>'+pool.map(d=>`<option value="${escapeHtml(d.id)}">${escapeHtml(d.name)}</option>`).join('');driverFilter.value=[...driverFilter.options].some(o=>o.value===current)?current:'all';
+    const types=[...new Set(all.map(x=>safetyEventType(x.event,x.source)))].sort(),typeFilter=$('safetyEventTypeFilter'),currentType=s.eventTypeFilter||'all';typeFilter.innerHTML='<option value="all">All Event Types</option>'+types.map(t=>`<option value="${escapeHtml(t)}">${escapeHtml(t.replaceAll('_',' '))}</option>`).join('');typeFilter.value=types.includes(currentType)?currentType:'all';
+    const visible=all.filter(x=>{const d=safetyEventDriver(x.event,x.source),driverOk=s.driverFilter==='all'||(s.driverFilter==='unassigned'?!d:d?.id===s.driverFilter),typeOk=s.eventTypeFilter==='all'||safetyEventType(x.event,x.source)===s.eventTypeFilter;return driverOk&&typeOk;}).sort((a,b)=>String(safetyEventTime(b.event)).localeCompare(String(safetyEventTime(a.event))));
+    const eventTable=$('safetyEventsTable');eventTable.querySelector('thead').innerHTML='<tr><th>Date / Time</th><th>Event</th><th>Severity</th><th>Tractor</th><th>Details</th><th>Media</th><th>Driver Assignment</th></tr>';eventTable.querySelector('tbody').innerHTML=visible.length?visible.map(x=>{const e=x.event,type=safetyEventType(e,x.source),when=safetyEventTime(e),dt=when?new Date(when):null,details=x.source==='speeding'?`${e.max_over_speed_in_kph!=null?`${Math.round(Number(e.max_over_speed_in_kph)*0.621371)} mph over limit`:''}${e.duration!=null?` • ${fmtNum(e.duration)} sec`:''}`:`${e.start_speed!=null?`${Math.round(Number(e.start_speed)*0.621371)} mph start`:''}${e.duration!=null?` • ${fmtNum(e.duration)} sec`:''}`;return `<tr><td><strong>${dt&&!isNaN(dt)?escapeHtml(dt.toLocaleDateString()):'—'}</strong><small>${dt&&!isNaN(dt)?escapeHtml(dt.toLocaleTimeString()):escapeHtml(when||'')}</small></td><td><strong>${escapeHtml(type.replaceAll('_',' '))}</strong><small>${x.source==='speeding'?'Speeding API':'Performance Events API'}</small></td><td>${escapeHtml(e.metadata?.severity||e.severity||e.coaching_status||'—')}</td><td>${escapeHtml(safetyEventVehicle(e)||'—')}</td><td>${escapeHtml(details||'—')}</td><td>${safetyMediaLink(e)}</td><td>${safetyAssignmentHtml(x)}</td></tr>`;}).join(''):'<tr><td colspan="7" class="empty-table-cell">No safety events match the selected filters.</td></tr>';
+  }
+
   async function loadMotiveStatus(){
     try{
       const data=await localApi('/api/motive/status');
@@ -5601,6 +5684,13 @@
     const collapsed=group.classList.toggle('collapsed');
     toggle.setAttribute('aria-expanded',collapsed?'false':'true');
   }));
+  $('refreshSafetyBtn')?.addEventListener('click',()=>loadSafetyData(false));
+  $('safetyDriverFilter')?.addEventListener('change',e=>{state.safety.driverFilter=e.target.value;renderSafety();});
+  $('safetyEventTypeFilter')?.addEventListener('change',e=>{state.safety.eventTypeFilter=e.target.value;renderSafety();});
+  $('safetyScreen')?.addEventListener('click',e=>{
+    const save=e.target.closest('[data-save-safety-assignment]');if(save){saveSafetyAssignment(save.dataset.saveSafetyAssignment);return;}
+    const view=e.target.closest('[data-safety-driver-view]');if(view){state.safety.driverFilter=view.dataset.safetyDriverView;renderSafety();$('safetyEventsTable')?.scrollIntoView({behavior:'smooth',block:'start'});}
+  });
   function setMobileSidebar(open){
     document.body.classList.toggle('mobile-sidebar-open',!!open);
     $('mobileMenuBtn')?.setAttribute('aria-expanded',open?'true':'false');

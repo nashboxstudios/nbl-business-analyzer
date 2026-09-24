@@ -429,6 +429,25 @@ def fetch_all(path, list_key, per_page=100, max_pages=50):
     return out
 
 
+def fetch_all_with_params(path, list_key, item_key, params=None, per_page=25, max_pages=20):
+    """Fetch a bounded Motive report while preserving its date/filter parameters."""
+    out = []
+    base = dict(params or {})
+    page = 1
+    while page <= max_pages:
+        query = {**base, 'per_page': per_page, 'page_no': page}
+        payload, _ = motive_request(path, query, timeout=45)
+        items = [unwrap_item(x, item_key) for x in extract_list(payload, list_key)]
+        out.extend(items)
+        total = payload.get('total') if isinstance(payload, dict) else None
+        if total is None and isinstance(payload, dict) and isinstance(payload.get('pagination'), dict):
+            total = payload['pagination'].get('total')
+        if not items or len(items) < per_page or (isinstance(total, (int, float)) and len(out) >= int(total)):
+            break
+        page += 1
+    return out
+
+
 def normalize_vehicle(meta, loc):
     meta = meta or {}
     loc = loc or {}
@@ -2986,7 +3005,7 @@ class NBLHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == '/health':
-            return self.send_json({'ok': True, 'app': 'NBL FleetCommand', 'version': 99})
+            return self.send_json({'ok': True, 'app': 'NBL FleetCommand', 'version': 100})
         if parsed.path.startswith('/api/') and not require_nbl_api_access(self, parsed.path, 'GET'):
             return
         if parsed.path == '/api/admin/users':
@@ -3104,6 +3123,47 @@ class NBLHandler(SimpleHTTPRequestHandler):
             if parsed.path == '/api/motive/drivers':
                 drivers = fetch_motive_drivers()
                 return self.send_json({'ok': True, 'drivers': drivers, 'count': len(drivers)})
+            if parsed.path == '/api/motive/safety':
+                qs = parse_qs(parsed.query)
+                start_day = parse_iso_day((qs.get('start_date') or [''])[0])
+                end_day = parse_iso_day((qs.get('end_date') or [''])[0])
+                if not start_day or not end_day:
+                    return self.send_json({'ok': False, 'error': 'start_date and end_date are required.'}, 400)
+                if start_day > end_day:
+                    return self.send_json({'ok': False, 'error': 'Safety report start date must be on or before end date.'}, 400)
+                if (end_day - start_day).days > 366:
+                    return self.send_json({'ok': False, 'error': 'Safety reports cannot exceed 367 days.'}, 400)
+                params = {'start_date': start_day.isoformat(), 'end_date': end_day.isoformat()}
+                report_errors = {}
+                try:
+                    scorecards = fetch_all_with_params('/v1/scorecard_summary', 'driver_performance_rollups', 'driver_performance_rollup', params)
+                except Exception as exc:
+                    scorecards = []
+                    report_errors['scorecards'] = str(exc)
+                try:
+                    performance_events = fetch_all_with_params('/v2/driver_performance_events', 'driver_performance_events', 'driver_performance_event', params)
+                except Exception as exc:
+                    performance_events = []
+                    report_errors['performance_events'] = str(exc)
+                try:
+                    speeding_events = fetch_all_with_params('/v1/speeding_events', 'speeding_events', 'speeding_event', params)
+                except Exception as exc:
+                    speeding_events = []
+                    report_errors['speeding_events'] = str(exc)
+                return self.send_json({
+                    'ok': len(report_errors) < 3,
+                    'start_date': start_day.isoformat(),
+                    'end_date': end_day.isoformat(),
+                    'scorecards': scorecards,
+                    'performance_events': performance_events,
+                    'speeding_events': speeding_events,
+                    'errors': report_errors,
+                    'counts': {
+                        'scorecards': len(scorecards),
+                        'performance_events': len(performance_events),
+                        'speeding_events': len(speeding_events),
+                    }
+                })
             if parsed.path == '/api/motive/odometer':
                 qs = parse_qs(parsed.query)
                 vehicle_id = str((qs.get('vehicle_id') or [''])[0]).strip()
@@ -3237,13 +3297,13 @@ def main():
     # that is still running from hijacking a newer build's browser window.
     server = ThreadingHTTPServer((HOST, REQUESTED_PORT), NBLHandler)
     actual_port = int(server.server_address[1])
-    url = f'http://localhost:{actual_port}/index.html?v=99'
+    url = f'http://localhost:{actual_port}/index.html?v=100'
     if PORT_FILE:
         try:
             Path(PORT_FILE).write_text(url, encoding='utf-8')
         except Exception:
             pass
-    print('NBL FleetCommand v99 is running.')
+    print('NBL FleetCommand v100 is running.')
     print(f'Open: {url}')
     print('Motive API credentials use MOTIVE_API_KEY when provided; local builds fall back to the protected local key file.')
     print('Keep this process running while using the app.')
