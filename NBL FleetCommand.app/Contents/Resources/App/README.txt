@@ -1,13 +1,13 @@
-NBL FleetCommand — Version 103
+NBL FleetCommand — Version 104
 
-Version 103 - Safety Report Refinements
+Version 104 - Consolidated Safety Events
 
-- Unassigned incident assignments now retain a saved incident snapshot with the driver assignment.
-- The attention panel shows exactly the four lowest non-zero Adjusted Scores.
-- Driver PDFs now display one Safety Score (the Adjusted Score), use larger type, wrap Needs Improvement cleanly, and remove signature fields and the scoring-method footer.
-- Active incidents are listed before dismissed incidents; dismissed incidents show only Dismissed.
-- Coaching records now tell drivers that assigned Safety Forward videos must be completed within five days.
-- Corrective-action details and consequences remain in the emailed PDF record.
+- Dismissed events are excluded completely from driver PDFs.
+- Removed FedEx disqualification from the corrective-action language.
+- Removed Active labels from PDF event sections.
+- Events are ordered by severity: Critical, High, Medium, Low, then unclassified.
+- Similar events are consolidated into one section with the total count and each occurrence listed below.
+- Equivalent event names such as Hard Brake and Hard Braking are combined into the same behavior group.
 
 NBL FleetCommand — Version 99
 
