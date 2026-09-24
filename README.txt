@@ -1,14 +1,13 @@
-NBL FleetCommand — Version 101
+NBL FleetCommand — Version 102
 
-Version 101 - Safety Module Enhancements
+Version 102 - Safety Coaching Records and Trends
 
-- Added Motive Score and Estimated Adjusted Score side by side; locally assigned, active events reduce the estimate using the configured Motive behavior weights and mileage exposure.
-- Rankings are sortable and default to the lowest adjusted score first, so drivers needing attention appear at the top.
-- Added the exact Excellent, Good, Fair, and Needs Attention score bands used by the Safety module.
-- Events dismissed in Motive are recognized automatically. Users can also dismiss or restore events in FleetCommand, with dismissal status saved in the shared Safety cloud snapshot.
-- Dismissed events are excluded from active-event counts and Estimated Adjusted Scores, with Active, All, and Dismissed event filters.
-- Added the Motive behavior weight to each event and retained driver assignment, severity, tractor, details, and media information.
-- Changed the primary ribbon labels to DASHBOARD and SAFETY and removed their letter icons.
+- Updated the Adjusted Score scale: 96–100 Excellent (green), 85–95 Needs Improvement (yellow), and 0–84 Critical (red).
+- Added an At-Risk Drivers panel that prioritizes Critical and declining drivers.
+- Added driver score and incident trend charts backed by saved historical safety snapshots.
+- Added individual driver Safety & Coaching Record PDFs for the selected date range, including the rating scale, incidents, dismissal status, coaching talking points, and concise corrective-action language.
+- Added permanent driver safety records containing scores, mileage, ratings, incident details, dismissal/assignment status, snapshots, and export history.
+- Rankings remain sortable and default to the lowest Estimated Adjusted Score first.
 
 NBL FleetCommand — Version 99
 

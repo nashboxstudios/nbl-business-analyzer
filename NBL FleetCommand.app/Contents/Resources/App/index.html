@@ -6,7 +6,7 @@
   <title>NBL FleetCommand</title>
   <meta name="theme-color" content="#35164E" />
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=101" />
+  <link rel="stylesheet" href="styles.css?v=102" />
 </head>
 <body>
 
@@ -32,7 +32,7 @@
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
         <div class="app-name">NBL FleetCommand</div>
         <div class="app-tagline">Operations Intelligence</div>
-        <div class="app-version">Version 101</div>
+        <div class="app-version">Version 102</div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-standalone nav-main-modules">
@@ -914,6 +914,22 @@
           <div class="summary-grid" id="safetyCards"></div>
           <div class="safety-notice" id="safetyNotice">Scores shown are Motive's official scores. Assignments made in FleetCommand are recorded locally and do not alter Motive's official score.</div>
 
+          <div class="panel safety-at-risk-panel">
+            <div class="panel-heading"><div><h2>At-Risk Drivers</h2><p>Critical drivers and drivers whose adjusted scores are declining appear first.</p></div><span class="history-count" id="safetyAtRiskCount">0 drivers</span></div>
+            <div class="safety-at-risk-list" id="safetyAtRiskList"></div>
+          </div>
+
+          <div class="panel safety-trends-panel">
+            <div class="panel-heading safety-trends-heading">
+              <div><h2>Driver Trends</h2><p>Saved safety snapshots build a permanent score and incident history for each driver.</p></div>
+              <select id="safetyTrendDriver"><option value="">Select Driver</option></select>
+            </div>
+            <div class="safety-trend-grid">
+              <div><h3>Adjusted Score Trend</h3><div class="safety-chart" id="safetyScoreTrendChart"></div></div>
+              <div><h3>Incident Trend</h3><div class="safety-chart" id="safetyIncidentTrendChart"></div></div>
+            </div>
+          </div>
+
           <div class="panel safety-ranking-panel">
             <div class="panel-heading">
               <div><h2>Driver Rankings</h2><p>Sortable rankings default to the lowest Estimated Adjusted Score first.</p></div>
@@ -1515,8 +1531,8 @@
     </div>
   </div>
 
-  <script src="core.js?v=101"></script>
-  <script src="cloud.js?v=101"></script>
-  <script src="app.js?v=101"></script>
+  <script src="core.js?v=102"></script>
+  <script src="cloud.js?v=102"></script>
+  <script src="app.js?v=102"></script>
 </body>
 </html>
