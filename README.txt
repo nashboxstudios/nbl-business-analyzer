@@ -1,3 +1,12 @@
+NBL FleetCommand — Version 98
+
+Version 98 - Motive Safety Access Diagnostic
+
+- Added a live Safety API diagnostic to the existing Motive Connection test.
+- Tests Driver Performance Events and Speeding Events for the last 30 days using the Motive key already stored on the server.
+- Reports API availability, event counts, performance-event types, and camera-media availability without exposing the API key, event media, or location data to the browser.
+- Distinguishes an accessible endpoint with no recent records from an unavailable endpoint or missing permission.
+
 NBL FleetCommand — Version 97
 
 Version 97 - Sidebar Ribbon Redesign

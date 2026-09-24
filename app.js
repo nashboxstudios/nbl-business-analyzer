@@ -236,7 +236,7 @@
         }
       }
     }
-    return {version:97,mileage,updatedAt:new Date().toISOString()};
+    return {version:98,mileage,updatedAt:new Date().toISOString()};
   }
   function normalizeCloudSettlementCatalog(data){
     const ss=data&&typeof data==='object'?data:{};
@@ -350,12 +350,12 @@
   async function saveCloudModule(moduleKey,silent=true){
     if(!cloudConnected()||!window.NBLCloud||!state.cloud?.organization?.id) return false;
     try{
-      const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'97');
-      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'97',updated_at:new Date().toISOString()};
+      const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'98');
+      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'98',updated_at:new Date().toISOString()};
       if(moduleKey==='settlement'){
         const dashboardData=dashboardMileageSnapshot();
-        const dashboardRow=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,'dashboard',dashboardData,'97');
-        state.cloud.snapshots.dashboard=dashboardRow||{module_key:'dashboard',data:dashboardData,source_version:'97',updated_at:new Date().toISOString()};
+        const dashboardRow=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,'dashboard',dashboardData,'98');
+        state.cloud.snapshots.dashboard=dashboardRow||{module_key:'dashboard',data:dashboardData,source_version:'98',updated_at:new Date().toISOString()};
         state.dashboard.mileage=dashboardData.mileage;
       }
       state.cloud.hasSnapshotData=true; state.cloud.lastSync=new Date().toISOString(); updateCloudUI();
@@ -5505,7 +5505,7 @@
     state.motive.loading=true; renderMotive();
     try{
       const data=await localApi('/api/motive/test'); state.motive.test=data; state.motive.configured=!!data.configured;
-      showAlert(data.vehicles_ok ? `Motive connection successful. Vehicles API access is working${data.ifta_ok?' • IFTA access available':' • IFTA not confirmed'}${data.hos_logs_ok?' • HOS Logs access available':' • HOS Logs not confirmed'}${data.gps_data_ok?' • historical GPS breadcrumbs available':(data.gps_access_ok?' • historical GPS endpoint accessible, but no recent breadcrumbs found':' • historical GPS access not confirmed')}.` : 'Motive connection test failed.', data.vehicles_ok?'success':'error');
+      showAlert(data.vehicles_ok ? `Motive connection successful. Vehicles API access is working${data.ifta_ok?' • IFTA access available':' • IFTA not confirmed'}${data.hos_logs_ok?' • HOS Logs access available':' • HOS Logs not confirmed'}${data.safety_events_ok?' • Driver Performance Events available':' • Driver Performance Events unavailable'}${data.speeding_events_ok?' • Speeding Events available':' • Speeding Events unavailable'}${data.gps_data_ok?' • historical GPS breadcrumbs available':(data.gps_access_ok?' • historical GPS endpoint accessible, but no recent breadcrumbs found':' • historical GPS access not confirmed')}.` : 'Motive connection test failed.', data.vehicles_ok?'success':'error');
       if(refreshAfter && data.vehicles_ok) await refreshMotiveFleet();
     }catch(err){ state.motive.test={ok:false,vehicles_ok:false,ifta_ok:false,vehicles_message:err.message}; showAlert(`Motive connection failed: ${escapeHtml(err.message)}`,'error'); }
     finally{ state.motive.loading=false; renderMotive(); }
@@ -5580,7 +5580,8 @@
               : 'Local integration service is running. Paste a Motive API key above to connect.'))
       : 'Motive integration is unavailable because index.html was opened directly. On Mac, close this tab and open <strong>NBL FleetCommand.app</strong>; on Windows, use the included launcher.';
     const t=m.test;
-    $('motiveTestResults').innerHTML=t?`<div class="motive-access-grid"><div><span>Vehicles API</span><strong class="${t.vehicles_ok?'ok-text':'bad-text'}">${t.vehicles_ok?'Available':'Unavailable'}</strong>${t.vehicles_message?`<small>${escapeHtml(t.vehicles_message)}</small>`:''}</div><div><span>IFTA API</span><strong class="${t.ifta_ok?'ok-text':'bad-text'}">${t.ifta_ok?'Available':'Not Confirmed'}</strong>${t.ifta_message?`<small>${escapeHtml(t.ifta_message)}</small>`:''}</div><div><span>HOS Logs</span><strong class="${t.hos_logs_ok?'ok-text':'bad-text'}">${t.hos_logs_ok?'Available':'Not Confirmed'}</strong>${t.hos_logs_message?`<small>${escapeHtml(t.hos_logs_message)}</small>`:''}</div><div><span>Historical GPS</span><strong class="${t.gps_data_ok?'ok-text':'bad-text'}">${t.gps_data_ok?'Breadcrumbs Available':(t.gps_access_ok?'Endpoint Available':'Not Confirmed')}</strong>${t.gps_message?`<small>${escapeHtml(t.gps_message)}</small>`:''}${t.gps_result?.vehicle_number?`<small>Test tractor: ${escapeHtml(t.gps_result.vehicle_number)}${t.gps_result.point_count!=null?` • ${fmtNum(t.gps_result.point_count)} points`:''}</small>`:''}</div></div>`:'';
+    const safetyTypes=t?.safety_events_result?.event_types||{},safetyTypeText=Object.entries(safetyTypes).map(([type,count])=>`${String(type).replaceAll('_',' ')}: ${count}`).join(' • ');
+    $('motiveTestResults').innerHTML=t?`<div class="motive-access-grid"><div><span>Vehicles API</span><strong class="${t.vehicles_ok?'ok-text':'bad-text'}">${t.vehicles_ok?'Available':'Unavailable'}</strong>${t.vehicles_message?`<small>${escapeHtml(t.vehicles_message)}</small>`:''}</div><div><span>IFTA API</span><strong class="${t.ifta_ok?'ok-text':'bad-text'}">${t.ifta_ok?'Available':'Not Confirmed'}</strong>${t.ifta_message?`<small>${escapeHtml(t.ifta_message)}</small>`:''}</div><div><span>HOS Logs</span><strong class="${t.hos_logs_ok?'ok-text':'bad-text'}">${t.hos_logs_ok?'Available':'Not Confirmed'}</strong>${t.hos_logs_message?`<small>${escapeHtml(t.hos_logs_message)}</small>`:''}</div><div><span>Historical GPS</span><strong class="${t.gps_data_ok?'ok-text':'bad-text'}">${t.gps_data_ok?'Breadcrumbs Available':(t.gps_access_ok?'Endpoint Available':'Not Confirmed')}</strong>${t.gps_message?`<small>${escapeHtml(t.gps_message)}</small>`:''}${t.gps_result?.vehicle_number?`<small>Test tractor: ${escapeHtml(t.gps_result.vehicle_number)}${t.gps_result.point_count!=null?` • ${fmtNum(t.gps_result.point_count)} points`:''}</small>`:''}</div><div class="motive-safety-access"><span>Driver Performance Events</span><strong class="${t.safety_events_ok?'ok-text':'bad-text'}">${t.safety_events_ok?'Available':'Unavailable'}</strong><small>${t.safety_events_ok?`${fmtNum(t.safety_events_result?.total||0)} event${Number(t.safety_events_result?.total||0)===1?'':'s'} in the last 30 days • ${fmtNum(t.safety_events_result?.camera_media_records||0)} with camera media`:(t.safety_events_message||'Permission not confirmed')}</small>${safetyTypeText?`<small>${escapeHtml(safetyTypeText)}</small>`:''}</div><div class="motive-safety-access"><span>Speeding Events</span><strong class="${t.speeding_events_ok?'ok-text':'bad-text'}">${t.speeding_events_ok?'Available':'Unavailable'}</strong><small>${t.speeding_events_ok?`${fmtNum(t.speeding_events_result?.total||0)} event${Number(t.speeding_events_result?.total||0)===1?'':'s'} in the last 30 days`:(t.speeding_events_message||'Permission not confirmed')}</small></div></div>`:'';
     $('motiveFleetCount').textContent=`${m.vehicles.length} vehicle${m.vehicles.length===1?'':'s'}`;
     const table=$('motiveFleetTable');
     const headers=['Tractor','VIN','Make / Model','Status','IFTA','Current Driver','Motive Odometer','Last Location','Reading Time','Maintenance'];
