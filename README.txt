@@ -1,3 +1,11 @@
+NBL FleetCommand — Version 99
+
+Version 99 - Motive Speeding Endpoint Correction
+
+- Corrected the Motive Speeding Events test to use the documented `/v1/speeding_events` endpoint.
+- Retained the 30-day speeding-event access test and the existing Driver Performance Events diagnostic.
+- No Railway variables or Motive API-key changes are required before rerunning the connection test.
+
 NBL FleetCommand — Version 98
 
 Version 98 - Motive Safety Access Diagnostic
