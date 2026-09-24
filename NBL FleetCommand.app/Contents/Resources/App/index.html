@@ -6,7 +6,7 @@
   <title>NBL FleetCommand</title>
   <meta name="theme-color" content="#35164E" />
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=100" />
+  <link rel="stylesheet" href="styles.css?v=101" />
 </head>
 <body>
 
@@ -32,12 +32,12 @@
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
         <div class="app-name">NBL FleetCommand</div>
         <div class="app-tagline">Operations Intelligence</div>
-        <div class="app-version">Version 100</div>
+        <div class="app-version">Version 101</div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-standalone nav-main-modules">
-          <button class="nav-btn nav-btn-main active" data-icon="H" data-screen="dashboard">Dashboard</button>
-          <button class="nav-btn nav-btn-main" data-icon="S" data-screen="safety">Safety</button>
+          <button class="nav-btn nav-btn-main active" data-screen="dashboard">DASHBOARD</button>
+          <button class="nav-btn nav-btn-main" data-screen="safety">SAFETY</button>
         </div>
         <div class="nav-group" data-nav-group="operations">
           <button type="button" class="nav-group-toggle" aria-expanded="true"><span class="nav-group-title">Operations</span><span class="nav-group-chevron" aria-hidden="true">▾</span></button>
@@ -916,7 +916,7 @@
 
           <div class="panel safety-ranking-panel">
             <div class="panel-heading">
-              <div><h2>Driver Rankings</h2><p>Drivers are ranked from highest to lowest Motive safety score for the selected period.</p></div>
+              <div><h2>Driver Rankings</h2><p>Sortable rankings default to the lowest Estimated Adjusted Score first.</p></div>
               <span class="history-count" id="safetyDriverCount">0 drivers</span>
             </div>
             <div class="table-wrap"><table id="safetyRankingsTable" class="safety-table"><thead></thead><tbody></tbody></table></div>
@@ -928,6 +928,7 @@
               <div class="safety-event-filters">
                 <select id="safetyDriverFilter"><option value="all">All Drivers</option><option value="unassigned">Unassigned Only</option></select>
                 <select id="safetyEventTypeFilter"><option value="all">All Event Types</option></select>
+                <select id="safetyStatusFilter"><option value="active">Active Events</option><option value="all">All Statuses</option><option value="dismissed">Dismissed Only</option></select>
               </div>
             </div>
             <div class="table-wrap"><table id="safetyEventsTable" class="safety-table"><thead></thead><tbody></tbody></table></div>
@@ -1514,8 +1515,8 @@
     </div>
   </div>
 
-  <script src="core.js?v=100"></script>
-  <script src="cloud.js?v=100"></script>
-  <script src="app.js?v=100"></script>
+  <script src="core.js?v=101"></script>
+  <script src="cloud.js?v=101"></script>
+  <script src="app.js?v=101"></script>
 </body>
 </html>
