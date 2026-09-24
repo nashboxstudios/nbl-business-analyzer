@@ -1,4 +1,17 @@
-NBL FleetCommand — Version 105
+NBL FleetCommand — Version 107
+
+Version 107 - Persistent Safety Assignments
+
+- Fixes unassigned-event driver assignments being lost after logout, login, or deployment of a new version.
+- Persists Safety assignments, FleetCommand dismissals, and driver records inside the established Audit cloud snapshot, avoiding the database module-key constraint that rejected the newer Safety snapshot key.
+- Restores saved Safety data automatically at login and remains compatible with any earlier standalone Safety snapshot.
+- Assignment and dismissal actions now show an error if cloud persistence fails instead of appearing successfully saved.
+
+Version 106 - Supabase-Compatible User Roles
+
+- Fixes the organization_members_role_check error when creating a Lead Driver.
+- Stores both assignable profiles under the database's permitted Operations role while retaining Operations Manager or Lead Driver as the FleetCommand access position.
+- The visible role, navigation permissions, and server access remain distinct and enforced without a database migration.
 
 Version 105 - Role-Based Module Access
 

@@ -155,7 +155,11 @@
   const SCREEN_MODULE_MAP={dashboard:'dashboard',safety:'safety',drivers:'driver_pay',summary:'settlement','settlement-reports':'reports','financial-analysis':'reports',revenue:'settlement',maintenance:'maintenance',meetings:'meetings',hr:'hr',audit:'audit',dispatch:'dispatch','daily-dispatch':'dispatch',ivmr:'ivmr',motive:'motive'};
   const FINANCE_MODULE_KEYS=new Set(['driver_pay','settlement','revenue','reports']);
   function cloudConnected(){ return !!state.cloud?.connected; }
-  function currentRole(){ return String(state.cloud?.membership?.role||'').trim().toLowerCase(); }
+  function currentRole(){
+    const databaseRole=String(state.cloud?.membership?.role||'').trim().toLowerCase();
+    const accessRole=String(currentModulePermissions().access_role||'').trim().toLowerCase();
+    return databaseRole==='operations'&&['operations','lead_driver'].includes(accessRole)?accessRole:databaseRole;
+  }
   function currentModulePermissions(){ const p=state.cloud?.membership?.module_permissions; return p&&typeof p==='object'?p:{}; }
   function isOwnerAccount(){ return currentRole()==='owner'; }
   function canAccessModuleKey(moduleKey,writeAccess=false){
@@ -241,7 +245,7 @@
         }
       }
     }
-    return {version:105,mileage,updatedAt:new Date().toISOString()};
+    return {version:107,mileage,updatedAt:new Date().toISOString()};
   }
   function normalizeCloudSettlementCatalog(data){
     const ss=data&&typeof data==='object'?data:{};
@@ -308,7 +312,7 @@
     if(moduleKey==='driver_pay') return cloneJson(state.payroll||{version:2,profiles:{},periods:{},dhMappings:{}});
     if(moduleKey==='maintenance') return cloneJson(state.maintenance||{version:2,tractors:[],records:[]});
     if(moduleKey==='meetings') return cloneJson(state.meetings||defaultMeetingData());
-    if(moduleKey==='audit') return cloneJson(state.audit||{version:1,audits:[],findings:[]});
+    if(moduleKey==='audit') return {...cloneJson(state.audit||{version:1,audits:[],findings:[]}),safetyState:cloudSnapshotForModule('safety')};
     if(moduleKey==='dispatch') return cloneJson(state.dispatch||defaultDispatchData());
     if(moduleKey==='settlement') return settlementSnapshot();
     if(moduleKey==='ivmr') return ivmrCloudSnapshot();
@@ -322,7 +326,7 @@
     const el=$('cloudSyncModules'); if(!el)return;
     const visible=CLOUD_MODULES.filter(k=>canAccessModuleKey(k,false));
     el.innerHTML=visible.map(k=>{
-      const snap=state.cloud?.snapshots?.[k], cls=snap?'synced':'';
+      const snap=state.cloud?.snapshots?.[k]||(k==='safety'&&state.cloud?.snapshots?.audit?.data?.safetyState?state.cloud.snapshots.audit:null), cls=snap?'synced':'';
       const suffix=snap?.updated_at?` • ${new Date(snap.updated_at).toLocaleString()}`:'';
       return `<span class="cloud-module-pill ${cls}">${escapeHtml(CLOUD_MODULE_LABELS[k])}${escapeHtml(suffix)}</span>`;
     }).join('');
@@ -357,8 +361,11 @@
   async function saveCloudModule(moduleKey,silent=true){
     if(!cloudConnected()||!window.NBLCloud||!state.cloud?.organization?.id) return false;
     try{
-      const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'100');
-      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'100',updated_at:new Date().toISOString()};
+      const storageKey=moduleKey==='safety'?'audit':moduleKey;
+      const storageData=cloudSnapshotForModule(storageKey);
+      const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,storageKey,storageData,'107');
+      state.cloud.snapshots[storageKey]=row||{module_key:storageKey,data:storageData,source_version:'107',updated_at:new Date().toISOString()};
+      if(moduleKey==='safety') state.cloud.snapshots.safety={module_key:'safety',data:cloudSnapshotForModule('safety'),source_version:'107',updated_at:state.cloud.snapshots[storageKey].updated_at};
       if(moduleKey==='settlement'){
         const dashboardData=dashboardMileageSnapshot();
         const dashboardRow=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,'dashboard',dashboardData,'100');
@@ -385,7 +392,8 @@
       ensureRecruitmentLayout(data); state.hr=data; state.hrLoaded=true;
     }
     if(get('audit')){ state.audit={version:1,audits:[],findings:[],activeTab:'dashboard',selectedAuditId:'',...cloneJson(get('audit'))}; state.auditLoaded=true; }
-    if(get('safety')){ state.safety.assignments=cloneJson(get('safety')?.assignments||{}); state.safety.dismissals=cloneJson(get('safety')?.dismissals||{}); state.safety.driverRecords=cloneJson(get('safety')?.driverRecords||{}); }
+    const safetyData=get('safety')||get('audit')?.safetyState;
+    if(safetyData){ state.safety.assignments=cloneJson(safetyData.assignments||{}); state.safety.dismissals=cloneJson(safetyData.dismissals||{}); state.safety.driverRecords=cloneJson(safetyData.driverRecords||{}); }
     if(get('dispatch')){ state.dispatch={...defaultDispatchData(),...cloneJson(get('dispatch'))}; state.dispatchLoaded=true; }
     if(get('settlement')){
       const ss=cloneJson(get('settlement'))||{};
@@ -5538,7 +5546,7 @@
     if(!state.safety.driverRecords)state.safety.driverRecords={};const all=safetyAllEvents(),now=new Date().toISOString(),rangeKey=`${state.safety.startDate}|${state.safety.endDate}`;
     for(const row of state.safety.scorecards||[]){const d=row.driver||{},id=safetyDriverId(d);if(!id)continue;const adjusted=safetyAdjustedScore(row,all),incidents=all.filter(x=>safetyEventDriver(x.event,x.source)?.id===id).map(safetyIncidentRecord),counts={};for(const x of incidents)if(!x.dismissed)counts[x.type]=(counts[x.type]||0)+1;const record=state.safety.driverRecords[id]||{driverId:id,name:safetyDriverName(d),employeeId:String(d.driver_company_id||''),snapshots:[]};record.name=safetyDriverName(d)||record.name;record.employeeId=String(d.driver_company_id||record.employeeId||'');const snapshot={rangeKey,startDate:state.safety.startDate,endDate:state.safety.endDate,capturedAt:now,motiveScore:Number.isFinite(Number(row.score))?Number(row.score):null,adjustedScore:adjusted.score,miles:safetyScorecardMiles(row),rating:safetyScoreBand(adjusted.score),activeIncidentCount:incidents.filter(x=>!x.dismissed).length,dismissedIncidentCount:incidents.filter(x=>x.dismissed).length,incidentCounts:counts,incidents};const existing=(record.snapshots||[]).findIndex(x=>x.rangeKey===rangeKey);if(existing>=0)record.snapshots[existing]=snapshot;else record.snapshots=[...(record.snapshots||[]),snapshot].slice(-52);record.updatedAt=now;state.safety.driverRecords[id]=record;}
   }
-  function refreshCurrentSafetySnapshots(){recordCurrentSafetySnapshots();return saveCloudModule('safety',true);}
+  function refreshCurrentSafetySnapshots(){recordCurrentSafetySnapshots();return saveCloudModule('safety',false);}
   function safetyDriverSnapshots(driverId){return (safetyRecordForDriver(driverId)?.snapshots||[]).slice().sort((a,b)=>String(a.endDate||a.capturedAt).localeCompare(String(b.endDate||b.capturedAt)));}
   function safetyPreviousAdjusted(driverId,currentRange){const snapshots=safetyDriverSnapshots(driverId).filter(x=>x.rangeKey!==currentRange&&Number.isFinite(Number(x.adjustedScore)));return snapshots.length?Number(snapshots.at(-1).adjustedScore):null;}
   function safetyMediaLink(event){const url=safetyEventMediaUrl(event);return url?`<a class="safety-media-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">View Media</a>`:'—';}
@@ -5566,7 +5574,7 @@
     if(!driver){showAlert('Select a driver first.','warning');return;}
     const item=safetyAllEvents().find(x=>safetyEventId(x.event,x.source)===key),incident=item?safetyIncidentRecord(item):null;if(incident)incident.assignmentSource='FleetCommand';
     state.safety.assignments[key]={id:driver.id,name:driver.name,employeeId:driver.employeeId||'',assignedAt:new Date().toISOString(),assignedBy:state.cloud?.user?.id||'',incident};
-    const saved=await refreshCurrentSafetySnapshots();renderSafety();showAlert(`${escapeHtml(driver.name)} assigned to this event in FleetCommand.${saved?' Assignment and driver record saved to NBL Cloud.':''} Motive's official score is unchanged.`,'success');
+    const saved=await refreshCurrentSafetySnapshots();renderSafety();if(!saved)return;showAlert(`${escapeHtml(driver.name)} assigned to this event. Assignment and driver record saved to NBL Cloud. Motive's official score is unchanged.`,'success');
   }
   async function toggleSafetyDismissal(key){
     const item=safetyAllEvents().find(x=>safetyEventId(x.event,x.source)===key);if(!item)return;
@@ -5574,7 +5582,7 @@
     const currently=!!state.safety.dismissals?.[key]?.dismissed;
     if(!state.safety.dismissals)state.safety.dismissals={};
     state.safety.dismissals[key]={dismissed:!currently,updatedAt:new Date().toISOString(),updatedBy:state.cloud?.user?.id||''};
-    await refreshCurrentSafetySnapshots();renderSafety();showAlert(`Event ${currently?'restored':'dismissed'} in FleetCommand. Estimated Adjusted Scores and driver records have been updated.`,'success');
+    const saved=await refreshCurrentSafetySnapshots();renderSafety();if(!saved)return;showAlert(`Event ${currently?'restored':'dismissed'} in FleetCommand. Estimated Adjusted Scores and driver records have been saved.`,'success');
   }
   function safetySortValue(row,key,all){const adjusted=safetyAdjustedScore(row,all);if(key==='driver')return safetyDriverName(row.driver).toLowerCase();if(key==='official')return Number(row.score);if(key==='adjusted')return adjusted.score;if(key==='miles')return safetyScorecardMiles(row);if(key==='events')return all.filter(x=>safetyEventDriver(x.event,x.source)?.id===safetyDriverId(row.driver)).length;return adjusted.score;}
   function safetySortableHeading(label,key,sort){const active=sort.key===key,arrow=active?(sort.dir==='asc'?' ▲':' ▼'):'';return `<th><button class="safety-sort" type="button" data-safety-sort="${key}">${label}${arrow}</button></th>`;}
