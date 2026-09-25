@@ -883,6 +883,11 @@ Version 78 - Railway Runtime Fix
 - No NBL business data or Supabase schema changes are required for this update. Existing cloud snapshots remain intact.
 
 
+Version 110 - Recruitment Address Import + Hiring Status Layout
+- Recruitment application import selects the current address from Address History, with the most recent start date as a fallback.
+- Road Test appears within Hiring Status immediately after Equipment Fam.
+
+
 Version 79 - Cloud Maintenance + Motive Configuration
 - Maintenance now renders from NBL Cloud even when no local data-folder handle exists.
 - Maintenance header uses the active workspace label instead of assuming a local folder.
