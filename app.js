@@ -245,7 +245,7 @@
         }
       }
     }
-    return {version:109,mileage,updatedAt:new Date().toISOString()};
+    return {version:110,mileage,updatedAt:new Date().toISOString()};
   }
   function normalizeCloudSettlementCatalog(data){
     const ss=data&&typeof data==='object'?data:{};
@@ -3001,7 +3001,7 @@
   }
   function parsedRecruitmentApplicationUpdates(fields,existing=null){
     const updates={};
-    ['name','email','phone','fedexId','dob','cdlNumber','cdlIssuingState','cdlExpiry'].forEach(key=>{
+    ['name','email','phone','address','fedexId','dob','cdlNumber','cdlIssuingState','cdlExpiry'].forEach(key=>{
       const value=String(fields?.[key]||'').trim(); if(value) updates[key]=value;
     });
     const ssnFull=normalizedRecruitmentSsn(fields?.ssnFull||'');
@@ -3017,7 +3017,7 @@
     return updates;
   }
   function applyParsedRecruitmentApplication(fields,fileName=''){
-    const mapping={name:'recruitmentNameInput',email:'recruitmentEmailInput',phone:'recruitmentPhoneInput',fedexId:'recruitmentFedexIdInput',dob:'recruitmentDobInput',cdlNumber:'recruitmentCdlNumberInput',cdlIssuingState:'recruitmentCdlIssuingStateInput',cdlExpiry:'recruitmentCdlExpiryInput'};
+    const mapping={name:'recruitmentNameInput',email:'recruitmentEmailInput',phone:'recruitmentPhoneInput',address:'recruitmentAddressInput',fedexId:'recruitmentFedexIdInput',dob:'recruitmentDobInput',cdlNumber:'recruitmentCdlNumberInput',cdlIssuingState:'recruitmentCdlIssuingStateInput',cdlExpiry:'recruitmentCdlExpiryInput'};
     let count=0;
     Object.entries(mapping).forEach(([key,id])=>{ const value=String(fields?.[key]||'').trim(); if(value && $(id)){ $(id).value=value; count++; } });
     const ssnFull=normalizedRecruitmentSsn(fields?.ssnFull||'');
@@ -3025,6 +3025,30 @@
     if(ssnLast4 && $('recruitmentSsnInput')){ state.hrSsn.draftFull=ssnFull; state.hrSsn.legacyLast4=ssnLast4; state.hrSsn.revealed=false; $('recruitmentSsnInput').value=maskedRecruitmentSsn(ssnLast4); updateRecruitmentSsnRevealButton(); count++; }
     const form=$('recruitmentCandidateForm'); if(form) form.dataset.sourceApplicationName=fileName||'';
     return count;
+  }
+  function setRecruitmentDocumentUploadStatus(message='',type=''){
+    const el=$('recruitmentDocumentUploadStatus');if(!el)return;el.textContent=message;el.className=`hr-document-upload-status${message?'':' hidden'}${type?` ${type}`:''}`;
+  }
+  function recruitmentDocumentLabel(doc){return doc?.fileName?`${doc.fileName}${doc.uploadedAt?` • uploaded ${new Date(doc.uploadedAt).toLocaleDateString()}`:''}`:'No document uploaded.';}
+  function updateRecruitmentDocumentUi(candidate=null){
+    const docs=candidate?.documents&&typeof candidate.documents==='object'?candidate.documents:{};
+    for(const [key,prefix] of [['cdl','Cdl'],['medCard','MedCard']]){
+      const doc=docs[key],status=$(`recruitment${prefix}DocumentStatus`),view=$(`recruitment${prefix}DocumentViewBtn`),del=$(`recruitment${prefix}DocumentDeleteBtn`),input=$(`recruitment${prefix}DocumentInput`);
+      if(status)status.textContent=recruitmentDocumentLabel(doc);view?.classList.toggle('hidden',!doc?.path);del?.classList.toggle('hidden',!doc?.path);if(input){input.value='';input.disabled=!cloudConnected();}
+    }
+    setRecruitmentDocumentUploadStatus(cloudConnected()?'':'Document uploads require an NBL Cloud connection.',cloudConnected()?'':'error');
+  }
+  async function viewRecruitmentDocument(kind){
+    const candidate=(state.hr.candidates||[]).find(x=>x.id===$('recruitmentCandidateId')?.value),doc=candidate?.documents?.[kind];if(!doc?.path)return;
+    const tab=window.open('about:blank','_blank');
+    try{const url=await window.NBLCloud.getRecruitmentDocumentUrl(doc.path);if(tab){tab.opener=null;tab.location.href=url;}else showAlert('Allow pop-ups for FleetCommand to view this document.','warning');}
+    catch(err){try{tab?.close();}catch(_){}showAlert(`Could not open the document: ${escapeHtml(err.message||String(err))}`,'error');}
+  }
+  async function deleteRecruitmentDocument(kind){
+    const candidate=(state.hr.candidates||[]).find(x=>x.id===$('recruitmentCandidateId')?.value),doc=candidate?.documents?.[kind];if(!candidate||!doc?.path)return;
+    const label=kind==='cdl'?'CDL':'Medical Card';if(!confirm(`Delete the uploaded ${label} for ${candidate.name}?`))return;
+    try{await window.NBLCloud.deleteRecruitmentDocument(doc.path);delete candidate.documents[kind];candidate.updatedAt=new Date().toISOString();await saveHrData(true);updateRecruitmentDocumentUi(candidate);showAlert(`${label} document deleted.`,'success');}
+    catch(err){showAlert(`Could not delete the document: ${escapeHtml(err.message||String(err))}`,'error');}
   }
   async function parseRecruitmentApplicationPdf(file){
     if(!file) return;
@@ -3080,13 +3104,15 @@
     $('recruitmentCandidateId').value=c?.id||'';
     $('recruitmentCandidateModalTitle').textContent=c?`Edit Candidate — ${c.name}`:'Add Candidate';
     $('recruitmentNameInput').value=c?.name||''; $('recruitmentEmailInput').value=c?.email||''; $('recruitmentPhoneInput').value=c?.phone||'';
+    $('recruitmentAddressInput').value=c?.address||'';
     $('recruitmentDobInput').value=c?.dob||''; $('recruitmentCdlNumberInput').value=c?.cdlNumber||''; $('recruitmentCdlIssuingStateInput').value=c?.cdlIssuingState||''; $('recruitmentCdlExpiryInput').value=c?.cdlExpiry||'';
     state.hrSsn.draftFull=normalizedRecruitmentSsn(c?.ssnFull||''); state.hrSsn.legacyLast4=String(c?.ssnLast4||state.hrSsn.draftFull.slice(-4)||'').replace(/\D/g,'').slice(-4); state.hrSsn.revealed=false; state.hrSsn.existingCandidate=!!c; $('recruitmentSsnInput').value=maskedRecruitmentSsn(state.hrSsn.draftFull?state.hrSsn.draftFull.slice(-4):state.hrSsn.legacyLast4); $('recruitmentSsnInput').placeholder='XXX-XX-1234'; updateRecruitmentSsnRevealButton();
     $('recruitmentDomicileInput').value=c?.domicile||''; $('recruitmentFedexIdInput').value=c?.fedexId||''; $('recruitmentDateAddedInput').value=c?.dateAdded||todayIso();
     $('recruitmentShiftInput').value=c?.shift||'Day'; $('recruitmentTypeInput').value=c?.type||'Full Time'; $('recruitmentDoublesInput').value=c?.doubles==='Yes'?'Yes':'No'; $('recruitmentStatusInput').value=normalizeRecruitmentStatus(c?.recruitmentStatus);
     $('recruitmentScreeningInterviewInput').value=c?.screeningInterview||''; $('recruitmentFadvStatusInput').value=c?.fadvStatus||'In Progress'; $('recruitmentOpsInterviewInput').value=c?.opsInterview||'';
     $('recruitmentNotesInput').value=c?.notes||c?.reasonStuck||''; $('recruitmentEquipmentFamInput').value=c?.equipmentFam||'No'; $('recruitmentRoadTestInput').value=c?.roadTest||'Not Scheduled';
-    $('recruitmentDrugTestInput').value=c?.drugTest||'Not Taken'; $('recruitmentOfferLetterInput').value=c?.offerLetter||'Not Sent'; $('recruitmentStartDateInput').value=c?.startDate||'';
+    $('recruitmentDrugTestInput').value=c?.drugTest||'Not Taken'; $('recruitmentEverifyInput').value=c?.eVerify||'Not Started'; $('recruitmentOfferLetterInput').value=c?.offerLetter||'Not Sent'; $('recruitmentStartDateInput').value=c?.startDate||'';
+    $('recruitmentMedCardExpiryInput').value=c?.medCardExpiry||'';$('recruitmentSsnVerifiedInput').value=c?.ssnVerified==='Yes'?'Yes':'No';updateRecruitmentDocumentUi(c);
     const uploadPanel=$('recruitmentApplicationUploadPanel'); if(uploadPanel) uploadPanel.classList.remove('hidden');
     if($('recruitmentApplicationUploadTitle')) $('recruitmentApplicationUploadTitle').textContent=c?'Update from First Advantage PDF':'Import Candidate Application';
     if($('recruitmentApplicationUploadHelp')) $('recruitmentApplicationUploadHelp').textContent=c
@@ -3104,19 +3130,27 @@
     let completedAt=existing?.completedAt||'';
     if(isTerminal&&!wasTerminal) completedAt=todayIso(); else if(!isTerminal) completedAt='';
     const record={
-      id:existing?.id||uid('candidate'),name:String($('recruitmentNameInput').value||'').trim(),email:String($('recruitmentEmailInput').value||'').trim(),phone:String($('recruitmentPhoneInput').value||'').trim(),
+      id:existing?.id||uid('candidate'),name:String($('recruitmentNameInput').value||'').trim(),email:String($('recruitmentEmailInput').value||'').trim(),phone:String($('recruitmentPhoneInput').value||'').trim(),address:String($('recruitmentAddressInput').value||'').trim(),
       dob:$('recruitmentDobInput').value||'',cdlNumber:String($('recruitmentCdlNumberInput').value||'').trim(),cdlIssuingState:String($('recruitmentCdlIssuingStateInput').value||'').trim(),cdlExpiry:$('recruitmentCdlExpiryInput').value||'',
       ssnFull:(()=>{ const typed=normalizedRecruitmentSsn($('recruitmentSsnInput').value); if(typed) return typed; const draft=normalizedRecruitmentSsn(state.hrSsn?.draftFull); const last4=recruitmentSsnLast4FromInput($('recruitmentSsnInput').value); return draft && (!last4 || draft.endsWith(last4)) ? draft : ''; })(),
       ssnLast4:(()=>{ const typed=recruitmentSsnLast4FromInput($('recruitmentSsnInput').value); return typed||String(state.hrSsn?.legacyLast4||existing?.ssnLast4||'').replace(/\D/g,'').slice(-4); })(),
       domicile:String($('recruitmentDomicileInput').value||'').trim(),fedexId:String($('recruitmentFedexIdInput').value||'').trim(),dateAdded:$('recruitmentDateAddedInput').value||todayIso(),shift:$('recruitmentShiftInput').value,type:$('recruitmentTypeInput').value,doubles:$('recruitmentDoublesInput').value==='Yes'?'Yes':'No',
       screeningInterview:$('recruitmentScreeningInterviewInput').value||'',fadvStatus:$('recruitmentFadvStatusInput').value,notes:String($('recruitmentNotesInput').value||'').trim(),
-      opsInterview:$('recruitmentOpsInterviewInput').value||'',equipmentFam:$('recruitmentEquipmentFamInput').value,roadTest:$('recruitmentRoadTestInput').value,drugTest:$('recruitmentDrugTestInput').value,offerLetter:$('recruitmentOfferLetterInput').value,startDate:$('recruitmentStartDateInput').value||'',
-      recruitmentStatus:newStatus,completedAt,sourceApplicationName:String($('recruitmentCandidateForm')?.dataset?.sourceApplicationName||existing?.sourceApplicationName||''),createdAt:existing?.createdAt||now,updatedAt:now
+      opsInterview:$('recruitmentOpsInterviewInput').value||'',equipmentFam:$('recruitmentEquipmentFamInput').value,roadTest:$('recruitmentRoadTestInput').value,drugTest:$('recruitmentDrugTestInput').value,eVerify:$('recruitmentEverifyInput').value,offerLetter:$('recruitmentOfferLetterInput').value,startDate:$('recruitmentStartDateInput').value||'',
+      medCardExpiry:$('recruitmentMedCardExpiryInput').value||'',ssnVerified:$('recruitmentSsnVerifiedInput').value==='Yes'?'Yes':'No',documents:cloneJson(existing?.documents||{}),recruitmentStatus:newStatus,completedAt,sourceApplicationName:String($('recruitmentCandidateForm')?.dataset?.sourceApplicationName||existing?.sourceApplicationName||''),createdAt:existing?.createdAt||now,updatedAt:now
     };
     if(record.ssnFull) record.ssnLast4=record.ssnFull.slice(-4);
     if(!record.name){ showAlert('Candidate name is required.','warning'); return; }
     if(existing) Object.assign(existing,record); else state.hr.candidates.push(record);
-    await saveHrData(true); closeModal('recruitmentCandidateModal'); renderHr(); setScreen('hr'); showAlert(`Recruitment record for <strong>${escapeHtml(record.name)}</strong> saved.`,'success');
+    await saveHrData(true);
+    const uploads=[['cdl','recruitmentCdlDocumentInput'],['medCard','recruitmentMedCardDocumentInput']].map(([kind,inputId])=>[kind,$(inputId)?.files?.[0]]).filter(([,file])=>file);
+    if(uploads.length){
+      if(!cloudConnected()){setRecruitmentDocumentUploadStatus('Candidate saved, but documents require an NBL Cloud connection.','error');renderHr();return;}
+      setRecruitmentDocumentUploadStatus(`Uploading ${uploads.length} document${uploads.length===1?'':'s'}…`,'working');
+      try{for(const [kind,file] of uploads){const previous=record.documents?.[kind]?.path||'',type=kind==='medCard'?'med_card':'cdl',meta=await window.NBLCloud.uploadRecruitmentDocument(state.cloud.organization.id,record.id,type,file);record.documents[kind]=meta;if(previous&&previous!==meta.path)await window.NBLCloud.deleteRecruitmentDocument(previous);}record.updatedAt=new Date().toISOString();await saveHrData(true);}
+      catch(err){updateRecruitmentDocumentUi(record);setRecruitmentDocumentUploadStatus(`Candidate saved, but a document could not be uploaded: ${err.message||String(err)}`,'error');renderHr();return;}
+    }
+    closeModal('recruitmentCandidateModal');renderHr();setScreen('hr');showAlert(`Recruitment record for <strong>${escapeHtml(record.name)}</strong> saved${uploads.length?' with its documents':''}.`,'success');
   }
   function openRecruitmentRoadTestModal(id){
     const c=(state.hr.candidates||[]).find(x=>x.id===id); if(!c) return;
@@ -3251,6 +3285,7 @@
   async function deleteRecruitmentCandidate(id){
     const c=(state.hr.candidates||[]).find(x=>x.id===id); if(!c)return;
     if(!confirm(`Delete recruitment record for "${c.name}"?`)) return;
+    if(cloudConnected()&&window.NBLCloud?.deleteRecruitmentDocument){for(const doc of Object.values(c.documents||{})){if(doc?.path)try{await window.NBLCloud.deleteRecruitmentDocument(doc.path);}catch(err){console.warn('Could not remove candidate document',err);}}}
     state.hr.candidates=(state.hr.candidates||[]).filter(x=>x.id!==id); await saveHrData(true); renderHr(); setScreen('hr'); showAlert(`Recruitment record for <strong>${escapeHtml(c.name)}</strong> deleted.`,'success');
   }
 
@@ -5971,6 +6006,11 @@
   $('roadTestSaveOnlyBtn')?.addEventListener('click',finishRoadTestSaveOnly);
   $('roadTestExportAfterSaveBtn')?.addEventListener('click',exportRecruitmentRoadTestPdf);
   $('recruitmentApplicationPdfInput')?.addEventListener('change',e=>parseRecruitmentApplicationPdf(e.target.files?.[0]));
+  [['recruitmentCdlDocumentInput','CDL'],['recruitmentMedCardDocumentInput','Medical Card']].forEach(([id,label])=>$(id)?.addEventListener('change',e=>{const file=e.target.files?.[0];if(file)setRecruitmentDocumentUploadStatus(`${label} selected: ${file.name}. It will upload when the candidate is saved.`,'working');}));
+  $('recruitmentCdlDocumentViewBtn')?.addEventListener('click',()=>viewRecruitmentDocument('cdl'));
+  $('recruitmentCdlDocumentDeleteBtn')?.addEventListener('click',()=>deleteRecruitmentDocument('cdl'));
+  $('recruitmentMedCardDocumentViewBtn')?.addEventListener('click',()=>viewRecruitmentDocument('medCard'));
+  $('recruitmentMedCardDocumentDeleteBtn')?.addEventListener('click',()=>deleteRecruitmentDocument('medCard'));
   document.querySelectorAll('[data-accept-recruitment-application]').forEach(btn=>btn.addEventListener('click',()=>resolveRecruitmentApplicationMismatch(true)));
   document.querySelectorAll('[data-reject-recruitment-application]').forEach(btn=>btn.addEventListener('click',()=>resolveRecruitmentApplicationMismatch(false)));
   $('recruitmentSsnInput')?.addEventListener('input',e=>{ const full=normalizedRecruitmentSsn(e.target.value); if(full){state.hrSsn.draftFull=full;state.hrSsn.revealed=true;} updateRecruitmentSsnRevealButton(); });
