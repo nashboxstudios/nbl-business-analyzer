@@ -1,4 +1,4 @@
-NBL FleetCommand — Version 110
+NBL FleetCommand — Version 112
 
 Version 110 - Recruitment Profile and Secure Documents
 
@@ -886,6 +886,21 @@ Version 78 - Railway Runtime Fix
 Version 110 - Recruitment Address Import + Hiring Status Layout
 - Recruitment application import selects the current address from Address History, with the most recent start date as a fallback.
 - Road Test appears within Hiring Status immediately after Equipment Fam.
+
+
+Version 111 - Recruitment Onboarding and Flexible Documents
+- Added a separate Onboarding section for Safety Forward, ConnectTeams, ADP, Motive and Employee Handbook status.
+- Replaced the two fixed document cards with five labeled document slots and optional expiration dates.
+- Existing CDL and Medical Card uploads are automatically shown in the new slots.
+- Added PDF, JPEG, PNG, HEIC, HEIF, DOC and DOCX support, with the existing 10 MB per-file limit.
+- Run SUPABASE_v111_RECRUITMENT_DOCUMENT_TYPES.sql once before uploading HEIC or Word documents.
+
+
+Version 112 - Weekly Dispatch Run Order and Toolbar
+- Weekly Dispatch Planner shows Dedicated runs first, URRs alphabetically, and Spots alphabetically.
+- Run type labels now use Dedicated, URR and Spot terminology.
+- The top controls are grouped into Plan, Manage and Export actions, with Reset Plan visually separated.
+- No database or Supabase changes are required for this version.
 
 
 Version 79 - Cloud Maintenance + Motive Configuration

@@ -2519,7 +2519,7 @@
       columnWidths:{...HR_RECRUITMENT_DEFAULT_WIDTHS}
     };
   }
-  function defaultHrData(){ return {version:10,candidates:[],recruitmentLayout:defaultRecruitmentLayout(),updatedAt:null}; }
+  function defaultHrData(){ return {version:11,candidates:[],recruitmentLayout:defaultRecruitmentLayout(),updatedAt:null}; }
   function ensureRecruitmentLayout(data=state.hr){
     if(!data || typeof data!=='object') return defaultRecruitmentLayout();
     const stored=data.recruitmentLayout && typeof data.recruitmentLayout==='object' ? data.recruitmentLayout : {};
@@ -2612,7 +2612,7 @@
       const dir=await state.directoryHandle.getDirectoryHandle('HR');
       const fh=await dir.getFileHandle('hr_data.json');
       const parsed=JSON.parse(await (await fh.getFile()).text());
-      if(parsed && Array.isArray(parsed.candidates)) data={...data,...parsed,version:10,candidates:parsed.candidates.map(c=>{ const legacyDigits=String(c.ssnFull||c.ssn||'').replace(/\D/g,''); const full=legacyDigits.length===9?legacyDigits:''; const last4=String(c.ssnLast4||full||c.ssn||'').replace(/\D/g,'').slice(-4); const migrated={...c,recruitmentStatus:normalizeRecruitmentStatus(c.recruitmentStatus),drugTest:c.drugTest||'Not Taken',doubles:(c.doubles==='Yes'?'Yes':'No'),notes:String(c.notes||c.reasonStuck||''),dob:c.dob||'',cdlNumber:c.cdlNumber||'',cdlIssuingState:c.cdlIssuingState||'',cdlExpiry:c.cdlExpiry||'',ssnFull:full,ssnLast4:last4,sourceApplicationName:c.sourceApplicationName||'',roadTestForm:(c.roadTestForm&&typeof c.roadTestForm==='object'?c.roadTestForm:{})}; delete migrated.ssn; delete migrated.reasonStuck; return migrated; })};
+      if(parsed && Array.isArray(parsed.candidates)) data={...data,...parsed,version:11,candidates:parsed.candidates.map(c=>{ const legacyDigits=String(c.ssnFull||c.ssn||'').replace(/\D/g,''); const full=legacyDigits.length===9?legacyDigits:''; const last4=String(c.ssnLast4||full||c.ssn||'').replace(/\D/g,'').slice(-4); const migrated={...c,recruitmentStatus:normalizeRecruitmentStatus(c.recruitmentStatus),drugTest:c.drugTest||'Not Taken',doubles:(c.doubles==='Yes'?'Yes':'No'),notes:String(c.notes||c.reasonStuck||''),dob:c.dob||'',cdlNumber:c.cdlNumber||'',cdlIssuingState:c.cdlIssuingState||'',cdlExpiry:c.cdlExpiry||'',ssnFull:full,ssnLast4:last4,sourceApplicationName:c.sourceApplicationName||'',roadTestForm:(c.roadTestForm&&typeof c.roadTestForm==='object'?c.roadTestForm:{})}; delete migrated.ssn; delete migrated.reasonStuck; return migrated; })};
     }catch(err){ if(err?.name!=='NotFoundError') console.warn('Could not load HR data',err); }
     ensureRecruitmentLayout(data);
     state.hr=data; state.hrLoaded=true; if(state.dispatchLoaded)syncSharedDriverRoster(); renderHr(); renderDispatch(); renderDailyDispatch();
@@ -3030,24 +3030,44 @@
     const el=$('recruitmentDocumentUploadStatus');if(!el)return;el.textContent=message;el.className=`hr-document-upload-status${message?'':' hidden'}${type?` ${type}`:''}`;
   }
   function recruitmentDocumentLabel(doc){return doc?.fileName?`${doc.fileName}${doc.uploadedAt?` • uploaded ${new Date(doc.uploadedAt).toLocaleDateString()}`:''}`:'No document uploaded.';}
-  function updateRecruitmentDocumentUi(candidate=null){
+  function recruitmentDocumentSlots(candidate=null){
     const docs=candidate?.documents&&typeof candidate.documents==='object'?candidate.documents:{};
-    for(const [key,prefix] of [['cdl','Cdl'],['medCard','MedCard']]){
-      const doc=docs[key],status=$(`recruitment${prefix}DocumentStatus`),view=$(`recruitment${prefix}DocumentViewBtn`),del=$(`recruitment${prefix}DocumentDeleteBtn`),input=$(`recruitment${prefix}DocumentInput`);
-      if(status)status.textContent=recruitmentDocumentLabel(doc);view?.classList.toggle('hidden',!doc?.path);del?.classList.toggle('hidden',!doc?.path);if(input){input.value='';input.disabled=!cloudConnected();}
+    const slots=Array.from({length:5},(_,index)=>cloneJson(docs[`slot${index+1}`]||{}));
+    if(!slots.some(doc=>doc?.path)){
+      if(docs.cdl?.path)slots[0]={...cloneJson(docs.cdl),label:docs.cdl.label||'CDL'};
+      if(docs.medCard?.path)slots[1]={...cloneJson(docs.medCard),label:docs.medCard.label||'Medical Card',expiry:docs.medCard.expiry||candidate?.medCardExpiry||''};
+    }
+    return slots;
+  }
+  function updateRecruitmentDocumentUi(candidate=null){
+    const slots=recruitmentDocumentSlots(candidate);
+    slots.forEach((doc,index)=>{
+      const number=index+1,status=$(`recruitmentDocument${number}Status`),label=$(`recruitmentDocument${number}Label`),expiry=$(`recruitmentDocument${number}Expiry`),input=$(`recruitmentDocument${number}Input`);
+      if(status)status.textContent=recruitmentDocumentLabel(doc);
+      if(label)label.value=doc?.label||'';
+      if(expiry)expiry.value=doc?.expiry||'';
+      if(input){input.value='';input.disabled=!cloudConnected();}
+      document.querySelector(`[data-view-recruitment-document="slot${number}"]`)?.classList.toggle('hidden',!doc?.path);
+      document.querySelector(`[data-delete-recruitment-document="slot${number}"]`)?.classList.toggle('hidden',!doc?.path);
+    });
+    document.querySelectorAll('[data-recruitment-document-slot]').forEach(card=>{
+      card.classList.toggle('hr-document-disabled',!cloudConnected());
+    });
+    if(!cloudConnected()){
+      document.querySelectorAll('[id^="recruitmentDocument"][id$="Label"],[id^="recruitmentDocument"][id$="Expiry"]').forEach(input=>input.disabled=false);
     }
     setRecruitmentDocumentUploadStatus(cloudConnected()?'':'Document uploads require an NBL Cloud connection.',cloudConnected()?'':'error');
   }
   async function viewRecruitmentDocument(kind){
-    const candidate=(state.hr.candidates||[]).find(x=>x.id===$('recruitmentCandidateId')?.value),doc=candidate?.documents?.[kind];if(!doc?.path)return;
+    const candidate=(state.hr.candidates||[]).find(x=>x.id===$('recruitmentCandidateId')?.value),index=Math.max(0,Number(String(kind||'').replace('slot',''))-1),doc=recruitmentDocumentSlots(candidate)[index];if(!doc?.path)return;
     const tab=window.open('about:blank','_blank');
     try{const url=await window.NBLCloud.getRecruitmentDocumentUrl(doc.path);if(tab){tab.opener=null;tab.location.href=url;}else showAlert('Allow pop-ups for FleetCommand to view this document.','warning');}
     catch(err){try{tab?.close();}catch(_){}showAlert(`Could not open the document: ${escapeHtml(err.message||String(err))}`,'error');}
   }
   async function deleteRecruitmentDocument(kind){
-    const candidate=(state.hr.candidates||[]).find(x=>x.id===$('recruitmentCandidateId')?.value),doc=candidate?.documents?.[kind];if(!candidate||!doc?.path)return;
-    const label=kind==='cdl'?'CDL':'Medical Card';if(!confirm(`Delete the uploaded ${label} for ${candidate.name}?`))return;
-    try{await window.NBLCloud.deleteRecruitmentDocument(doc.path);delete candidate.documents[kind];candidate.updatedAt=new Date().toISOString();await saveHrData(true);updateRecruitmentDocumentUi(candidate);showAlert(`${label} document deleted.`,'success');}
+    const candidate=(state.hr.candidates||[]).find(x=>x.id===$('recruitmentCandidateId')?.value),index=Math.max(0,Number(String(kind||'').replace('slot',''))-1),slots=recruitmentDocumentSlots(candidate),doc=slots[index];if(!candidate||!doc?.path)return;
+    const label=doc.label||`Document ${index+1}`;if(!confirm(`Delete the uploaded ${label} for ${candidate.name}?`))return;
+    try{await window.NBLCloud.deleteRecruitmentDocument(doc.path);slots[index]={};candidate.documents=Object.fromEntries(slots.map((item,i)=>[`slot${i+1}`,item]).filter(([,item])=>item?.path||item?.label));candidate.updatedAt=new Date().toISOString();await saveHrData(true);updateRecruitmentDocumentUi(candidate);showAlert(`${escapeHtml(label)} document deleted.`,'success');}
     catch(err){showAlert(`Could not delete the document: ${escapeHtml(err.message||String(err))}`,'error');}
   }
   async function parseRecruitmentApplicationPdf(file){
@@ -3112,7 +3132,8 @@
     $('recruitmentScreeningInterviewInput').value=c?.screeningInterview||''; $('recruitmentFadvStatusInput').value=c?.fadvStatus||'In Progress'; $('recruitmentOpsInterviewInput').value=c?.opsInterview||'';
     $('recruitmentNotesInput').value=c?.notes||c?.reasonStuck||''; $('recruitmentEquipmentFamInput').value=c?.equipmentFam||'No'; $('recruitmentRoadTestInput').value=c?.roadTest||'Not Scheduled';
     $('recruitmentDrugTestInput').value=c?.drugTest||'Not Taken'; $('recruitmentEverifyInput').value=c?.eVerify||'Not Started'; $('recruitmentOfferLetterInput').value=c?.offerLetter||'Not Sent'; $('recruitmentStartDateInput').value=c?.startDate||'';
-    $('recruitmentMedCardExpiryInput').value=c?.medCardExpiry||'';$('recruitmentSsnVerifiedInput').value=c?.ssnVerified==='Yes'?'Yes':'No';updateRecruitmentDocumentUi(c);
+    $('recruitmentSafetyForwardInput').value=c?.safetyForward||'Not Sent'; $('recruitmentConnectTeamsInput').value=c?.connectTeams||'Not Sent'; $('recruitmentAdpInput').value=c?.adp||'Not Sent'; $('recruitmentMotiveInput').value=c?.motiveOnboarding||'Not Sent'; $('recruitmentEmployeeHandbookInput').value=c?.employeeHandbook||'Not Sent';
+    $('recruitmentSsnVerifiedInput').value=c?.ssnVerified==='Yes'?'Yes':'No';updateRecruitmentDocumentUi(c);
     const uploadPanel=$('recruitmentApplicationUploadPanel'); if(uploadPanel) uploadPanel.classList.remove('hidden');
     if($('recruitmentApplicationUploadTitle')) $('recruitmentApplicationUploadTitle').textContent=c?'Update from First Advantage PDF':'Import Candidate Application';
     if($('recruitmentApplicationUploadHelp')) $('recruitmentApplicationUploadHelp').textContent=c
@@ -3129,6 +3150,12 @@
     const newStatus=normalizeRecruitmentStatus($('recruitmentStatusInput').value), wasTerminal=existing?HR_TERMINAL_STATUSES.has(existing.recruitmentStatus):false, isTerminal=HR_TERMINAL_STATUSES.has(newStatus);
     let completedAt=existing?.completedAt||'';
     if(isTerminal&&!wasTerminal) completedAt=todayIso(); else if(!isTerminal) completedAt='';
+    const existingDocumentSlots=recruitmentDocumentSlots(existing);
+    const documentSlots=Object.fromEntries(existingDocumentSlots.map((doc,index)=>{
+      const number=index+1,label=String($(`recruitmentDocument${number}Label`)?.value||'').trim(),expiry=$(`recruitmentDocument${number}Expiry`)?.value||'';
+      const updated={...doc,label,expiry};
+      return [`slot${number}`,updated];
+    }).filter(([,doc])=>doc?.path||doc?.label));
     const record={
       id:existing?.id||uid('candidate'),name:String($('recruitmentNameInput').value||'').trim(),email:String($('recruitmentEmailInput').value||'').trim(),phone:String($('recruitmentPhoneInput').value||'').trim(),address:String($('recruitmentAddressInput').value||'').trim(),
       dob:$('recruitmentDobInput').value||'',cdlNumber:String($('recruitmentCdlNumberInput').value||'').trim(),cdlIssuingState:String($('recruitmentCdlIssuingStateInput').value||'').trim(),cdlExpiry:$('recruitmentCdlExpiryInput').value||'',
@@ -3137,17 +3164,18 @@
       domicile:String($('recruitmentDomicileInput').value||'').trim(),fedexId:String($('recruitmentFedexIdInput').value||'').trim(),dateAdded:$('recruitmentDateAddedInput').value||todayIso(),shift:$('recruitmentShiftInput').value,type:$('recruitmentTypeInput').value,doubles:$('recruitmentDoublesInput').value==='Yes'?'Yes':'No',
       screeningInterview:$('recruitmentScreeningInterviewInput').value||'',fadvStatus:$('recruitmentFadvStatusInput').value,notes:String($('recruitmentNotesInput').value||'').trim(),
       opsInterview:$('recruitmentOpsInterviewInput').value||'',equipmentFam:$('recruitmentEquipmentFamInput').value,roadTest:$('recruitmentRoadTestInput').value,drugTest:$('recruitmentDrugTestInput').value,eVerify:$('recruitmentEverifyInput').value,offerLetter:$('recruitmentOfferLetterInput').value,startDate:$('recruitmentStartDateInput').value||'',
-      medCardExpiry:$('recruitmentMedCardExpiryInput').value||'',ssnVerified:$('recruitmentSsnVerifiedInput').value==='Yes'?'Yes':'No',documents:cloneJson(existing?.documents||{}),recruitmentStatus:newStatus,completedAt,sourceApplicationName:String($('recruitmentCandidateForm')?.dataset?.sourceApplicationName||existing?.sourceApplicationName||''),createdAt:existing?.createdAt||now,updatedAt:now
+      safetyForward:$('recruitmentSafetyForwardInput').value,connectTeams:$('recruitmentConnectTeamsInput').value,adp:$('recruitmentAdpInput').value,motiveOnboarding:$('recruitmentMotiveInput').value,employeeHandbook:$('recruitmentEmployeeHandbookInput').value,
+      medCardExpiry:existing?.medCardExpiry||'',ssnVerified:$('recruitmentSsnVerifiedInput').value==='Yes'?'Yes':'No',documents:documentSlots,recruitmentStatus:newStatus,completedAt,sourceApplicationName:String($('recruitmentCandidateForm')?.dataset?.sourceApplicationName||existing?.sourceApplicationName||''),createdAt:existing?.createdAt||now,updatedAt:now
     };
     if(record.ssnFull) record.ssnLast4=record.ssnFull.slice(-4);
     if(!record.name){ showAlert('Candidate name is required.','warning'); return; }
     if(existing) Object.assign(existing,record); else state.hr.candidates.push(record);
     await saveHrData(true);
-    const uploads=[['cdl','recruitmentCdlDocumentInput'],['medCard','recruitmentMedCardDocumentInput']].map(([kind,inputId])=>[kind,$(inputId)?.files?.[0]]).filter(([,file])=>file);
+    const uploads=Array.from({length:5},(_,index)=>{const number=index+1;return [`slot${number}`,$(`recruitmentDocument${number}Input`)?.files?.[0],number];}).filter(([,file])=>file);
     if(uploads.length){
       if(!cloudConnected()){setRecruitmentDocumentUploadStatus('Candidate saved, but documents require an NBL Cloud connection.','error');renderHr();return;}
       setRecruitmentDocumentUploadStatus(`Uploading ${uploads.length} document${uploads.length===1?'':'s'}…`,'working');
-      try{for(const [kind,file] of uploads){const previous=record.documents?.[kind]?.path||'',type=kind==='medCard'?'med_card':'cdl',meta=await window.NBLCloud.uploadRecruitmentDocument(state.cloud.organization.id,record.id,type,file);record.documents[kind]=meta;if(previous&&previous!==meta.path)await window.NBLCloud.deleteRecruitmentDocument(previous);}record.updatedAt=new Date().toISOString();await saveHrData(true);}
+      try{for(const [kind,file,number] of uploads){const previous=record.documents?.[kind]?.path||'',label=String($(`recruitmentDocument${number}Label`)?.value||'').trim()||file.name,expiry=$(`recruitmentDocument${number}Expiry`)?.value||'',meta=await window.NBLCloud.uploadRecruitmentDocument(state.cloud.organization.id,record.id,kind,file);record.documents[kind]={...meta,label,expiry};if(previous&&previous!==meta.path)await window.NBLCloud.deleteRecruitmentDocument(previous);}record.updatedAt=new Date().toISOString();await saveHrData(true);}
       catch(err){updateRecruitmentDocumentUi(record);setRecruitmentDocumentUploadStatus(`Candidate saved, but a document could not be uploaded: ${err.message||String(err)}`,'error');renderHr();return;}
     }
     closeModal('recruitmentCandidateModal');renderHr();setScreen('hr');showAlert(`Recruitment record for <strong>${escapeHtml(record.name)}</strong> saved${uploads.length?' with its documents':''}.`,'success');
@@ -3530,7 +3558,14 @@
   async function renameSelectedDispatchPlan(){ const plan=dispatchSelectedPlan(); if(!plan)return; const raw=prompt('Rename saved dispatch table:',plan.name); if(raw==null)return; const name=raw.trim(); if(!name||name===plan.name)return; plan.name=name; plan.updatedAt=new Date().toISOString(); await saveDispatchData(true); renderDispatch(); setScreen('dispatch'); }
   async function deleteSelectedDispatchPlan(){ const plan=dispatchSelectedPlan(); if(!plan)return; if(!confirm(`Delete saved dispatch table "${plan.name}"? This does not change the live planning board.`))return; state.dispatch.savedPlans=(state.dispatch.savedPlans||[]).filter(p=>p.id!==plan.id); const remaining=dispatchSavedPlans(plan.locationId); state.dispatch.activePlanByLocation={...(state.dispatch.activePlanByLocation||{}),[plan.locationId]:remaining[0]?.id||''}; await saveDispatchData(true); renderDispatch(); setScreen('dispatch'); }
   function selectSavedDispatchPlan(id){ if(!dispatchSavedPlans().some(p=>p.id===id))return; state.dispatch.activePlanByLocation={...(state.dispatch.activePlanByLocation||{}),[dispatchActiveLocationId()]:id}; saveDispatchData(true); renderDispatchPlanControls(); }
-  function dispatchRuns(locationId=dispatchActiveLocationId()){ return (state.dispatch.runs||[]).filter(r=>(r.locationId||'nashville')===locationId); }
+  function dispatchRunSort(a,b){
+    const priority={assigned:0,unassigned:1,spot:2},typeA=String(a?.type||''),typeB=String(b?.type||''),group=(priority[typeA]??3)-(priority[typeB]??3);
+    if(group)return group;
+    // Preserve the existing order of dedicated runs. URRs and Spots are always alphabetical.
+    if(typeA==='assigned'&&typeB==='assigned')return 0;
+    return String(a?.name||'').localeCompare(String(b?.name||''),undefined,{numeric:true,sensitivity:'base'});
+  }
+  function dispatchRuns(locationId=dispatchActiveLocationId()){ return (state.dispatch.runs||[]).filter(r=>(r.locationId||'nashville')===locationId).slice().sort(dispatchRunSort); }
   function dispatchRun(runId){ return (state.dispatch.runs||[]).find(r=>r.id===runId); }
   function dispatchDriver(driverId){ return (state.dispatch.drivers||[]).find(d=>d.id===driverId); }
   function dispatchDriverIsActive(driver){ return !!driver && driver.active!==false; }
@@ -3850,7 +3885,7 @@
     const parts=[];parts.push('<div class="dispatch-corner">Run / Origin</div>');for(const d of st.perDay){const cls=d.covered===d.required?'full':'gap';parts.push(`<div class="dispatch-day-head ${cls}"><strong>${d.name}</strong><small>${d.covered}/${d.required} covered</small></div>`);}
     if(!activeRuns.length){parts.push(`<div class="dispatch-no-runs"><strong>No runs at ${escapeHtml(loc?.name||'this location')} yet.</strong><span>Click + Add Run to create the first route.</span></div>`);}else{
       for(const run of activeRuns){const re=econ.runs.find(x=>x.run.id===run.id),milesText=re?.miles==null?'Miles: —':`Miles: ${dispatchNumberOrDash(re.miles)}`,lostText=re?.lostMiles==null?'Lost miles: —':`Lost miles: ${fmtNum(re.lostMiles)}`;
-        const assignedTractor=run.primaryTractorId?dispatchTractor(run.primaryTractorId):null,tractorMismatch=assignedTractor&&dispatchTractorLocationId(assignedTractor)!==(run.locationId||'nashville'); const tractorOptions=['<option value="">Assign tractor…</option>',...activeTractors.map(t=>`<option value="${escapeHtml(t.id)}" ${run.primaryTractorId===t.id?'selected':''}>${escapeHtml(t.tractorNumber||'—')}</option>`),...(assignedTractor&&!activeTractors.some(t=>t.id===assignedTractor.id)?[`<option value="${escapeHtml(assignedTractor.id)}" selected>${escapeHtml(assignedTractor.tractorNumber||'—')} • ${escapeHtml(dispatchTractorLocationName(assignedTractor))}</option>`]:[])].join(''); parts.push(`<div class="dispatch-run-head ${escapeHtml(run.type)}"><strong>${escapeHtml(run.name)}</strong><span>${escapeHtml(run.origin)} • ${escapeHtml(run.scheduleLabel)}</span><span class="dispatch-run-type">${run.type==='assigned'?'Assigned Run':run.type==='spot'?'Spot Run':'Unassigned Run'}</span><span class="dispatch-run-statline"><strong>${milesText}</strong></span><span class="dispatch-run-statline">${re?.coveredDays||0}/${re?.scheduledDays||0} days covered • ${lostText}</span><label class="dispatch-run-tractor-label ${tractorMismatch?'warning':''}">Tractor <select class="dispatch-run-tractor-select" data-dispatch-run-tractor="${escapeHtml(run.id)}">${tractorOptions}</select></label><div class="dispatch-run-actions"><button type="button" class="dispatch-run-edit" data-edit-dispatch-run="${escapeHtml(run.id)}">Edit Run</button><button type="button" class="dispatch-run-delete" data-delete-dispatch-run="${escapeHtml(run.id)}">Delete</button></div></div>`);
+        const assignedTractor=run.primaryTractorId?dispatchTractor(run.primaryTractorId):null,tractorMismatch=assignedTractor&&dispatchTractorLocationId(assignedTractor)!==(run.locationId||'nashville'); const tractorOptions=['<option value="">Assign tractor…</option>',...activeTractors.map(t=>`<option value="${escapeHtml(t.id)}" ${run.primaryTractorId===t.id?'selected':''}>${escapeHtml(t.tractorNumber||'—')}</option>`),...(assignedTractor&&!activeTractors.some(t=>t.id===assignedTractor.id)?[`<option value="${escapeHtml(assignedTractor.id)}" selected>${escapeHtml(assignedTractor.tractorNumber||'—')} • ${escapeHtml(dispatchTractorLocationName(assignedTractor))}</option>`]:[])].join(''); parts.push(`<div class="dispatch-run-head ${escapeHtml(run.type)}"><strong>${escapeHtml(run.name)}</strong><span>${escapeHtml(run.origin)} • ${escapeHtml(run.scheduleLabel)}</span><span class="dispatch-run-type">${run.type==='assigned'?'Dedicated':run.type==='spot'?'Spot':'URR'}</span><span class="dispatch-run-statline"><strong>${milesText}</strong></span><span class="dispatch-run-statline">${re?.coveredDays||0}/${re?.scheduledDays||0} days covered • ${lostText}</span><label class="dispatch-run-tractor-label ${tractorMismatch?'warning':''}">Tractor <select class="dispatch-run-tractor-select" data-dispatch-run-tractor="${escapeHtml(run.id)}">${tractorOptions}</select></label><div class="dispatch-run-actions"><button type="button" class="dispatch-run-edit" data-edit-dispatch-run="${escapeHtml(run.id)}">Edit Run</button><button type="button" class="dispatch-run-delete" data-delete-dispatch-run="${escapeHtml(run.id)}">Delete</button></div></div>`);
         for(let day=0;day<7;day++){const active=(run.days||[]).map(Number).includes(day);if(!active){parts.push('<div class="dispatch-cell inactive">—</div>');continue;}const a=dispatchAssignment(run.id,day),selected=state.dispatchSelectedDriverId?' selected-target':'';if(!a){parts.push(`<div class="dispatch-cell active open${selected}" data-run-id="${escapeHtml(run.id)}" data-day="${day}"></div>`);continue;}const d=dispatchDriver(a.driverId),primary=run.primaryDriverId===a.driverId,scheduleWarn=!dispatchDriverAvailable(d,day),locationWarn=!!d&&dispatchDriverLocationId(d)!==(run.locationId||'nashville'),originWarn=!dispatchOriginAllowed(d,run),warn=(a.override||scheduleWarn||originWarn||locationWarn)?' override':'',warnClass=scheduleWarn?' schedule-warning':'',assignmentNote=scheduleWarn?'Outside regular schedule':(locationWarn?`Assigned to ${dispatchDriverLocationName(d)}`:(originWarn?'Origin override':(primary?'Primary assignment':'Manual assignment')));parts.push(`<div class="dispatch-cell active covered${selected}" data-run-id="${escapeHtml(run.id)}" data-day="${day}"><div class="dispatch-assignment${primary?' primary':''}${warn}${warnClass}" draggable="true" data-dispatch-driver="${escapeHtml(a.driverId)}" data-dispatch-select-driver="${escapeHtml(a.driverId)}" data-run-id="${escapeHtml(run.id)}" data-day="${day}"><strong>${escapeHtml(d?.name||a.driverId)}</strong><small>${escapeHtml(assignmentNote)}</small><button class="dispatch-remove" type="button" title="Remove assignment" data-dispatch-remove="${escapeHtml(run.id)}|${day}">×</button></div></div>`);}
       }
       parts.push('<div class="dispatch-bench-head"><strong>Available / Not Assigned</strong></div>');for(let day=0;day<7;day++){const available=activeDrivers.filter(d=>dispatchDriverAvailable(d,day)&&!dispatchDriverAssignment(d.id,day));parts.push(`<div class="dispatch-bench" data-day="${day}">${available.length?available.map(d=>dispatchDriverCardHtml(d,true)).join(''):'<span style="font-size:9px;color:#9a919e">All listed drivers assigned</span>'}</div>`);}
@@ -6006,11 +6041,9 @@
   $('roadTestSaveOnlyBtn')?.addEventListener('click',finishRoadTestSaveOnly);
   $('roadTestExportAfterSaveBtn')?.addEventListener('click',exportRecruitmentRoadTestPdf);
   $('recruitmentApplicationPdfInput')?.addEventListener('change',e=>parseRecruitmentApplicationPdf(e.target.files?.[0]));
-  [['recruitmentCdlDocumentInput','CDL'],['recruitmentMedCardDocumentInput','Medical Card']].forEach(([id,label])=>$(id)?.addEventListener('change',e=>{const file=e.target.files?.[0];if(file)setRecruitmentDocumentUploadStatus(`${label} selected: ${file.name}. It will upload when the candidate is saved.`,'working');}));
-  $('recruitmentCdlDocumentViewBtn')?.addEventListener('click',()=>viewRecruitmentDocument('cdl'));
-  $('recruitmentCdlDocumentDeleteBtn')?.addEventListener('click',()=>deleteRecruitmentDocument('cdl'));
-  $('recruitmentMedCardDocumentViewBtn')?.addEventListener('click',()=>viewRecruitmentDocument('medCard'));
-  $('recruitmentMedCardDocumentDeleteBtn')?.addEventListener('click',()=>deleteRecruitmentDocument('medCard'));
+  Array.from({length:5},(_,index)=>index+1).forEach(number=>$(`recruitmentDocument${number}Input`)?.addEventListener('change',e=>{const file=e.target.files?.[0];if(file)setRecruitmentDocumentUploadStatus(`Document ${number} selected: ${file.name}. It will upload when the candidate is saved.`,'working');}));
+  document.querySelectorAll('[data-view-recruitment-document]').forEach(btn=>btn.addEventListener('click',()=>viewRecruitmentDocument(btn.dataset.viewRecruitmentDocument)));
+  document.querySelectorAll('[data-delete-recruitment-document]').forEach(btn=>btn.addEventListener('click',()=>deleteRecruitmentDocument(btn.dataset.deleteRecruitmentDocument)));
   document.querySelectorAll('[data-accept-recruitment-application]').forEach(btn=>btn.addEventListener('click',()=>resolveRecruitmentApplicationMismatch(true)));
   document.querySelectorAll('[data-reject-recruitment-application]').forEach(btn=>btn.addEventListener('click',()=>resolveRecruitmentApplicationMismatch(false)));
   $('recruitmentSsnInput')?.addEventListener('input',e=>{ const full=normalizedRecruitmentSsn(e.target.value); if(full){state.hrSsn.draftFull=full;state.hrSsn.revealed=true;} updateRecruitmentSsnRevealButton(); });
