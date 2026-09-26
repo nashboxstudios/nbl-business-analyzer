@@ -1,4 +1,11 @@
-NBL FleetCommand — Version 114
+NBL FleetCommand — Version 115
+
+Version 115 - Faster Cloud Loading and Fault Filters
+
+- Loads independent Supabase modules in parallel after the dashboard appears.
+- Keeps the Motive refresh non-blocking.
+- Adds an All Tractors / individual tractor filter to Motive Fault Codes.
+- Preserves Motive's reported severity and uses that same severity to determine FleetCommand guidance and task priority.
 
 Version 114 - Sign-In Startup Hotfix
 

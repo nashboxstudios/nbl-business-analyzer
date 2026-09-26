@@ -489,32 +489,18 @@
   async function loadStructuredOperationalData(silent=true){
     if(!cloudConnected()||!window.NBLCloud||!state.cloud?.organization?.id)return false;
     const orgId=state.cloud.organization.id,legacySafety=cloudSnapshotForModule('safety'),legacyBoards=cloneJson(state.dispatch.dailyBoards||{});let loaded=false;
-    try{
-      const safety=await window.NBLCloud.getSafetyData(orgId);state.cloud.structured.safety=true;
-      if(safety.actionCount||safety.recordCount){state.safety.assignments=cloneJson(safety.assignments||{});state.safety.dismissals=cloneJson(safety.dismissals||{});state.safety.driverRecords=cloneJson(safety.driverRecords||{});}
-      else if(Object.keys(legacySafety.assignments).length||Object.keys(legacySafety.dismissals).length||Object.keys(legacySafety.driverRecords).length)await window.NBLCloud.saveSafetyData(orgId,legacySafety);
-      loaded=true;
-    }catch(err){state.cloud.structured.safety=false;console.warn('Dedicated Safety storage is not ready',err);if(!silent)showAlert(`Dedicated Safety storage is unavailable: ${escapeHtml(err.message||String(err))}`,'warning');}
-    try{
-      const boards=await window.NBLCloud.getDailyDispatchBoards(orgId);state.cloud.structured.dailyDispatch=true;
-      if(Object.keys(boards||{}).length)state.dispatch.dailyBoards=boards;
-      else for(const board of Object.values(legacyBoards))if(board?.date&&Array.isArray(board.rows))await window.NBLCloud.saveDailyDispatchBoard(orgId,board);
-      loaded=true;
-    }catch(err){state.cloud.structured.dailyDispatch=false;console.warn('Dedicated Daily Dispatch storage is not ready',err);if(!silent)showAlert(`Dedicated Daily Dispatch storage is unavailable: ${escapeHtml(err.message||String(err))}`,'warning');}
     const structuredLoads=[
       ['maintenance','getMaintenanceData','saveMaintenanceData',()=>cloneJson(state.maintenance),data=>{state.maintenance={version:3,tractors:[],records:[],faultCodes:[],tasks:[],...cloneJson(data)};state.maintenanceLoaded=true;}],
       ['recruitment','getRecruitmentData','saveRecruitmentData',()=>sanitizedHrForCloud(),data=>{const next={...defaultHrData(),...cloneJson(data)};next.candidates=(next.candidates||[]).map(c=>({...c,ssnFull:'',ssnLast4:String(c.ssnLast4||'').replace(/\D/g,'').slice(-4)}));ensureRecruitmentLayout(next);state.hr=next;state.hrLoaded=true;}],
       ['audit','getAuditData','saveAuditData',()=>cloneJson(state.audit),data=>{state.audit={version:1,audits:[],findings:[],activeTab:'dashboard',selectedAuditId:'',...cloneJson(data)};state.auditLoaded=true;}],
       ['meetings','getMeetingData','saveMeetingData',()=>cloneJson(state.meetings),data=>{state.meetings={...defaultMeetingData(),...cloneJson(data)};ensureMeetingLayout();state.meetingsLoaded=true;}]
     ];
-    for(const [flag,getter,saver,legacy,hydrate] of structuredLoads){
-      try{const data=await window.NBLCloud[getter](orgId);state.cloud.structured[flag]=true;if(data.recordCount)hydrate(data);else{const source=legacy();await window.NBLCloud[saver](orgId,source);}loaded=true;}
-      catch(err){state.cloud.structured[flag]=false;console.warn(`Dedicated ${flag} storage is not ready`,err);if(!silent)showAlert(`Dedicated ${escapeHtml(flag)} storage is unavailable: ${escapeHtml(err.message||String(err))}`,'warning');}
-    }
-    if(isOwnerAccount()){
-      try{const finance=await window.NBLCloud.getFinanceData(orgId);state.cloud.structured.finance=true;if(finance.recordCount){state.payroll={version:2,profiles:{},periods:{},dhMappings:{},...cloneJson(finance.payroll||{})};state.payrollLoaded=true;const ss=cloneJson(finance.settlement||{});state.catalog=normalizeCloudSettlementCatalog(ss);state.currentStatementId=ss.currentStatementId||state.catalog[0]?.id||null;state.settlement.analysisStatementId=ss.analysisStatementId||state.catalog[0]?.id||null;}else{await window.NBLCloud.saveDriverPayData(orgId,cloneJson(state.payroll));await window.NBLCloud.saveSettlementData(orgId,settlementSnapshot());}loaded=true;}
-      catch(err){state.cloud.structured.finance=false;console.warn('Dedicated finance storage is not ready',err);if(!silent)showAlert(`Dedicated Finance storage is unavailable: ${escapeHtml(err.message||String(err))}`,'warning');}
-    }
+    const jobs=[];
+    jobs.push((async()=>{try{const safety=await window.NBLCloud.getSafetyData(orgId);state.cloud.structured.safety=true;if(safety.actionCount||safety.recordCount){state.safety.assignments=cloneJson(safety.assignments||{});state.safety.dismissals=cloneJson(safety.dismissals||{});state.safety.driverRecords=cloneJson(safety.driverRecords||{});}else if(Object.keys(legacySafety.assignments).length||Object.keys(legacySafety.dismissals).length||Object.keys(legacySafety.driverRecords).length)await window.NBLCloud.saveSafetyData(orgId,legacySafety);loaded=true;}catch(err){state.cloud.structured.safety=false;console.warn('Dedicated Safety storage is not ready',err);if(!silent)showAlert(`Dedicated Safety storage is unavailable: ${escapeHtml(err.message||String(err))}`,'warning');}})());
+    jobs.push((async()=>{try{const boards=await window.NBLCloud.getDailyDispatchBoards(orgId);state.cloud.structured.dailyDispatch=true;if(Object.keys(boards||{}).length)state.dispatch.dailyBoards=boards;else for(const board of Object.values(legacyBoards))if(board?.date&&Array.isArray(board.rows))await window.NBLCloud.saveDailyDispatchBoard(orgId,board);loaded=true;}catch(err){state.cloud.structured.dailyDispatch=false;console.warn('Dedicated Daily Dispatch storage is not ready',err);if(!silent)showAlert(`Dedicated Daily Dispatch storage is unavailable: ${escapeHtml(err.message||String(err))}`,'warning');}})());
+    structuredLoads.forEach(([flag,getter,saver,legacy,hydrate])=>jobs.push((async()=>{try{const data=await window.NBLCloud[getter](orgId);state.cloud.structured[flag]=true;if(data.recordCount)hydrate(data);else await window.NBLCloud[saver](orgId,legacy());loaded=true;}catch(err){state.cloud.structured[flag]=false;console.warn(`Dedicated ${flag} storage is not ready`,err);if(!silent)showAlert(`Dedicated ${escapeHtml(flag)} storage is unavailable: ${escapeHtml(err.message||String(err))}`,'warning');}})()));
+    if(isOwnerAccount())jobs.push((async()=>{try{const finance=await window.NBLCloud.getFinanceData(orgId);state.cloud.structured.finance=true;if(finance.recordCount){state.payroll={version:2,profiles:{},periods:{},dhMappings:{},...cloneJson(finance.payroll||{})};state.payrollLoaded=true;const ss=cloneJson(finance.settlement||{});state.catalog=normalizeCloudSettlementCatalog(ss);state.currentStatementId=ss.currentStatementId||state.catalog[0]?.id||null;state.settlement.analysisStatementId=ss.analysisStatementId||state.catalog[0]?.id||null;}else{await Promise.all([window.NBLCloud.saveDriverPayData(orgId,cloneJson(state.payroll)),window.NBLCloud.saveSettlementData(orgId,settlementSnapshot())]);}loaded=true;}catch(err){state.cloud.structured.finance=false;console.warn('Dedicated finance storage is not ready',err);if(!silent)showAlert(`Dedicated Finance storage is unavailable: ${escapeHtml(err.message||String(err))}`,'warning');}})());
+    await Promise.all(jobs);
     syncSharedDriverRoster();populateDateSelectors();const target=state.currentStatementId&&state.catalog.find(x=>x.id===state.currentStatementId)?state.currentStatementId:state.catalog[0]?.id;if(target)selectStatement(target,false);
     renderAll();updateCloudUI();return loaded;
   }
@@ -4140,8 +4126,13 @@
   }
   function renderFaultCodes(){
     if(!$('faultCodesTable')) return;
-    const filter=$('faultStatusFilter')?.value||'all', all=[...(state.maintenance.faultCodes||[])], rows=all.filter(x=>filter==='all'||String(x.status).toLowerCase()===filter).sort((a,b)=>(MAINTENANCE_PRIORITY_ORDER[faultGuidance(a).priority]-MAINTENANCE_PRIORITY_ORDER[faultGuidance(b).priority])||String(b.lastObservedAt||'').localeCompare(String(a.lastObservedAt||'')));
-    const open=all.filter(x=>String(x.status).toLowerCase()!=='closed'), critical=open.filter(x=>faultGuidance(x).priority==='Critical'), high=open.filter(x=>faultGuidance(x).priority==='High');
+    const filter=$('faultStatusFilter')?.value||'all', tractorFilter=$('faultTractorFilter')?.value||'all', all=[...(state.maintenance.faultCodes||[])];
+    const tractorNumbers=[...new Set(all.map(x=>normalizeTractor(x.vehicle?.number)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+    if($('faultTractorFilter')){const prior=tractorFilter;$('faultTractorFilter').innerHTML='<option value="all">All tractors</option>'+tractorNumbers.map(n=>`<option value="${escapeHtml(n)}">Tractor ${escapeHtml(n)}</option>`).join('');$('faultTractorFilter').value=tractorNumbers.includes(prior)?prior:'all';}
+    const activeTractor=$('faultTractorFilter')?.value||'all';
+    const tractorScope=all.filter(x=>activeTractor==='all'||normalizeTractor(x.vehicle?.number)===activeTractor);
+    const rows=tractorScope.filter(x=>filter==='all'||String(x.status).toLowerCase()===filter).sort((a,b)=>(MAINTENANCE_PRIORITY_ORDER[faultGuidance(a).priority]-MAINTENANCE_PRIORITY_ORDER[faultGuidance(b).priority])||String(b.lastObservedAt||'').localeCompare(String(a.lastObservedAt||'')));
+    const open=tractorScope.filter(x=>String(x.status).toLowerCase()!=='closed'), critical=open.filter(x=>faultGuidance(x).priority==='Critical'), high=open.filter(x=>faultGuidance(x).priority==='High');
     $('faultCodeCards').innerHTML=[['Open Faults',open.length,open.length?'warning-card':''],['Critical',critical.length,critical.length?'danger':''],['High',high.length,high.length?'warning-card':''],['Tractors Affected',new Set(open.map(x=>x.vehicle?.number).filter(Boolean)).size,'']].map(x=>`<div class="summary-card ${x[2]}"><span>${x[0]}</span><strong>${fmtNum(x[1])}</strong></div>`).join('');
     const table=$('faultCodesTable'); table.querySelector('thead').innerHTML='<tr>'+['Severity','Tractor','Code','Meaning','Status','Last Seen','Occurrences','Actionable Intelligence','Task'].map(h=>`<th>${h}</th>`).join('')+'</tr>';
     table.querySelector('tbody').innerHTML=rows.length?rows.map(f=>{const g=faultGuidance(f),task=(state.maintenance.tasks||[]).find(x=>x.sourceType==='fault'&&x.sourceId===String(f.id));return `<tr><td><span class="maintenance-severity severity-${g.priority.toLowerCase()}">${escapeHtml(f.severity||'Unclassified')}</span></td><td><strong>${escapeHtml(f.vehicle?.number||'—')}</strong></td><td>${escapeHtml(f.code||'—')}<small>${escapeHtml(f.fmiDescription||'')}</small></td><td>${escapeHtml(f.label||f.description||'—')}</td><td>${escapeHtml(f.status||'—')}</td><td>${escapeHtml(String(f.lastObservedAt||'').replace('T',' ').slice(0,16)||'—')}</td><td>${fmtNum(f.occurrenceCount||f.observations||0)}</td><td class="meeting-notes-cell">${escapeHtml(g.action)}</td><td><button class="table-action" data-task-fault="${escapeHtml(String(f.id))}">${task?'View Task':'Create Task'}</button></td></tr>`}).join(''):'<tr><td colspan="9" class="empty-table-cell">No Motive fault codes loaded. Refresh from Motive to begin.</td></tr>';
@@ -6117,6 +6108,7 @@
   $('addInspectionBtn').addEventListener('click',()=>openInspectionModal());
   $('refreshFaultCodesBtn')?.addEventListener('click',refreshFaultCodes);
   $('faultStatusFilter')?.addEventListener('change',renderFaultCodes);
+  $('faultTractorFilter')?.addEventListener('change',renderFaultCodes);
   $('addMaintenanceTaskBtn')?.addEventListener('click',()=>openMaintenanceTaskModal());
   $('maintenanceTaskStatusFilter')?.addEventListener('change',renderMaintenanceTasks);
   $('maintenanceTaskForm')?.addEventListener('submit',saveMaintenanceTaskFromForm);
