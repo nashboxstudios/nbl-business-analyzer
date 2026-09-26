@@ -1,4 +1,11 @@
-NBL FleetCommand — Version 112
+NBL FleetCommand — Version 113
+
+Version 113 - Maintenance Intelligence
+
+- Adds a separate Maintenance module with Fleet Maintenance, Trip Inspections, Motive Fault Codes, and Maintenance Tasks.
+- Retains existing trip-inspection records and moves their interface out of Meetings.
+- Turns inspection defects and Motive diagnostic faults into linked, assigned, trackable maintenance tasks.
+- Run SUPABASE_v113_MAINTENANCE_INTELLIGENCE.sql once before saving fault codes or tasks to NBL Cloud.
 
 Version 110 - Recruitment Profile and Secure Documents
 

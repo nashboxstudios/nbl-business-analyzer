@@ -95,7 +95,7 @@
     catalog:[], currentStatementId:null, currentScreen:'dashboard', autosaveTimer:null,
     dashboard:{mileage:[],preferences:null},
     settlement:{activeTab:'summary',analysisStatementId:null,duplicates:[]},
-    maintenance:{version:2,tractors:[],records:[]}, maintenanceLoaded:false, lastMmrPdf:null,
+    maintenance:{version:3,tractors:[],records:[],faultCodes:[],tasks:[]}, maintenanceLoaded:false, lastMmrPdf:null,
     meetings:defaultMeetingData(), meetingsLoaded:false,
     hr:defaultHrData(), hrLoaded:false, recruitmentSearch:'', recruitmentStatusFilter:'', recruitmentSort:{key:'',dir:'asc'}, hrSsn:{draftFull:'',legacyLast4:'',revealed:false,existingCandidate:false,accessResolver:null}, hrApplicationMismatch:{resolver:null},
     audit:{version:1,audits:[],findings:[],activeTab:'dashboard',selectedAuditId:''}, auditLoaded:false,
@@ -152,7 +152,7 @@
 
   const CLOUD_MODULES=['dashboard','safety','hr','driver_pay','maintenance','meetings','audit','dispatch','settlement','ivmr'];
   const CLOUD_MODULE_LABELS={dashboard:'Dashboard',safety:'Safety',hr:'Recruitment / HR',driver_pay:'Driver Pay',maintenance:'Maintenance',meetings:'Meetings',audit:'Audit',dispatch:'Dispatch',settlement:'Settlement / Revenue Finder',ivmr:'IVMR'};
-  const SCREEN_MODULE_MAP={dashboard:'dashboard',safety:'safety',drivers:'driver_pay',summary:'settlement','settlement-reports':'reports','financial-analysis':'reports',revenue:'settlement',maintenance:'maintenance',meetings:'meetings',hr:'hr',audit:'audit',dispatch:'dispatch','daily-dispatch':'dispatch',ivmr:'ivmr',motive:'motive'};
+  const SCREEN_MODULE_MAP={dashboard:'dashboard',safety:'safety',drivers:'driver_pay',summary:'settlement','settlement-reports':'reports','financial-analysis':'reports',revenue:'settlement',maintenance:'maintenance','trip-inspections':'maintenance','fault-codes':'maintenance','maintenance-tasks':'maintenance',meetings:'meetings',hr:'hr',audit:'audit',dispatch:'dispatch','daily-dispatch':'dispatch',ivmr:'ivmr',motive:'motive'};
   const FINANCE_MODULE_KEYS=new Set(['driver_pay','settlement','revenue','reports']);
   function cloudConnected(){ return !!state.cloud?.connected; }
   function currentRole(){
@@ -294,7 +294,7 @@
   function resetCloudBackedState(){
     state.result=null; state.file=null; state.rawBytes=null; state.rawText=''; state.catalog=[]; state.currentStatementId=null;
     state.settlement={activeTab:'summary',analysisStatementId:null};
-    state.maintenance={version:2,tractors:[],records:[]}; state.maintenanceLoaded=false;
+    state.maintenance={version:3,tractors:[],records:[],faultCodes:[],tasks:[]}; state.maintenanceLoaded=false;
     state.meetings=defaultMeetingData(); state.meetingsLoaded=false;
     state.hr=defaultHrData(); state.hrLoaded=false; state.recruitmentSearch=''; state.recruitmentStatusFilter='';
     state.audit={version:1,audits:[],findings:[],activeTab:'dashboard',selectedAuditId:''}; state.auditLoaded=false;
@@ -310,7 +310,7 @@
     if(moduleKey==='safety') return {version:3,assignments:cloneJson(state.safety?.assignments||{}),dismissals:cloneJson(state.safety?.dismissals||{}),driverRecords:cloneJson(state.safety?.driverRecords||{})};
     if(moduleKey==='hr') return sanitizedHrForCloud();
     if(moduleKey==='driver_pay') return cloneJson(state.payroll||{version:2,profiles:{},periods:{},dhMappings:{}});
-    if(moduleKey==='maintenance') return cloneJson(state.maintenance||{version:2,tractors:[],records:[]});
+    if(moduleKey==='maintenance') return cloneJson(state.maintenance||{version:3,tractors:[],records:[],faultCodes:[],tasks:[]});
     if(moduleKey==='meetings') return cloneJson(state.meetings||defaultMeetingData());
     if(moduleKey==='audit') return {...cloneJson(state.audit||{version:1,audits:[],findings:[]}),safetyState:cloudSnapshotForModule('safety')};
     if(moduleKey==='dispatch'){
@@ -399,7 +399,7 @@
     const get=k=>snapshots?.[k]?.data;
     if(get('dashboard')) state.dashboard.mileage=Array.isArray(get('dashboard').mileage)?cloneJson(get('dashboard').mileage):[];
     if(get('driver_pay')){ state.payroll={version:2,profiles:{},periods:{},dhMappings:{},...cloneJson(get('driver_pay'))}; state.payrollLoaded=true; }
-    if(get('maintenance')){ state.maintenance={version:2,tractors:[],records:[],...cloneJson(get('maintenance'))}; state.maintenanceLoaded=true; }
+    if(get('maintenance')){ state.maintenance={version:3,tractors:[],records:[],faultCodes:[],tasks:[],...cloneJson(get('maintenance'))}; state.maintenanceLoaded=true; }
     if(get('meetings')){ state.meetings={...defaultMeetingData(),...cloneJson(get('meetings'))}; ensureMeetingLayout(); state.meetingsLoaded=true; }
     if(get('hr')){
       const data={...defaultHrData(),...cloneJson(get('hr'))};
@@ -502,7 +502,7 @@
       loaded=true;
     }catch(err){state.cloud.structured.dailyDispatch=false;console.warn('Dedicated Daily Dispatch storage is not ready',err);if(!silent)showAlert(`Dedicated Daily Dispatch storage is unavailable: ${escapeHtml(err.message||String(err))}`,'warning');}
     const structuredLoads=[
-      ['maintenance','getMaintenanceData','saveMaintenanceData',()=>cloneJson(state.maintenance),data=>{state.maintenance={version:2,tractors:[],records:[],...cloneJson(data)};state.maintenanceLoaded=true;}],
+      ['maintenance','getMaintenanceData','saveMaintenanceData',()=>cloneJson(state.maintenance),data=>{state.maintenance={version:3,tractors:[],records:[],faultCodes:[],tasks:[],...cloneJson(data)};state.maintenanceLoaded=true;}],
       ['recruitment','getRecruitmentData','saveRecruitmentData',()=>sanitizedHrForCloud(),data=>{const next={...defaultHrData(),...cloneJson(data)};next.candidates=(next.candidates||[]).map(c=>({...c,ssnFull:'',ssnLast4:String(c.ssnLast4||'').replace(/\D/g,'').slice(-4)}));ensureRecruitmentLayout(next);state.hr=next;state.hrLoaded=true;}],
       ['audit','getAuditData','saveAuditData',()=>cloneJson(state.audit),data=>{state.audit={version:1,audits:[],findings:[],activeTab:'dashboard',selectedAuditId:'',...cloneJson(data)};state.auditLoaded=true;}],
       ['meetings','getMeetingData','saveMeetingData',()=>cloneJson(state.meetings),data=>{state.meetings={...defaultMeetingData(),...cloneJson(data)};ensureMeetingLayout();state.meetingsLoaded=true;}]
@@ -878,6 +878,9 @@
     $('reportsScreen')?.classList.toggle('hidden',screen!=='settlement-reports' || !workspace || financeLocked);
     $('financialAnalysisScreen')?.classList.toggle('hidden',screen!=='financial-analysis' || financeLocked);
     $('maintenanceScreen').classList.toggle('hidden',screen!=='maintenance' || !workspace);
+    $('tripInspectionsScreen')?.classList.toggle('hidden',screen!=='trip-inspections' || !workspace);
+    $('faultCodesScreen')?.classList.toggle('hidden',screen!=='fault-codes' || !workspace);
+    $('maintenanceTasksScreen')?.classList.toggle('hidden',screen!=='maintenance-tasks' || !workspace);
     $('meetingsScreen').classList.toggle('hidden',screen!=='meetings' || !workspace);
     $('hrScreen')?.classList.toggle('hidden',screen!=='hr' || !workspace);
     $('usersScreen')?.classList.toggle('hidden',screen!=='users');
@@ -888,13 +891,13 @@
     $('ivmrScreen')?.classList.toggle('hidden',screen!=='ivmr' || !workspace);
     $('motiveScreen')?.classList.toggle('hidden',screen!=='motive');
     $('financeLockedState')?.classList.toggle('hidden',!financeLocked);
-    const folderScreen = screen==='dashboard' || screen==='safety' || screen==='maintenance' || screen==='meetings' || screen==='hr' || screen==='users' || screen==='audit' || screen==='settlement-reports' || screen==='financial-analysis' || screen==='revenue' || screen==='dispatch' || screen==='daily-dispatch' || screen==='ivmr' || screen==='motive';
-    const requiresWorkspace = screen==='maintenance' || screen==='meetings' || screen==='hr' || screen==='audit' || screen==='settlement-reports' || screen==='revenue' || screen==='dispatch' || screen==='daily-dispatch' || screen==='ivmr';
+    const folderScreen = screen==='dashboard' || screen==='safety' || screen==='maintenance' || screen==='trip-inspections' || screen==='fault-codes' || screen==='maintenance-tasks' || screen==='meetings' || screen==='hr' || screen==='users' || screen==='audit' || screen==='settlement-reports' || screen==='financial-analysis' || screen==='revenue' || screen==='dispatch' || screen==='daily-dispatch' || screen==='ivmr' || screen==='motive';
+    const requiresWorkspace = screen==='maintenance' || screen==='trip-inspections' || screen==='fault-codes' || screen==='maintenance-tasks' || screen==='meetings' || screen==='hr' || screen==='audit' || screen==='settlement-reports' || screen==='revenue' || screen==='dispatch' || screen==='daily-dispatch' || screen==='ivmr';
     const needsEmpty = financeLocked ? false : ((screen==='users'||screen==='dashboard') ? false : (requiresWorkspace ? !workspace : (screen==='motive' ? false : !hasResult)));
     $('emptyState').classList.toggle('hidden',!needsEmpty);
     if(needsEmpty && requiresWorkspace) $('emptyStateText').textContent=cloudConnected()?'This module is connected to NBL Cloud. No cloud data has been uploaded yet. Open Cloud Sync to import your existing local NBL data.':'Sign in to NBL Cloud or choose your local NBL business data folder to begin.';
     if(needsEmpty && (screen==='drivers'||screen==='summary')) $('emptyStateText').textContent=cloudConnected()?'No settlement data is stored in NBL Cloud yet. Open Cloud Sync to import your existing local NBL data, or upload a settlement CSV.':'Choose a data folder and upload a settlement CSV.';
-    const titles={dashboard:'Dashboard',safety:'Safety',drivers:'Driver Pay',summary:'Settlement','settlement-reports':'Settlement Reports','financial-analysis':'Financial Analysis',maintenance:'Maintenance',meetings:'Meetings',hr:'Recruitment',users:'User Access',audit:'Audit',revenue:'Revenue Finder',dispatch:'Weekly Dispatch Planner','daily-dispatch':'Daily Dispatch Board',ivmr:'IVMR',motive:'Motive'};
+    const titles={dashboard:'Dashboard',safety:'Safety',drivers:'Driver Pay',summary:'Settlement','settlement-reports':'Settlement Reports','financial-analysis':'Financial Analysis',maintenance:'Fleet Maintenance','trip-inspections':'Trip Inspections','fault-codes':'Motive Fault Codes','maintenance-tasks':'Maintenance Tasks',meetings:'Meetings',hr:'Recruitment',users:'User Access',audit:'Audit',revenue:'Revenue Finder',dispatch:'Weekly Dispatch Planner','daily-dispatch':'Daily Dispatch Board',ivmr:'IVMR',motive:'Motive'};
     $('pageTitle').textContent=titles[screen]||'NBL FleetCommand';
     $('saveBtn').classList.toggle('hidden',folderScreen || financeLocked);
     $('exportBtn').classList.toggle('hidden',folderScreen || financeLocked);
@@ -923,6 +926,18 @@
     } else if(screen==='maintenance') {
       $('fileMeta').textContent=workspace ? `${label} • ${state.maintenance.tractors.length} tractor${state.maintenance.tractors.length===1?'':'s'} • ${state.catalog.length} settlement${state.catalog.length===1?'':'s'}` : 'Connect NBL Cloud or choose your local data folder to begin.';
       if(workspace) renderMaintenance();
+    } else if(screen==='trip-inspections') {
+      const open=state.meetings.inspections.filter(x=>x.addressed!=='Y').length;
+      $('fileMeta').textContent=workspace?`${label} • ${open} open trip-inspection issue${open===1?'':'s'}`:'Connect NBL Cloud or choose your local data folder to begin.';
+      if(workspace) renderTripInspections();
+    } else if(screen==='fault-codes') {
+      const open=(state.maintenance.faultCodes||[]).filter(x=>String(x.status).toLowerCase()!=='closed').length;
+      $('fileMeta').textContent=workspace?`${label} • ${open} open Motive fault${open===1?'':'s'}`:'Connect NBL Cloud or choose your local data folder to begin.';
+      if(workspace) renderFaultCodes();
+    } else if(screen==='maintenance-tasks') {
+      const open=(state.maintenance.tasks||[]).filter(x=>x.status!=='Completed').length;
+      $('fileMeta').textContent=workspace?`${label} • ${open} open maintenance task${open===1?'':'s'}`:'Connect NBL Cloud or choose your local data folder to begin.';
+      if(workspace) renderMaintenanceTasks();
     } else if(screen==='meetings') {
       const openInspections=state.meetings.inspections.filter(x=>x.addressed!=='Y').length;
       const openItems=state.meetings.managementItems.filter(x=>x.closed!=='Y').length;
@@ -1675,7 +1690,7 @@
     $('dashboardAttentionCount').textContent=`${attention.length} item${attention.length===1?'':'s'}`;
     $('dashboardAttentionList').innerHTML=attention.length?attention.slice(0,10).map(x=>`<button type="button" class="dashboard-attention-item ${x.level}" data-dashboard-screen="${x.screen}"><span></span><div><strong>${escapeHtml(x.title)}</strong><small>${escapeHtml(x.detail)}</small></div><em>View</em></button>`).join(''):'<div class="dashboard-empty compact">Nothing requires attention right now.</div>';
   }
-  function renderAll(){ renderDashboard(); renderSafety(); renderDriverTable(); renderSummary(); renderMaintenance(); renderMeetings(); renderHr(); renderAudit(); renderRevenueFinder(); renderDispatch(); renderDailyDispatch(); renderIvmr(); renderMotive(); setScreen(state.currentScreen); }
+  function renderAll(){ renderDashboard(); renderSafety(); renderDriverTable(); renderSummary(); renderMaintenance(); renderTripInspections(); renderFaultCodes(); renderMaintenanceTasks(); renderMeetings(); renderHr(); renderAudit(); renderRevenueFinder(); renderDispatch(); renderDailyDispatch(); renderIvmr(); renderMotive(); setScreen(state.currentScreen); }
   function payrollTableTotals(ds){
     return ds.reduce((a,d)=>({days:a.days+(Number(d.daysWorked)||0),lm:a.lm+(Number(d.linehaulMiles)||0),sm:a.sm+(Number(d.spotMiles)||0),tm:a.tm+(Number(d.totalMiles)||0),dhe:a.dhe+(Number(d.dhEventCount)||0),dhp:a.dhp+(Number(d.dhPay)||0),base:a.base+(Number(d.basePay)||0),min:a.min+(Number(d.minimumTopUp)||0),bonus:a.bonus+(Number(d.adjustmentBuckets?.bonus)||0),holiday:a.holiday+(Number(d.adjustmentBuckets?.holiday)||0),vacation:a.vacation+(Number(d.adjustmentBuckets?.vacation)||0),training:a.training+(Number(d.adjustmentBuckets?.training)||0),other:a.other+(Number(d.adjustmentBuckets?.other)||0),tp:a.tp+(Number(d.totalPay)||0)}),{days:0,lm:0,sm:0,tm:0,dhe:0,dhp:0,base:0,min:0,bonus:0,holiday:0,vacation:0,training:0,other:0,tp:0});
   }
@@ -2405,18 +2420,19 @@
     const today=todayIso();
     const overdueItems=openItems.filter(x=>x.dueDate && x.dueDate<today);
     $('meetingCards').innerHTML=[
-      ['Open Inspection Issues',openInspections.length,openInspections.length?'warning-card':''],
-      ['Priority 1 Issues',priorityOne.length,priorityOne.length?'danger':''],
       ['Open Management Items',openItems.length,openItems.length?'warning-card':''],
-      ['Overdue Management Items',overdueItems.length,overdueItems.length?'danger':'']
+      ['Overdue Items',overdueItems.length,overdueItems.length?'danger':''],
+      ['Completed Items',items.length-openItems.length,''],
+      ['Total Items',items.length,'']
     ].map(x=>`<div class="summary-card ${x[2]}"><span>${x[0]}</span><strong>${fmtNum(x[1])}</strong></div>`).join('');
-    if($('exportMeetingsBtn')) $('exportMeetingsBtn').disabled = inspections.length===0 && items.length===0;
+    if($('exportMeetingsBtn')) $('exportMeetingsBtn').disabled = items.length===0;
 
     const inspectionTable=$('inspectionTable');
     inspectionTable.querySelector('thead').innerHTML=meetingHeaderHtml(['Date','Tractor #','Driver Name','Issue','Priority','Addressed','Actions']);
     inspectionTable.querySelector('tbody').innerHTML=inspections.length ? inspections.map(r=>{
       const inspectionDate=r.date || String(r.createdAt||'').slice(0,10);
-      return `<tr class="${r.addressed==='Y'?'resolved-row':''}"><td>${fmtDate(inspectionDate)}</td><td><strong>${escapeHtml(r.tractorNumber)}</strong></td><td>${escapeHtml(r.driverName)}</td><td class="meeting-notes-cell">${escapeHtml(r.issue)}</td><td><span class="priority-pill p${escapeHtml(r.priority)}">${priorityLabel(r.priority)}</span></td><td>${yesNoPill(r.addressed)}</td><td><div class="row-actions"><button class="table-action" data-edit-inspection="${r.id}">Edit</button><button class="table-action danger-link" data-delete-inspection="${r.id}">Delete</button></div></td></tr>`;
+      const task=(state.maintenance.tasks||[]).find(x=>x.sourceType==='inspection'&&x.sourceId===r.id);
+      return `<tr class="${r.addressed==='Y'?'resolved-row':''}"><td>${fmtDate(inspectionDate)}</td><td><strong>${escapeHtml(r.tractorNumber)}</strong></td><td>${escapeHtml(r.driverName)}</td><td class="meeting-notes-cell">${escapeHtml(r.issue)}</td><td><span class="priority-pill p${escapeHtml(r.priority)}">${priorityLabel(r.priority)}</span></td><td>${yesNoPill(r.addressed)}</td><td><div class="row-actions"><button class="table-action" data-edit-inspection="${r.id}">Edit</button><button class="table-action" data-task-inspection="${r.id}">${task?'View Task':'Create Task'}</button><button class="table-action danger-link" data-delete-inspection="${r.id}">Delete</button></div></td></tr>`;
     }).join('') : '<tr><td colspan="7" class="empty-table-cell">No truck inspection reports recorded yet.</td></tr>';
     applyMeetingColumnWidths(inspectionTable,'inspection');
     initializeMeetingColumnResize(inspectionTable,'inspection');
@@ -2432,6 +2448,13 @@
 
     const dl=$('tractorNumberList');
     if(dl) dl.innerHTML=state.maintenance.tractors.map(t=>`<option value="${escapeHtml(t.tractorNumber)}"></option>`).join('');
+  }
+
+  function renderTripInspections(){
+    renderMeetings();
+    const inspections=[...state.meetings.inspections], open=inspections.filter(x=>x.addressed!=='Y'), urgent=open.filter(x=>String(x.priority)==='1');
+    if($('tripInspectionCards')) $('tripInspectionCards').innerHTML=[['Open Defects',open.length,open.length?'warning-card':''],['Priority 1',urgent.length,urgent.length?'danger':''],['Addressed',inspections.length-open.length,''],['Total Reports',inspections.length,'']].map(x=>`<div class="summary-card ${x[2]}"><span>${x[0]}</span><strong>${fmtNum(x[1])}</strong></div>`).join('');
+    if($('exportInspectionsBtn')) $('exportInspectionsBtn').disabled=!inspections.length;
   }
 
   function openInspectionModal(id='') {
@@ -2458,7 +2481,7 @@
       createdAt:existing?.createdAt||now, updatedAt:now
     };
     if(existing) Object.assign(existing,record); else state.meetings.inspections.push(record);
-    await saveMeetingData(true); closeModal('inspectionModal'); renderMeetings(); setScreen('meetings');
+    await saveMeetingData(true); closeModal('inspectionModal'); renderTripInspections(); setScreen('trip-inspections');
     showAlert(`Truck inspection report for tractor <strong>${escapeHtml(record.tractorNumber)}</strong> saved.`,'success');
   }
 
@@ -2500,7 +2523,7 @@
     const r=state.meetings.inspections.find(x=>x.id===id); if(!r) return;
     if(!confirm(`Delete the inspection report for tractor ${r.tractorNumber}?`)) return;
     state.meetings.inspections=state.meetings.inspections.filter(x=>x.id!==id);
-    await saveMeetingData(true); renderMeetings(); setScreen('meetings');
+    await saveMeetingData(true); renderTripInspections(); setScreen('trip-inspections');
   }
 
   async function deleteManagementItem(id) {
@@ -4056,13 +4079,13 @@
 
   async function loadMaintenanceData() {
     if(!state.directoryHandle) return;
-    let data={version:2,tractors:[],records:[]};
+    let data={version:3,tractors:[],records:[],faultCodes:[],tasks:[]};
     try {
       const dir=await state.directoryHandle.getDirectoryHandle('Maintenance');
       const fh=await dir.getFileHandle('maintenance_data.json');
       const file=await fh.getFile();
       const parsed=JSON.parse(await file.text());
-      if(parsed && Array.isArray(parsed.tractors) && Array.isArray(parsed.records)) data={version:2,...parsed};
+      if(parsed && Array.isArray(parsed.tractors) && Array.isArray(parsed.records)) data={version:3,faultCodes:[],tasks:[],...parsed};
     } catch(err) {
       if(err && err.name!=='NotFoundError') console.warn('Could not load maintenance data',err);
     }
@@ -4091,6 +4114,48 @@
       return false;
     }
   }
+
+  const MAINTENANCE_PRIORITY_ORDER={Critical:0,High:1,Medium:2,Low:3};
+  function faultGuidance(f){
+    const severity=String(f.severity||'Unclassified').toLowerCase(), recurring=Number(f.occurrenceCount||0)>=3||String(f.type||'').toLowerCase()==='constant';
+    let priority='Medium', restriction='N', action='Have a qualified technician diagnose the fault before relying on continued operation.';
+    if(severity==='critical'){priority='Critical';restriction='Y';action='Do not dispatch. Stop safely and arrange immediate technician review.';}
+    else if(severity==='high'){priority='High';restriction='Y';action='Inspect before the next dispatch and schedule prompt technician service.';}
+    else if(severity==='low'){priority='Low';action='Monitor and inspect at the next planned service.';}
+    if(recurring) action+=' Repeated observations require escalation and root-cause review.';
+    return {priority,restriction,action};
+  }
+  function renderFaultCodes(){
+    if(!$('faultCodesTable')) return;
+    const filter=$('faultStatusFilter')?.value||'all', all=[...(state.maintenance.faultCodes||[])], rows=all.filter(x=>filter==='all'||String(x.status).toLowerCase()===filter).sort((a,b)=>(MAINTENANCE_PRIORITY_ORDER[faultGuidance(a).priority]-MAINTENANCE_PRIORITY_ORDER[faultGuidance(b).priority])||String(b.lastObservedAt||'').localeCompare(String(a.lastObservedAt||'')));
+    const open=all.filter(x=>String(x.status).toLowerCase()!=='closed'), critical=open.filter(x=>faultGuidance(x).priority==='Critical'), high=open.filter(x=>faultGuidance(x).priority==='High');
+    $('faultCodeCards').innerHTML=[['Open Faults',open.length,open.length?'warning-card':''],['Critical',critical.length,critical.length?'danger':''],['High',high.length,high.length?'warning-card':''],['Tractors Affected',new Set(open.map(x=>x.vehicle?.number).filter(Boolean)).size,'']].map(x=>`<div class="summary-card ${x[2]}"><span>${x[0]}</span><strong>${fmtNum(x[1])}</strong></div>`).join('');
+    const table=$('faultCodesTable'); table.querySelector('thead').innerHTML='<tr>'+['Severity','Tractor','Code','Meaning','Status','Last Seen','Occurrences','Actionable Intelligence','Task'].map(h=>`<th>${h}</th>`).join('')+'</tr>';
+    table.querySelector('tbody').innerHTML=rows.length?rows.map(f=>{const g=faultGuidance(f),task=(state.maintenance.tasks||[]).find(x=>x.sourceType==='fault'&&x.sourceId===String(f.id));return `<tr><td><span class="maintenance-severity severity-${g.priority.toLowerCase()}">${escapeHtml(f.severity||'Unclassified')}</span></td><td><strong>${escapeHtml(f.vehicle?.number||'—')}</strong></td><td>${escapeHtml(f.code||'—')}<small>${escapeHtml(f.fmiDescription||'')}</small></td><td>${escapeHtml(f.label||f.description||'—')}</td><td>${escapeHtml(f.status||'—')}</td><td>${escapeHtml(String(f.lastObservedAt||'').replace('T',' ').slice(0,16)||'—')}</td><td>${fmtNum(f.occurrenceCount||f.observations||0)}</td><td class="meeting-notes-cell">${escapeHtml(g.action)}</td><td><button class="table-action" data-task-fault="${escapeHtml(String(f.id))}">${task?'View Task':'Create Task'}</button></td></tr>`}).join(''):'<tr><td colspan="9" class="empty-table-cell">No Motive fault codes loaded. Refresh from Motive to begin.</td></tr>';
+  }
+  async function refreshFaultCodes(){
+    if(!state.motive.configured){showAlert('Connect Motive before refreshing fault codes.','warning');return;}
+    const btn=$('refreshFaultCodesBtn'); if(btn) btn.disabled=true;
+    try{const data=await localApi('/api/motive/fault-codes',{timeoutMs:120000}), incoming=Array.isArray(data.faultCodes)?data.faultCodes:[], byId=new Map((state.maintenance.faultCodes||[]).map(x=>[String(x.id),x]));for(const f of incoming)byId.set(String(f.id),{...byId.get(String(f.id)),...f});state.maintenance.faultCodes=[...byId.values()];await saveMaintenanceData(true);renderFaultCodes();showAlert(`Loaded <strong>${incoming.length}</strong> Motive fault code record${incoming.length===1?'':'s'}.`,'success');}catch(err){showAlert(`Could not load Motive fault codes: ${escapeHtml(err.message)}`,'error');}finally{if(btn)btn.disabled=false;}
+  }
+  function openMaintenanceTaskModal(id='',prefill={}){
+    const r=id?(state.maintenance.tasks||[]).find(x=>x.id===id):null;
+    $('maintenanceTaskEditId').value=r?.id||'';$('maintenanceTaskSourceType').value=r?.sourceType||prefill.sourceType||'manual';$('maintenanceTaskSourceId').value=r?.sourceId||prefill.sourceId||'';
+    $('maintenanceTaskModalTitle').textContent=r?'Edit Maintenance Task':'Add Maintenance Task';$('maintenanceTaskTitle').value=r?.title||prefill.title||'';$('maintenanceTaskTractor').value=r?.tractorNumber||prefill.tractorNumber||'';$('maintenanceTaskPriority').value=r?.priority||prefill.priority||'Medium';$('maintenanceTaskAssignee').value=r?.assignedTo||'';$('maintenanceTaskDueDate').value=r?.dueDate||prefill.dueDate||'';$('maintenanceTaskStatus').value=r?.status||'New';$('maintenanceTaskDoNotDispatch').value=r?.doNotDispatch||prefill.doNotDispatch||'N';$('maintenanceTaskNotes').value=r?.notes||prefill.notes||'';$('maintenanceTaskModal').classList.remove('hidden');
+  }
+  async function saveMaintenanceTaskFromForm(e){
+    e.preventDefault();const id=$('maintenanceTaskEditId').value,existing=id?(state.maintenance.tasks||[]).find(x=>x.id===id):null,now=new Date().toISOString(),status=$('maintenanceTaskStatus').value;
+    const task={id:existing?.id||uid('maint_task'),title:String($('maintenanceTaskTitle').value||'').trim(),tractorNumber:normalizeTractor($('maintenanceTaskTractor').value),priority:$('maintenanceTaskPriority').value,assignedTo:String($('maintenanceTaskAssignee').value||'').trim(),dueDate:$('maintenanceTaskDueDate').value,status,doNotDispatch:$('maintenanceTaskDoNotDispatch').value,notes:String($('maintenanceTaskNotes').value||'').trim(),sourceType:$('maintenanceTaskSourceType').value||'manual',sourceId:$('maintenanceTaskSourceId').value||'',createdAt:existing?.createdAt||now,updatedAt:now,completedAt:status==='Completed'?(existing?.completedAt||now):''};
+    state.maintenance.tasks=state.maintenance.tasks||[];if(existing)Object.assign(existing,task);else state.maintenance.tasks.push(task);await saveMaintenanceData(true);closeModal('maintenanceTaskModal');renderMaintenanceTasks();renderTripInspections();renderFaultCodes();setScreen('maintenance-tasks');showAlert(`Maintenance task <strong>${escapeHtml(task.title)}</strong> saved.`,'success');
+  }
+  function renderMaintenanceTasks(){
+    if(!$('maintenanceTasksTable'))return;const filter=$('maintenanceTaskStatusFilter')?.value||'open',today=todayIso(),all=[...(state.maintenance.tasks||[])],rows=all.filter(x=>filter==='all'||(filter==='open'?x.status!=='Completed':x.status===filter)).sort((a,b)=>(a.status==='Completed')-(b.status==='Completed')||(MAINTENANCE_PRIORITY_ORDER[a.priority]??9)-(MAINTENANCE_PRIORITY_ORDER[b.priority]??9)||String(a.dueDate||'9999').localeCompare(String(b.dueDate||'9999')));
+    const open=all.filter(x=>x.status!=='Completed'),overdue=open.filter(x=>x.dueDate&&x.dueDate<today),restricted=open.filter(x=>x.doNotDispatch==='Y');$('maintenanceTaskCards').innerHTML=[['Open Tasks',open.length,open.length?'warning-card':''],['Overdue',overdue.length,overdue.length?'danger':''],['Do Not Dispatch',restricted.length,restricted.length?'danger':''],['Completed',all.length-open.length,'']].map(x=>`<div class="summary-card ${x[2]}"><span>${x[0]}</span><strong>${fmtNum(x[1])}</strong></div>`).join('');
+    const table=$('maintenanceTasksTable');table.querySelector('thead').innerHTML='<tr>'+['Priority','Task','Tractor','Source','Assigned To','Due','Status','Restriction','Actions'].map(h=>`<th>${h}</th>`).join('')+'</tr>';table.querySelector('tbody').innerHTML=rows.length?rows.map(t=>`<tr class="${t.status==='Completed'?'resolved-row':''} ${t.status!=='Completed'&&t.dueDate&&t.dueDate<today?'overdue-meeting-row':''}"><td><span class="maintenance-severity severity-${String(t.priority).toLowerCase()}">${escapeHtml(t.priority)}</span></td><td><strong>${escapeHtml(t.title)}</strong><small>${escapeHtml(t.notes||'')}</small></td><td>${escapeHtml(t.tractorNumber||'—')}</td><td>${escapeHtml(t.sourceType==='fault'?'Motive fault':t.sourceType==='inspection'?'Trip inspection':'Manual')}</td><td>${escapeHtml(t.assignedTo||'Unassigned')}</td><td>${fmtDate(t.dueDate)}</td><td>${escapeHtml(t.status)}</td><td>${t.doNotDispatch==='Y'?'<span class="status-pill no">Do not dispatch</span>':'—'}</td><td><div class="row-actions"><button class="table-action" data-edit-maint-task="${t.id}">Edit</button><button class="table-action danger-link" data-delete-maint-task="${t.id}">Delete</button></div></td></tr>`).join(''):'<tr><td colspan="9" class="empty-table-cell">No maintenance tasks match this view.</td></tr>';
+  }
+  function taskFromInspection(id){const r=state.meetings.inspections.find(x=>x.id===id);if(!r)return;const existing=(state.maintenance.tasks||[]).find(x=>x.sourceType==='inspection'&&x.sourceId===id);if(existing)return openMaintenanceTaskModal(existing.id);openMaintenanceTaskModal('',{sourceType:'inspection',sourceId:id,title:`Inspect and repair: ${r.issue}`,tractorNumber:r.tractorNumber,priority:String(r.priority)==='1'?'High':String(r.priority)==='2'?'Medium':'Low',doNotDispatch:String(r.priority)==='1'?'Y':'N',notes:`Reported by ${r.driverName||'driver'} on ${r.date||todayIso()}. ${r.issue}`});}
+  function taskFromFault(id){const f=(state.maintenance.faultCodes||[]).find(x=>String(x.id)===String(id));if(!f)return;const existing=(state.maintenance.tasks||[]).find(x=>x.sourceType==='fault'&&x.sourceId===String(id));if(existing)return openMaintenanceTaskModal(existing.id);const g=faultGuidance(f);openMaintenanceTaskModal('',{sourceType:'fault',sourceId:String(id),title:`Diagnose ${f.code||'fault'} — ${f.label||f.description||'Motive alert'}`,tractorNumber:f.vehicle?.number||'',priority:g.priority,doNotDispatch:g.restriction,notes:g.action});}
+  async function deleteMaintenanceTask(id){const t=(state.maintenance.tasks||[]).find(x=>x.id===id);if(!t||!confirm(`Delete maintenance task "${t.title}"?`))return;state.maintenance.tasks=state.maintenance.tasks.filter(x=>x.id!==id);await saveMaintenanceData(true);renderMaintenanceTasks();renderTripInspections();renderFaultCodes();}
 
   function allVehicleTrips(tractorNumber) {
     const target=normalizeTractor(tractorNumber), seen=new Set(), trips=[];
@@ -4882,6 +4947,10 @@
       console.error(err);
       showAlert('Could not export the Meetings workbook: '+err.message,'error');
     }
+  }
+  function exportTripInspectionsExcel(){
+    const inspectionCount=state.meetings?.inspections?.length||0;if(!inspectionCount){showAlert('There are no trip-inspection records to export.','warning');return;}
+    try{downloadBlob(Core.makeMeetingsXlsx({...state.meetings,managementItems:[]}),`NBL_FleetCommand_Trip_Inspections_${todayIso()}.xlsx`,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');showAlert(`Exported <strong>${inspectionCount}</strong> trip-inspection report${inspectionCount===1?'':'s'}.`,'success');}catch(err){showAlert('Could not export Trip Inspections: '+escapeHtml(err.message),'error');}
   }
 
 
@@ -5955,6 +6024,7 @@
   $('payrollAdjustmentForm')?.addEventListener('submit',addPayrollAdjustment);
   $('savePayrollDaysBtn')?.addEventListener('click',savePayrollDays);
   $('exportMeetingsBtn')?.addEventListener('click',exportMeetingsExcel);
+  $('exportInspectionsBtn')?.addEventListener('click',exportTripInspectionsExcel);
   $('resetInspectionWidthsBtn')?.addEventListener('click',()=>resetMeetingColumnWidths('inspection'));
   $('resetManagementWidthsBtn')?.addEventListener('click',()=>resetMeetingColumnWidths('management'));
   $('startNewAuditBtn')?.addEventListener('click',()=>{ prepareNewAudit(true); setAuditTab('new'); });
@@ -6032,6 +6102,11 @@
   $('ivmrEntityName')?.addEventListener('change',saveIvmrEntitySettings);
   $('ivmrEntityNumber')?.addEventListener('change',saveIvmrEntitySettings);
   $('addInspectionBtn').addEventListener('click',()=>openInspectionModal());
+  $('refreshFaultCodesBtn')?.addEventListener('click',refreshFaultCodes);
+  $('faultStatusFilter')?.addEventListener('change',renderFaultCodes);
+  $('addMaintenanceTaskBtn')?.addEventListener('click',()=>openMaintenanceTaskModal());
+  $('maintenanceTaskStatusFilter')?.addEventListener('change',renderMaintenanceTasks);
+  $('maintenanceTaskForm')?.addEventListener('submit',saveMaintenanceTaskFromForm);
   $('addManagementItemBtn').addEventListener('click',()=>openManagementModal());
   $('inspectionForm').addEventListener('submit',saveInspectionFromForm);
   $('managementItemForm').addEventListener('submit',saveManagementFromForm);
@@ -6112,6 +6187,10 @@
     const del=e.target.closest('[data-delete-maintenance]'); if(del) deleteMaintenanceRecord(del.dataset.deleteMaintenance);
     const editInspection=e.target.closest('[data-edit-inspection]'); if(editInspection) openInspectionModal(editInspection.dataset.editInspection);
     const deleteInspectionBtn=e.target.closest('[data-delete-inspection]'); if(deleteInspectionBtn) deleteInspection(deleteInspectionBtn.dataset.deleteInspection);
+    const taskInspection=e.target.closest('[data-task-inspection]'); if(taskInspection){taskFromInspection(taskInspection.dataset.taskInspection);return;}
+    const taskFault=e.target.closest('[data-task-fault]'); if(taskFault){taskFromFault(taskFault.dataset.taskFault);return;}
+    const editMaintTask=e.target.closest('[data-edit-maint-task]'); if(editMaintTask){openMaintenanceTaskModal(editMaintTask.dataset.editMaintTask);return;}
+    const deleteMaintTask=e.target.closest('[data-delete-maint-task]'); if(deleteMaintTask){deleteMaintenanceTask(deleteMaintTask.dataset.deleteMaintTask);return;}
     const editManagement=e.target.closest('[data-edit-management]'); if(editManagement) openManagementModal(editManagement.dataset.editManagement);
     const deleteManagementBtn=e.target.closest('[data-delete-management]'); if(deleteManagementBtn) deleteManagementItem(deleteManagementBtn.dataset.deleteManagement);
     const roadTestRecruitment=e.target.closest('[data-road-test-candidate]'); if(roadTestRecruitment){ openRecruitmentRoadTestModal(roadTestRecruitment.dataset.roadTestCandidate); return; }
