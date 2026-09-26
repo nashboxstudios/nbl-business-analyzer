@@ -1,4 +1,11 @@
-NBL FleetCommand — Version 113
+NBL FleetCommand — Version 114
+
+Version 114 - Sign-In Startup Hotfix
+
+- Releases the sign-in screen immediately after Supabase authentication and membership verification.
+- Loads FleetCommand module data and Motive information in the background.
+- Adds a 25-second cloud request timeout so one stalled request cannot freeze the entire application.
+- Keeps the dashboard usable and displays a retry message if an individual cloud module is temporarily unavailable.
 
 Version 113 - Maintenance Intelligence
 

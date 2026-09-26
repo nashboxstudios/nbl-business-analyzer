@@ -21,7 +21,17 @@
   async function request(path,options={}){
     const headers={apikey:SUPABASE_PUBLISHABLE_KEY,'Content-Type':'application/json',...(options.headers||{})};
     if(options.accessToken) headers.Authorization=`Bearer ${options.accessToken}`;
-    const response=await fetch(`${SUPABASE_URL}${path}`,{...options,headers});
+    const controller=new AbortController();
+    const timeoutMs=Number(options.timeoutMs)||25000;
+    const timer=setTimeout(()=>controller.abort(),timeoutMs);
+    let response;
+    try{
+      const {accessToken:_,timeoutMs:__,...fetchOptions}=options;
+      response=await fetch(`${SUPABASE_URL}${path}`,{...fetchOptions,headers,signal:controller.signal});
+    }catch(err){
+      if(err?.name==='AbortError') throw new Error('NBL Cloud took too long to respond. The app will continue and you can retry Cloud Sync.');
+      throw err;
+    }finally{ clearTimeout(timer); }
     const text=await response.text();
     let data=null;
     if(text){ try{ data=JSON.parse(text); }catch(_){ data=text; } }

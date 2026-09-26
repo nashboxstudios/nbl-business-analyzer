@@ -525,7 +525,21 @@
     state.cloud.membership=membership; state.cloud.organization=membership.organization||{id:membership.organization_id,name:'Nashbox Logistics'}; state.cloud.connected=true;
     try{ state.cloud.profile=await window.NBLCloud.getProfile(); }catch(_){ state.cloud.profile=null; }
     applyAccessVisibility();
-    await loadCloudWorkspace(false);await loadStructuredOperationalData(true);updateCloudUI(); $('cloudLoginOverlay')?.classList.add('hidden');
+    $('cloudLoginOverlay')?.classList.add('hidden');
+    updateCloudUI(); renderAll(); setScreen('dashboard');
+    // Authentication is complete at this point. Load business data separately so
+    // a slow module cannot trap the user on the sign-in overlay.
+    setTimeout(async()=>{
+      try{
+        await loadCloudWorkspace(false);
+        await loadStructuredOperationalData(true);
+        updateCloudUI(); renderAll();
+      }catch(err){
+        console.error('Background cloud startup failed',err);
+        showAlert(`FleetCommand opened, but some cloud data could not be loaded: ${escapeHtml(err.message||String(err))}. Use Cloud Sync to retry.`,'warning');
+      }
+    },0);
+    return true;
   }
   async function initCloudBridge(){
     updateCloudUI();
@@ -543,9 +557,8 @@
     try{
       const session=await window.NBLCloud.signIn($('cloudLoginEmail').value.trim(),$('cloudLoginPassword').value);
       await establishCloudSession(session);
-      await loadMotiveStatus();
-      if(state.motive.backendAvailable && state.motive.configured) await refreshMotiveFleet(true);
-      $('cloudLoginPassword').value=''; setScreen(state.currentScreen);
+      $('cloudLoginPassword').value='';
+      setTimeout(async()=>{try{await loadMotiveStatus();if(state.motive.backendAvailable&&state.motive.configured)await refreshMotiveFleet(true);}catch(err){console.warn('Motive startup refresh failed',err);}},0);
     }catch(err){ if(errEl){errEl.textContent=err.message||String(err);errEl.classList.remove('hidden');} }
     finally{ if(btn){btn.disabled=false;btn.textContent='Sign In';} }
   }
@@ -6230,8 +6243,7 @@
     updateFolderUI();
     await loadFinanceSecurity();
     await initCloudBridge();
-    if(state.cloud.connected) await loadMotiveStatus();
-    if(state.motive.backendAvailable && state.motive.configured) await refreshMotiveFleet(true);
+    if(state.cloud.connected) setTimeout(async()=>{try{await loadMotiveStatus();if(state.motive.backendAvailable&&state.motive.configured)await refreshMotiveFleet(true);}catch(err){console.warn('Motive startup refresh failed',err);}},0);
     setScreen('dashboard');
     await restoreFolder();
     updateCloudUI();
