@@ -212,6 +212,11 @@
     const qs=new URLSearchParams({organization_id:`eq.${organizationId}`,select:'record_type,record_key,payload,updated_at',order:'record_type.asc,record_key.asc'});
     return await authFetch(`/rest/v1/${table}?${qs}`)||[];
   }
+  async function getRecordDomainTypes(table,organizationId,types){
+    const qs=new URLSearchParams({organization_id:`eq.${organizationId}`,select:'record_type,record_key,payload,updated_at',order:'record_type.asc,record_key.asc'});
+    if(Array.isArray(types)&&types.length)qs.set('record_type',`in.(${types.join(',')})`);
+    return await authFetch(`/rest/v1/${table}?${qs}`)||[];
+  }
 
   function postgrestQuotedList(values){
     return values.map(value=>`"${String(value).replaceAll('\\','\\\\').replaceAll('"','\\"')}"`).join(',');
@@ -234,8 +239,9 @@
   function keyedRows(rows,type){const out={};for(const row of rows||[])if(row.record_type===type)out[row.record_key]=row.payload||{};return out;}
   function oneRow(rows,type){return (rows||[]).find(row=>row.record_type===type)?.payload||{};}
 
-  async function getMaintenanceData(organizationId){const rows=await getRecordDomain('nbl_fc_maintenance_records',organizationId);return {version:3,...oneRow(rows,'settings'),tractors:rowsByType(rows,'tractor'),records:rowsByType(rows,'service'),faultCodes:rowsByType(rows,'fault'),tasks:rowsByType(rows,'task'),recordCount:rows.length};}
-  async function saveMaintenanceData(organizationId,data){const records=[{recordType:'settings',recordKey:'main',payload:{version:3}},...(data?.tractors||[]).map((x,i)=>({recordType:'tractor',recordKey:String(x.id||x.tractorNumber||`tractor_${i}`),payload:x})),...(data?.records||[]).map((x,i)=>({recordType:'service',recordKey:String(x.id||`service_${i}`),payload:x})),...(data?.faultCodes||[]).map((x,i)=>({recordType:'fault',recordKey:String(x.id||`fault_${i}`),payload:x})),...(data?.tasks||[]).map((x,i)=>({recordType:'task',recordKey:String(x.id||`task_${i}`),payload:x}))];return replaceRecordDomain('nbl_fc_maintenance_records',organizationId,records,['settings','tractor','service','fault','task']);}
+  async function getMaintenanceData(organizationId){const rows=await getRecordDomainTypes('nbl_fc_maintenance_records',organizationId,['settings','tractor','service','task']);return {version:3,...oneRow(rows,'settings'),tractors:rowsByType(rows,'tractor'),records:rowsByType(rows,'service'),faultCodes:[],tasks:rowsByType(rows,'task'),recordCount:rows.length};}
+  async function saveMaintenanceData(organizationId,data){const records=[{recordType:'settings',recordKey:'main',payload:{version:3}},...(data?.tractors||[]).map((x,i)=>({recordType:'tractor',recordKey:String(x.id||x.tractorNumber||`tractor_${i}`),payload:x})),...(data?.records||[]).map((x,i)=>({recordType:'service',recordKey:String(x.id||`service_${i}`),payload:x})),...(data?.tasks||[]).map((x,i)=>({recordType:'task',recordKey:String(x.id||`task_${i}`),payload:x}))];return replaceRecordDomain('nbl_fc_maintenance_records',organizationId,records,['settings','tractor','service','task']);}
+  async function saveMaintenanceFaults(organizationId,faults){const session=await getSession(),userId=session?.user?.id||null,now=new Date().toISOString(),rows=(faults||[]).filter(x=>x?.id!=null).map(x=>({organization_id:organizationId,record_type:'fault',record_key:String(x.id),payload:x,updated_at:now,updated_by:userId}));if(rows.length)await authFetch('/rest/v1/nbl_fc_maintenance_records?on_conflict=organization_id,record_type,record_key',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(rows)});return {savedAt:now,count:rows.length};}
 
   async function getRecruitmentData(organizationId){const rows=await getRecordDomain('nbl_fc_recruitment_records',organizationId);return {version:11,...oneRow(rows,'settings'),candidates:rowsByType(rows,'candidate'),recordCount:rows.length};}
   async function saveRecruitmentData(organizationId,data){const settings={version:11,recruitmentLayout:data?.recruitmentLayout||{},updatedAt:data?.updatedAt||null,cloudPrivacy:data?.cloudPrivacy||{fullSsnStored:false}};const records=[{recordType:'settings',recordKey:'main',payload:settings},...(data?.candidates||[]).map((x,i)=>({recordType:'candidate',recordKey:String(x.id||x.fedexId||`candidate_${i}`),payload:x}))];return replaceRecordDomain('nbl_fc_recruitment_records',organizationId,records,['settings','candidate']);}
@@ -286,6 +292,6 @@
   window.NBLCloud={
     url:SUPABASE_URL,
     publishableKey:SUPABASE_PUBLISHABLE_KEY,
-    signIn,signOut,getSession,getMembership,getProfile,saveProfile,updatePassword,getSnapshots,saveSnapshot,getSafetyData,saveSafetyData,getDailyDispatchBoards,saveDailyDispatchBoard,getMaintenanceData,saveMaintenanceData,getRecruitmentData,saveRecruitmentData,getFinanceData,saveDriverPayData,saveSettlementData,getAuditData,saveAuditData,getMeetingData,saveMeetingData,uploadRecruitmentDocument,getRecruitmentDocumentUrl,deleteRecruitmentDocument,clearSession
+    signIn,signOut,getSession,getMembership,getProfile,saveProfile,updatePassword,getSnapshots,saveSnapshot,getSafetyData,saveSafetyData,getDailyDispatchBoards,saveDailyDispatchBoard,getMaintenanceData,saveMaintenanceData,saveMaintenanceFaults,getRecruitmentData,saveRecruitmentData,getFinanceData,saveDriverPayData,saveSettlementData,getAuditData,saveAuditData,getMeetingData,saveMeetingData,uploadRecruitmentDocument,getRecruitmentDocumentUrl,deleteRecruitmentDocument,clearSession
   };
 })();

@@ -1,4 +1,12 @@
-NBL FleetCommand — Version 115
+NBL FleetCommand — Version 116
+
+Version 116 - On-Demand Fault Loading
+
+- Fault records are excluded from normal application startup.
+- Users select one tractor and click Load Faults.
+- The default reporting period is the most recent seven days.
+- Faults are requested from Motive only for the selected tractor and period.
+- Other detailed cloud modules load when their screens are opened.
 
 Version 115 - Faster Cloud Loading and Fault Filters
 
