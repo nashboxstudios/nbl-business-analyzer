@@ -1,4 +1,10 @@
-NBL FleetCommand — Version 116
+NBL FleetCommand — Version 117
+
+Version 117 - Settlement Summary Display Fix
+
+- Restores the Settlement Summary redraw after its cloud records load.
+- Restores the Driver Pay redraw under the same on-demand finance loading path.
+- Retains the faster startup and on-demand Motive fault loading introduced in Version 116.
 
 Version 116 - On-Demand Fault Loading
 
