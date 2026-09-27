@@ -1,3 +1,14 @@
+NBL FleetCommand — Version 118
+
+Version 118 - Reliable Incremental Settlement Uploads
+
+- Saves only newly uploaded or replaced settlement statements during normal uploads.
+- Preserves all existing settlement history without rewriting it after every upload.
+- Breaks explicit full-history synchronization into small, bounded cloud requests.
+- Waits for Finance storage to finish loading before allowing a settlement upload.
+- Shows the actual NBL Cloud error when a save fails instead of replacing it with a generic message.
+- Keeps Settlement settings and Dashboard mileage synchronized after a successful upload.
+
 NBL FleetCommand — Version 117
 
 Version 117 - Settlement Summary Display Fix
