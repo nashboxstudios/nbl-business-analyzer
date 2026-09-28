@@ -1,3 +1,12 @@
+NBL FleetCommand — Version 121
+
+Version 121 - Recruitment Status Section Headers
+
+- Moves the Recruitment column headings inside each candidate-status section.
+- Displays each section as Status, column headings, then candidates.
+- Repeats the same sortable and resizable headings for In Progress, Hired, Rejected, and Terminated sections that contain candidates.
+- Keeps only the Name column frozen during horizontal scrolling.
+
 NBL FleetCommand — Version 120
 
 Version 120 - Recruitment Table Scrolling Fix
