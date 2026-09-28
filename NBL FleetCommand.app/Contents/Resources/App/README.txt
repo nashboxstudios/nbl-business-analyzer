@@ -1,3 +1,12 @@
+NBL FleetCommand — Version 120
+
+Version 120 - Recruitment Table Scrolling Fix
+
+- Keeps only the Name column frozen in the Recruitment table.
+- Removes obsolete position-based freezing that affected Location, Notes, and the former column slots.
+- Eliminates the apparent blank column and prevents scrolling columns from passing through frozen cells.
+- Retains the Recruitment table cleanup introduced in Version 119.
+
 NBL FleetCommand — Version 119
 
 Version 119 - Recruitment Table Cleanup
