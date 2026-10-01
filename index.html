@@ -6,7 +6,7 @@
   <title>NBL FleetCommand</title>
   <meta name="theme-color" content="#35164E" />
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=117" />
+  <link rel="stylesheet" href="styles.css?v=122" />
 </head>
 <body>
 
@@ -932,12 +932,12 @@
 
           <div class="panel safety-trends-panel">
             <div class="panel-heading safety-trends-heading">
-              <div><h2>Driver Trends</h2><p>Saved safety snapshots build a permanent score and incident history for each driver.</p></div>
+              <div><h2>Driver Trends</h2><p>Saved score history and the most frequent active incidents for the selected driver and reporting period.</p></div>
               <select id="safetyTrendDriver"><option value="">Select Driver</option></select>
             </div>
             <div class="safety-trend-grid">
               <div><h3>Adjusted Score Trend</h3><div class="safety-chart" id="safetyScoreTrendChart"></div></div>
-              <div><h3>Incident Trend</h3><div class="safety-chart" id="safetyIncidentTrendChart"></div></div>
+              <div><h3>Top 3 Incidents</h3><div class="safety-chart" id="safetyTopIncidentsChart"></div></div>
             </div>
           </div>
 
@@ -1575,6 +1575,6 @@
 
   <script src="core.js?v=117"></script>
   <script src="cloud.js?v=117"></script>
-  <script src="app.js?v=117"></script>
+  <script src="app.js?v=122"></script>
 </body>
 </html>
