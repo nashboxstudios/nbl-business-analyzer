@@ -6,7 +6,7 @@
   <title>NBL FleetCommand</title>
   <meta name="theme-color" content="#35164E" />
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=124" />
+  <link rel="stylesheet" href="styles.css?v=125" />
 </head>
 <body>
 
@@ -32,7 +32,7 @@
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
         <div class="app-name">NBL FleetCommand</div>
         <div class="app-tagline">Operations Intelligence</div>
-        <div class="app-version">Version 124</div>
+        <div class="app-version">Version 125</div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-standalone nav-main-modules">
@@ -1125,7 +1125,7 @@
         <div class="form-grid three">
           <div class="form-field"><label>Shift</label><select id="recruitmentShiftInput"><option value="Day">Day</option><option value="Night">Night</option></select></div>
           <div class="form-field"><label>Type</label><select id="recruitmentTypeInput"><option value="Full Time">Full Time</option><option value="Part Time">Part Time</option></select></div>
-          <div class="form-field"><label>Doubles</label><select id="recruitmentDoublesInput"><option value="No">No</option><option value="Yes">Yes</option></select></div>
+          <div class="form-field"><label for="recruitmentDoublesInput">Doubles</label><select id="recruitmentDoublesInput" required><option value="" disabled>Select doubles status</option><option value="Yes With Experience">Yes With Experience</option><option value="Yes No Experience">Yes No Experience</option><option value="No">No</option></select><div id="recruitmentDoublesHelp" class="hr-field-help"></div></div>
         </div>
         <div class="form-grid three">
           <div class="form-field"><label>Screening Interview</label><input id="recruitmentScreeningInterviewInput" type="date"></div>
@@ -1134,7 +1134,7 @@
         </div>
         <div class="form-field"><label>Notes</label><textarea id="recruitmentNotesInput" placeholder="Add recruitment notes, follow-up details, concerns, or other information"></textarea></div>
         <div class="hr-form-divider" aria-hidden="true"></div>
-        <div class="hr-profile-fields-heading"><strong>Hiring Status</strong><span>Final screening and onboarding milestones.</span></div>
+        <div class="hr-profile-fields-heading"><strong>Hiring Status</strong><span>Hiring screening milestones.</span></div>
         <div class="form-note hr-days-note">Days in Process is calculated automatically from Date Added. It stops when a driver is marked Hired, Rejected, or Terminated.</div>
         <div class="form-grid three">
           <div class="form-field"><label>Drug Test</label><select id="recruitmentDrugTestInput"><option value="Not Taken">Not Taken</option><option value="Taken">Taken</option><option value="Pass">Pass</option><option value="Fail">Fail</option></select></div>
@@ -1159,13 +1159,13 @@
             <div class="form-field"><label for="hiringSummaryMedicalExpiryInput">Medical Card Expiry Date</label><input id="hiringSummaryMedicalExpiryInput" type="date"><div id="hiringSummaryMedicalHelp" class="hr-field-help"></div></div>
             <div class="form-field"><label for="hiringSummaryExperienceInput">Years of Tractor-Trailer Experience</label><input id="hiringSummaryExperienceInput" type="number" min="0" step="0.1" placeholder="e.g. 6"></div>
           </div>
-          <div class="form-field"><label for="hiringSummaryDoublesExperienceInput">Doubles Driving Experience</label><textarea id="hiringSummaryDoublesExperienceInput" maxlength="2000" placeholder="Yes / No; describe relevant experience"></textarea></div>
           <div class="form-field"><label for="hiringSummaryFedexExperienceInput">FedEx Experience</label><textarea id="hiringSummaryFedexExperienceInput" maxlength="2000" placeholder="Yes / No; years and role"></textarea></div>
           <p class="hr-field-help">Preview and PDF use your current entries. Save Summary retains them with the candidate profile. SSN, date of birth, CDL number, home address and identity documents are excluded from the report.</p>
           <div class="hiring-summary-actions"><button type="submit" id="hiringSummarySaveBtn" class="button primary">Save Summary</button><button type="button" id="hiringSummaryPreviewBtn" class="button secondary">Preview</button><button type="button" id="hiringSummaryDownloadBtn" class="button secondary">Download PDF</button></div>
           <p id="hiringSummarySaveStatus" class="hr-field-help" role="status"></p>
         </section>
-        <div class="hr-profile-fields-heading"><strong>Onboarding</strong><span>Track whether each setup item has been sent or completed.</span></div>
+        <section id="recruitmentOnboardingTasksSection">
+        <div class="hr-profile-fields-heading"><strong>Onboarding Tasks</strong><span>Track whether each setup item has been sent or completed.</span></div>
         <div class="form-grid three">
           <div class="form-field"><label>Safety Forward</label><select id="recruitmentSafetyForwardInput"><option value="Not Sent">Not Sent</option><option value="Sent">Sent</option></select></div>
           <div class="form-field"><label>ConnectTeams</label><select id="recruitmentConnectTeamsInput"><option value="Not Sent">Not Sent</option><option value="Sent">Sent</option></select></div>
@@ -1174,6 +1174,7 @@
           <div class="form-field"><label>Employee Handbook</label><select id="recruitmentEmployeeHandbookInput"><option value="Not Sent">Not Sent</option><option value="Sent">Sent</option><option value="Signed">Signed</option></select></div>
         </div>
         <div class="hr-form-divider" aria-hidden="true"></div>
+        </section>
         <div class="hr-profile-fields-heading"><strong>Driver Documents</strong><span>Up to five private files. Add a document name such as CDL or Med Card. PDF, JPEG, PNG, HEIC, DOC or DOCX; maximum 10 MB each.</span></div>
         <div class="form-grid two hr-document-grid">
           <div class="hr-document-card" data-recruitment-document-slot="1"><div><strong>Document 1</strong><span id="recruitmentDocument1Status">No document uploaded.</span></div><div class="form-grid two"><div class="form-field"><label>Document Name</label><input id="recruitmentDocument1Label" type="text" placeholder="e.g. CDL"></div><div class="form-field"><label>Expiration Date <span class="optional-label">Optional</span></label><input id="recruitmentDocument1Expiry" type="date"></div></div><label class="button secondary hr-document-upload" for="recruitmentDocument1Input">Choose File</label><input id="recruitmentDocument1Input" class="hr-hidden-file-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.doc,.docx,application/pdf,image/jpeg,image/png,image/heic,image/heif,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"><div class="hr-document-actions"><button type="button" class="table-action hidden" data-view-recruitment-document="slot1">View</button><button type="button" class="table-action danger-link hidden" data-delete-recruitment-document="slot1">Delete</button></div></div>
@@ -1603,6 +1604,6 @@
 
   <script src="core.js?v=117"></script>
   <script src="cloud.js?v=117"></script>
-  <script src="app.js?v=124"></script>
+  <script src="app.js?v=125"></script>
 </body>
 </html>
