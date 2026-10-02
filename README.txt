@@ -1,3 +1,19 @@
+NBL FleetCommand — Version 123
+
+Version 123 - Candidate Hiring Summary
+
+- Adds Hiring Summary inside each Recruitment candidate profile and a table shortcut.
+- Pulls name, terminal, shift, start date, hiring statuses and CDL details from existing fields.
+- Saves proposed pay, pay basis, schedule, medical card expiry, experience and dedicated hiring notes with the candidate.
+- Uses a dated medical-card document when no manual expiry is supplied. Conflicting document dates require manual entry.
+- Provides Preview and Download PDF, with readable sections and automatic continuation pages.
+- Includes no source labels, SSN, DOB, CDL number, home address or identity-document attachments in the report.
+- Manual entries remain separate from general Recruitment Notes.
+- No new SQL migration or dependency is required. Uses existing Recruitment JSON storage and PDF export.
+- Local save/reload, report contents and rendered PDF pagination were checked with sample records.
+- Live cloud and interactive browser checks remain to be performed after deployment.
+- Update the deployed app files to use v123. This ZIP does not change your running Railway deployment.
+
 NBL FleetCommand — Version 122
 
 Version 122 - Safety Dashboard

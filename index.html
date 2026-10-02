@@ -6,7 +6,7 @@
   <title>NBL FleetCommand</title>
   <meta name="theme-color" content="#35164E" />
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=122" />
+  <link rel="stylesheet" href="styles.css?v=123" />
 </head>
 <body>
 
@@ -1145,6 +1145,25 @@
           <div class="form-field"><label>Start Date</label><input id="recruitmentStartDateInput" type="date"></div>
         </div>
         <div class="hr-form-divider" aria-hidden="true"></div>
+
+        <section id="hiringSummarySection" class="hiring-summary-editor">
+          <div class="hr-profile-fields-heading"><strong>Hiring Summary</strong><span>Prepare a report to share with the hiring manager. Existing profile and hiring-status fields are included automatically.</span></div>
+          <div class="form-field"><label for="hiringSummaryNotesInput">Hiring Summary Notes</label><textarea id="hiringSummaryNotesInput" maxlength="12000" placeholder="Relevant strengths, gaps, concerns and next steps"></textarea></div>
+          <div class="form-grid two">
+            <div class="form-field"><label for="hiringSummaryPayRateInput">Proposed Pay Rate (USD)</label><input id="hiringSummaryPayRateInput" type="number" min="0" step="0.01" placeholder="e.g. 240"></div>
+            <div class="form-field"><label for="hiringSummaryPayBasisInput">Pay Basis</label><select id="hiringSummaryPayBasisInput"><option value="">Not provided</option><option>Per day</option><option>Per mile</option><option>Per hour</option><option>Per week</option></select></div>
+          </div>
+          <div class="form-field"><label for="hiringSummaryScheduleInput">Schedule Discussed</label><textarea id="hiringSummaryScheduleInput" maxlength="2000" placeholder="Days, route, availability and any exceptions"></textarea></div>
+          <div class="form-grid two">
+            <div class="form-field"><label for="hiringSummaryMedicalExpiryInput">Medical Card Expiry Date</label><input id="hiringSummaryMedicalExpiryInput" type="date"><div id="hiringSummaryMedicalHelp" class="hr-field-help"></div></div>
+            <div class="form-field"><label for="hiringSummaryExperienceInput">Years of Tractor-Trailer Experience</label><input id="hiringSummaryExperienceInput" type="number" min="0" step="0.1" placeholder="e.g. 6"></div>
+          </div>
+          <div class="form-field"><label for="hiringSummaryDoublesExperienceInput">Doubles Driving Experience</label><textarea id="hiringSummaryDoublesExperienceInput" maxlength="2000" placeholder="Yes / No; describe relevant experience"></textarea></div>
+          <div class="form-field"><label for="hiringSummaryFedexExperienceInput">FedEx Experience</label><textarea id="hiringSummaryFedexExperienceInput" maxlength="2000" placeholder="Yes / No; years and role"></textarea></div>
+          <p class="hr-field-help">Preview and PDF use your current entries. Save Summary retains them with the candidate profile. SSN, date of birth, CDL number, home address and identity documents are excluded from the report.</p>
+          <div class="hiring-summary-actions"><button type="submit" id="hiringSummarySaveBtn" class="button primary">Save Summary</button><button type="button" id="hiringSummaryPreviewBtn" class="button secondary">Preview</button><button type="button" id="hiringSummaryDownloadBtn" class="button secondary">Download PDF</button></div>
+          <p id="hiringSummarySaveStatus" class="hr-field-help" role="status"></p>
+        </section>
         <div class="hr-profile-fields-heading"><strong>Onboarding</strong><span>Track whether each setup item has been sent or completed.</span></div>
         <div class="form-grid three">
           <div class="form-field"><label>Safety Forward</label><select id="recruitmentSafetyForwardInput"><option value="Not Sent">Not Sent</option><option value="Sent">Sent</option></select></div>
@@ -1166,6 +1185,14 @@
         <div class="hr-document-upload-status hidden" id="recruitmentDocumentUploadStatus"></div>
         <div class="modal-actions"><button type="button" class="button secondary" data-close-modal="recruitmentCandidateModal">Cancel</button><button type="submit" class="button primary">Save Candidate</button></div>
       </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="hiringSummaryPreviewModal" role="dialog" aria-modal="true" aria-labelledby="hiringSummaryPreviewTitle">
+    <div class="modal-card hiring-summary-preview-card">
+      <div class="modal-heading"><h2 id="hiringSummaryPreviewTitle">Hiring Summary Preview</h2><button type="button" class="icon-btn" data-close-modal="hiringSummaryPreviewModal" aria-label="Close preview">×</button></div>
+      <div id="hiringSummaryPreviewContent"></div>
+      <div class="modal-actions"><button type="button" class="button secondary" data-close-modal="hiringSummaryPreviewModal">Back to Candidate</button><button type="button" id="hiringSummaryPreviewDownloadBtn" class="button primary">Download PDF</button></div>
     </div>
   </div>
 
@@ -1575,6 +1602,6 @@
 
   <script src="core.js?v=117"></script>
   <script src="cloud.js?v=117"></script>
-  <script src="app.js?v=122"></script>
+  <script src="app.js?v=123"></script>
 </body>
 </html>
