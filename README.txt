@@ -1,3 +1,13 @@
+NBL FleetCommand — Version 124
+
+Version 124 - Hiring Summary Access and Version Label
+
+- Corrects the version label below the logo to Version 124.
+- Adds Open Hiring Summary at the top of every candidate profile.
+- Retains the Hiring Summary shortcut in the Recruitment Actions column.
+- Prevents the app document from being cached across deployments.
+- Preserves all candidate fields and the v123 hiring report. No SQL migration is required.
+
 NBL FleetCommand — Version 123
 
 Version 123 - Candidate Hiring Summary

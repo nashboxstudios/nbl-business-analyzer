@@ -704,6 +704,9 @@ body .sidebar{position:fixed;top:0;bottom:0;left:0;z-index:1002;width:min(86vw,3
 .safety-chart-note{margin:6px 0 0;color:#887b8f;font-size:11px}
 
 /* Candidate hiring summary */
+.hiring-summary-shortcut{display:flex;align-items:center;justify-content:space-between;gap:14px;background:#f5f1f8;border:1px solid #e2d8e9;border-radius:9px;padding:12px 14px;margin-bottom:20px}
+.hiring-summary-shortcut strong{color:#35164e;font-size:14px}.hiring-summary-shortcut p{margin:4px 0 0;color:#657285;font-size:12px}.hiring-summary-shortcut .button{flex-shrink:0}
+@media(max-width:600px){.hiring-summary-shortcut{align-items:stretch;flex-direction:column}}
 .hiring-summary-editor{border-top:1px solid #e0e7ed;margin:20px 0;padding-top:18px;scroll-margin-top:16px}
 .hiring-summary-actions{display:flex;gap:9px;flex-wrap:wrap}
 #hiringSummaryPreviewModal{z-index:65}
