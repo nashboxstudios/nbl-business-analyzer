@@ -264,7 +264,26 @@
   async function saveMaintenanceFaults(organizationId,faults){const session=await getSession(),userId=session?.user?.id||null,now=new Date().toISOString(),rows=(faults||[]).filter(x=>x?.id!=null).map(x=>({organization_id:organizationId,record_type:'fault',record_key:String(x.id),payload:x,updated_at:now,updated_by:userId}));if(rows.length)await authFetch('/rest/v1/nbl_fc_maintenance_records?on_conflict=organization_id,record_type,record_key',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(rows)});return {savedAt:now,count:rows.length};}
 
   async function getRecruitmentData(organizationId){const rows=await getRecordDomain('nbl_fc_recruitment_records',organizationId);return {version:11,...oneRow(rows,'settings'),candidates:rowsByType(rows,'candidate'),recordCount:rows.length};}
-  async function saveRecruitmentData(organizationId,data){const settings={version:11,recruitmentLayout:data?.recruitmentLayout||{},updatedAt:data?.updatedAt||null,cloudPrivacy:data?.cloudPrivacy||{fullSsnStored:false}};const records=[{recordType:'settings',recordKey:'main',payload:settings},...(data?.candidates||[]).map((x,i)=>({recordType:'candidate',recordKey:String(x.id||x.fedexId||`candidate_${i}`),payload:x}))];return replaceRecordDomain('nbl_fc_recruitment_records',organizationId,records,['settings','candidate']);}
+  async function saveRecruitmentData(organizationId,data,options={}){
+    const settings={version:11,recruitmentLayout:data?.recruitmentLayout||{},updatedAt:data?.updatedAt||null,cloudPrivacy:data?.cloudPrivacy||{fullSsnStored:false}};
+    const ids=new Set((options.candidateIds||[]).map(String));
+    const candidates=(data?.candidates||[]).filter(x=>options.full===true||ids.has(String(x.id||'')));
+    for(const id of ids)if(!candidates.some(x=>String(x.id||'')===id))throw new Error('Candidate to save could not be found.');
+    const records=[{recordType:'settings',recordKey:'main',payload:settings},...candidates.map(x=>{
+      if(!x.id)throw new Error('Candidate ID is required to save Recruitment data.');
+      return {recordType:'candidate',recordKey:String(x.id),payload:x};
+    })];
+    // Never delete candidates absent from a browser's list. Ordinary saves write
+    // only the edited candidate; full is reserved for explicit data imports.
+    return upsertRecordRows('nbl_fc_recruitment_records',organizationId,records);
+  }
+  async function deleteRecruitmentCandidate(organizationId,candidateId){
+    if(!candidateId)throw new Error('Candidate ID is required to delete a record.');
+    const qs=new URLSearchParams({organization_id:`eq.${organizationId}`,record_type:'eq.candidate',record_key:`eq.${candidateId}`,select:'record_key'});
+    const rows=await authFetch(`/rest/v1/nbl_fc_recruitment_records?${qs}`,{method:'DELETE',headers:{Prefer:'return=representation','x-nbl-recruitment-delete':String(candidateId)}});
+    if(!Array.isArray(rows)||rows.length!==1||rows[0].record_key!==String(candidateId))throw new Error('Candidate was not deleted. Refresh Recruitment and try again.');
+    return true;
+  }
 
   async function getFinanceData(organizationId){const rows=await getRecordDomain('nbl_fc_finance_records',organizationId);const payrollSettings=oneRow(rows,'driver_pay_settings'),settlementSettings=oneRow(rows,'settlement_settings');return {payroll:{version:2,...payrollSettings,profiles:keyedRows(rows,'payroll_profile'),periods:keyedRows(rows,'payroll_period')},settlement:{...settlementSettings,catalog:rowsByType(rows,'settlement_statement')},recordCount:rows.length};}
   async function saveDriverPayData(organizationId,data){const records=[{recordType:'driver_pay_settings',recordKey:'main',payload:{version:2,dhMappings:data?.dhMappings||{}}},...Object.entries(data?.profiles||{}).map(([key,payload])=>({recordType:'payroll_profile',recordKey:key,payload})),...Object.entries(data?.periods||{}).map(([key,payload])=>({recordType:'payroll_period',recordKey:key,payload}))];return replaceRecordDomain('nbl_fc_finance_records',organizationId,records,['driver_pay_settings','payroll_profile','payroll_period']);}
@@ -332,6 +351,6 @@
   window.NBLCloud={
     url:SUPABASE_URL,
     publishableKey:SUPABASE_PUBLISHABLE_KEY,
-    signIn,signOut,getSession,getMembership,getProfile,saveProfile,updatePassword,getSnapshots,saveSnapshot,getSafetyData,saveSafetyData,getDailyDispatchBoards,saveDailyDispatchBoard,getMaintenanceData,saveMaintenanceData,saveMaintenanceFaults,getRecruitmentData,saveRecruitmentData,getFinanceData,saveDriverPayData,saveSettlementData,saveSettlementChanges,getAuditData,saveAuditData,getMeetingData,saveMeetingData,uploadRecruitmentDocument,getRecruitmentDocumentUrl,deleteRecruitmentDocument,clearSession
+    signIn,signOut,getSession,getMembership,getProfile,saveProfile,updatePassword,getSnapshots,saveSnapshot,getSafetyData,saveSafetyData,getDailyDispatchBoards,saveDailyDispatchBoard,getMaintenanceData,saveMaintenanceData,saveMaintenanceFaults,getRecruitmentData,saveRecruitmentData,deleteRecruitmentCandidate,getFinanceData,saveDriverPayData,saveSettlementData,saveSettlementChanges,getAuditData,saveAuditData,getMeetingData,saveMeetingData,uploadRecruitmentDocument,getRecruitmentDocumentUrl,deleteRecruitmentDocument,clearSession
   };
 })();

@@ -374,7 +374,10 @@
     try{
       const orgId=state.cloud.organization.id,structured=state.cloud.structured||{};
       if(moduleKey==='maintenance'&&structured.maintenance){await window.NBLCloud.saveMaintenanceData(orgId,cloneJson(state.maintenance));state.cloud.lastSync=new Date().toISOString();updateCloudUI();return true;}
-      if(moduleKey==='hr'&&structured.recruitment){await window.NBLCloud.saveRecruitmentData(orgId,sanitizedHrForCloud());state.cloud.lastSync=new Date().toISOString();updateCloudUI();return true;}
+      if(moduleKey==='hr'){
+        if(!structured.recruitment)throw new Error('Recruitment cloud storage is not ready. Refresh FleetCommand before saving.');
+        await window.NBLCloud.saveRecruitmentData(orgId,sanitizedHrForCloud(),options);state.cloud.lastSync=new Date().toISOString();updateCloudUI();return true;
+      }
       if(moduleKey==='driver_pay'&&structured.finance){await window.NBLCloud.saveDriverPayData(orgId,cloneJson(state.payroll));state.cloud.lastSync=new Date().toISOString();updateCloudUI();return true;}
       if(moduleKey==='settlement'&&structured.finance){
         if(options.full){
@@ -532,7 +535,7 @@
     const jobs=[];
     if(!requested||requested.has('safety'))jobs.push((async()=>{try{const safety=await window.NBLCloud.getSafetyData(orgId);state.cloud.structured.safety=true;if(safety.actionCount||safety.recordCount){state.safety.assignments=cloneJson(safety.assignments||{});state.safety.dismissals=cloneJson(safety.dismissals||{});state.safety.driverRecords=cloneJson(safety.driverRecords||{});}else if(Object.keys(legacySafety.assignments).length||Object.keys(legacySafety.dismissals).length||Object.keys(legacySafety.driverRecords).length)await window.NBLCloud.saveSafetyData(orgId,legacySafety);cloudStructuredLoaded.add('safety');loaded=true;}catch(err){state.cloud.structured.safety=false;console.warn('Dedicated Safety storage is not ready',err);if(!silent)showAlert(`Dedicated Safety storage is unavailable: ${escapeHtml(err.message||String(err))}`,'warning');}})());
     if(!requested||requested.has('dailyDispatch'))jobs.push((async()=>{try{const boards=await window.NBLCloud.getDailyDispatchBoards(orgId);state.cloud.structured.dailyDispatch=true;if(Object.keys(boards||{}).length)state.dispatch.dailyBoards=boards;else for(const board of Object.values(legacyBoards))if(board?.date&&Array.isArray(board.rows))await window.NBLCloud.saveDailyDispatchBoard(orgId,board);cloudStructuredLoaded.add('dailyDispatch');loaded=true;}catch(err){state.cloud.structured.dailyDispatch=false;console.warn('Dedicated Daily Dispatch storage is not ready',err);if(!silent)showAlert(`Dedicated Daily Dispatch storage is unavailable: ${escapeHtml(err.message||String(err))}`,'warning');}})());
-    structuredLoads.filter(([flag])=>!requested||requested.has(flag)).forEach(([flag,getter,saver,legacy,hydrate])=>jobs.push((async()=>{try{const data=await window.NBLCloud[getter](orgId);state.cloud.structured[flag]=true;if(data.recordCount)hydrate(data);else await window.NBLCloud[saver](orgId,legacy());cloudStructuredLoaded.add(flag);loaded=true;}catch(err){state.cloud.structured[flag]=false;console.warn(`Dedicated ${flag} storage is not ready`,err);if(!silent)showAlert(`Dedicated ${escapeHtml(flag)} storage is unavailable: ${escapeHtml(err.message||String(err))}`,'warning');}})()));
+    structuredLoads.filter(([flag])=>!requested||requested.has(flag)).forEach(([flag,getter,saver,legacy,hydrate])=>jobs.push((async()=>{try{const data=await window.NBLCloud[getter](orgId);state.cloud.structured[flag]=true;if(data.recordCount)hydrate(data);else await window.NBLCloud[saver](orgId,legacy(),flag==='recruitment'?{full:true}:{});cloudStructuredLoaded.add(flag);loaded=true;}catch(err){state.cloud.structured[flag]=false;console.warn(`Dedicated ${flag} storage is not ready`,err);if(!silent)showAlert(`Dedicated ${escapeHtml(flag)} storage is unavailable: ${escapeHtml(err.message||String(err))}`,'warning');}})()));
     if(isOwnerAccount()&&(!requested||requested.has('finance')))jobs.push((async()=>{try{const finance=await window.NBLCloud.getFinanceData(orgId);state.cloud.structured.finance=true;if(finance.recordCount){state.payroll={version:2,profiles:{},periods:{},dhMappings:{},...cloneJson(finance.payroll||{})};state.payrollLoaded=true;const ss=cloneJson(finance.settlement||{});state.catalog=normalizeCloudSettlementCatalog(ss);state.currentStatementId=ss.currentStatementId||state.catalog[0]?.id||null;state.settlement.analysisStatementId=ss.analysisStatementId||state.catalog[0]?.id||null;}else{await Promise.all([window.NBLCloud.saveDriverPayData(orgId,cloneJson(state.payroll)),window.NBLCloud.saveSettlementData(orgId,settlementSnapshot())]);}cloudStructuredLoaded.add('finance');loaded=true;}catch(err){state.cloud.structured.finance=false;console.warn('Dedicated finance storage is not ready',err);if(!silent)showAlert(`Dedicated Finance storage is unavailable: ${escapeHtml(err.message||String(err))}`,'warning');}})());
     await Promise.all(jobs);
     syncSharedDriverRoster();populateDateSelectors();const target=state.currentStatementId&&state.catalog.find(x=>x.id===state.currentStatementId)?state.currentStatementId:state.catalog[0]?.id;if(target)selectStatement(target,false);
@@ -624,7 +627,7 @@
       let done=0;
       for(const key of CLOUD_MODULES){
         cloudSetProgress(`Uploading ${escapeHtml(CLOUD_MODULE_LABELS[key])}… (${done+1}/${CLOUD_MODULES.length})`);
-        const ok=await saveCloudModule(key,true,key==='settlement'?{full:true}:{}); if(!ok) throw new Error(`Cloud upload failed for ${CLOUD_MODULE_LABELS[key]}.`); done++;
+        const ok=await saveCloudModule(key,true,['settlement','hr'].includes(key)?{full:true}:{}); if(!ok) throw new Error(`Cloud upload failed for ${CLOUD_MODULE_LABELS[key]}.`); done++;
       }
       cloudSetProgress(`<strong>Migration complete.</strong> ${done} NBL modules were uploaded. Full SSNs were not uploaded.`,'success');
       showAlert(`NBL Cloud migration complete. <strong>${done}</strong> modules uploaded from ${escapeHtml(state.directoryHandle.name)}. Your local data folder was not changed.`,'success');
@@ -2718,9 +2721,11 @@
     ensureRecruitmentLayout(data);
     state.hr=data; state.hrLoaded=true; if(state.dispatchLoaded)syncSharedDriverRoster(); renderHr(); renderDispatch(); renderDailyDispatch();
   }
-  async function saveHrData(silent=true){
+  async function saveHrData(silent=true,options={}){
     const rosterChanged=state.dispatchLoaded?syncSharedDriverRoster():false;
-    const cloudSaved=cloudConnected()?await saveCloudModule('hr',true):false;
+    const cloudSaved=cloudConnected()?await saveCloudModule('hr',true,options):false;
+    // A local folder cannot stand in for a failed cloud save in an online session.
+    if(cloudConnected()&&!cloudSaved)return false;
     if(rosterChanged&&canAccessModuleKey('dispatch',true)) await saveDispatchData(true);
     if(!state.directoryHandle){ if(!silent&&cloudSaved) showAlert('HR records saved to NBL Cloud. Full SSNs are excluded from cloud storage.','success'); return cloudSaved; }
     if(!(await requestPermission(state.directoryHandle,'readwrite'))){ if(!silent) showAlert('Folder write permission is required to save HR records.','error'); return false; }
@@ -3168,7 +3173,7 @@
   async function deleteRecruitmentDocument(kind){
     const candidate=(state.hr.candidates||[]).find(x=>x.id===$('recruitmentCandidateId')?.value),index=Math.max(0,Number(String(kind||'').replace('slot',''))-1),slots=recruitmentDocumentSlots(candidate),doc=slots[index];if(!candidate||!doc?.path)return;
     const label=doc.label||`Document ${index+1}`;if(!confirm(`Delete the uploaded ${label} for ${candidate.name}?`))return;
-    try{await window.NBLCloud.deleteRecruitmentDocument(doc.path);slots[index]={};candidate.documents=Object.fromEntries(slots.map((item,i)=>[`slot${i+1}`,item]).filter(([,item])=>item?.path||item?.label));candidate.updatedAt=new Date().toISOString();await saveHrData(true);updateRecruitmentDocumentUi(candidate);showAlert(`${escapeHtml(label)} document deleted.`,'success');}
+    try{await window.NBLCloud.deleteRecruitmentDocument(doc.path);slots[index]={};candidate.documents=Object.fromEntries(slots.map((item,i)=>[`slot${i+1}`,item]).filter(([,item])=>item?.path||item?.label));candidate.updatedAt=new Date().toISOString();if(!(await saveHrData(true,{candidateIds:[candidate.id]})))throw new Error('Updated document information could not be saved.');updateRecruitmentDocumentUi(candidate);showAlert(`${escapeHtml(label)} document deleted.`,'success');}
     catch(err){showAlert(`Could not delete the document: ${escapeHtml(err.message||String(err))}`,'error');}
   }
   async function parseRecruitmentApplicationPdf(file){
@@ -3199,7 +3204,7 @@
         const changed=[];
         Object.entries(updates).forEach(([key,value])=>{ if(String(existing[key]??'')!==String(value??'')) changed.push(key); });
         Object.assign(existing,updates,{sourceApplicationName:file.name,sourceApplicationUpdatedAt:new Date().toISOString(),updatedAt:new Date().toISOString()});
-        await saveHrData(true);
+        if(!(await saveHrData(true,{candidateIds:[existing.id]})))throw new Error('The imported candidate changes could not be saved. Please retry.');
         renderHr();
         // Rehydrate the open profile from the saved record so protected SSN state and
         // every updated field reflect exactly what was persisted.
@@ -3397,13 +3402,13 @@
     if(record.ssnFull) record.ssnLast4=record.ssnFull.slice(-4);
     if(!record.name){ showAlert('Candidate name is required.','warning'); return; }
     if(existing) Object.assign(existing,record); else state.hr.candidates.push(record);
-    const saved=await saveHrData(true);
+    const saved=await saveHrData(true,{candidateIds:[record.id]});
     if(!saved){ renderHr(); $('hiringSummarySaveStatus').textContent='Not saved. Connect to NBL Cloud or select a writable data folder, then try again.';showAlert('The candidate changes have not been saved. Connect to NBL Cloud or select a writable data folder, then try again.','error');return; }
     const uploads=Array.from({length:5},(_,index)=>{const number=index+1;return [`slot${number}`,$(`recruitmentDocument${number}Input`)?.files?.[0],number];}).filter(([,file])=>file);
     if(uploads.length){
       if(!cloudConnected()){setRecruitmentDocumentUploadStatus('Candidate saved, but documents require an NBL Cloud connection.','error');renderHr();return;}
       setRecruitmentDocumentUploadStatus(`Uploading ${uploads.length} document${uploads.length===1?'':'s'}…`,'working');
-      try{for(const [kind,file,number] of uploads){const previous=record.documents?.[kind]?.path||'',label=String($(`recruitmentDocument${number}Label`)?.value||'').trim()||file.name,expiry=$(`recruitmentDocument${number}Expiry`)?.value||'',meta=await window.NBLCloud.uploadRecruitmentDocument(state.cloud.organization.id,record.id,kind,file);record.documents[kind]={...meta,label,expiry};if(previous&&previous!==meta.path)await window.NBLCloud.deleteRecruitmentDocument(previous);}record.updatedAt=new Date().toISOString();await saveHrData(true);}
+      try{for(const [kind,file,number] of uploads){const previous=record.documents?.[kind]?.path||'',label=String($(`recruitmentDocument${number}Label`)?.value||'').trim()||file.name,expiry=$(`recruitmentDocument${number}Expiry`)?.value||'',meta=await window.NBLCloud.uploadRecruitmentDocument(state.cloud.organization.id,record.id,kind,file);record.documents[kind]={...meta,label,expiry};if(previous&&previous!==meta.path)await window.NBLCloud.deleteRecruitmentDocument(previous);}record.updatedAt=new Date().toISOString();if(!(await saveHrData(true,{candidateIds:[record.id]})))throw new Error('Uploaded document information could not be saved.');}
       catch(err){updateRecruitmentDocumentUi(record);setRecruitmentDocumentUploadStatus(`Candidate saved, but a document could not be uploaded: ${err.message||String(err)}`,'error');renderHr();return;}
     }
     $('recruitmentCandidateId').value=record.id;
@@ -3496,7 +3501,7 @@
     if(btn){ btn.disabled=true; btn.textContent='Saving…'; }
     try{
       c.roadTestForm={...formData,updatedAt:new Date().toISOString()};
-      await saveHrData(true);
+      if(!(await saveHrData(true,{candidateIds:[c.id]})))throw new Error('Road test changes could not be saved. Please retry.');
       if($('roadTestExportPromptCandidateName')) $('roadTestExportPromptCandidateName').textContent=c.name||'Candidate';
       openModal('roadTestExportPromptModal');
     }catch(err){ console.error(err); showAlert('Could not save the road test: '+escapeHtml(err.message),'error'); }
@@ -3543,8 +3548,20 @@
   async function deleteRecruitmentCandidate(id){
     const c=(state.hr.candidates||[]).find(x=>x.id===id); if(!c)return;
     if(!confirm(`Delete recruitment record for "${c.name}"?`)) return;
-    if(cloudConnected()&&window.NBLCloud?.deleteRecruitmentDocument){for(const doc of Object.values(c.documents||{})){if(doc?.path)try{await window.NBLCloud.deleteRecruitmentDocument(doc.path);}catch(err){console.warn('Could not remove candidate document',err);}}}
-    state.hr.candidates=(state.hr.candidates||[]).filter(x=>x.id!==id); await saveHrData(true); renderHr(); setScreen('hr'); showAlert(`Recruitment record for <strong>${escapeHtml(c.name)}</strong> deleted.`,'success');
+    try{
+      if(cloudConnected()){
+        if(!state.cloud.structured?.recruitment||!window.NBLCloud?.deleteRecruitmentCandidate)throw new Error('Recruitment cloud storage is not ready. Refresh before deleting.');
+        await window.NBLCloud.deleteRecruitmentCandidate(state.cloud.organization.id,id);
+        state.hr.candidates=(state.hr.candidates||[]).filter(x=>x.id!==id);
+        if(state.directoryHandle && !(await saveHrData(true)))showAlert('Candidate deleted from NBL Cloud, but the local backup could not be updated.','warning');
+      }else{
+        const previous=state.hr.candidates;
+        state.hr.candidates=previous.filter(x=>x.id!==id);
+        if(!(await saveHrData(true))){state.hr.candidates=previous;throw new Error('Candidate could not be deleted from the saved data.');}
+      }
+      if(cloudConnected()&&window.NBLCloud?.deleteRecruitmentDocument){for(const doc of Object.values(c.documents||{})){if(doc?.path)try{await window.NBLCloud.deleteRecruitmentDocument(doc.path);}catch(err){console.warn('Could not remove candidate document',err);}}}
+      renderHr();setScreen('hr');showAlert(`Recruitment record for <strong>${escapeHtml(c.name)}</strong> deleted.`,'success');
+    }catch(err){showAlert('Could not delete the candidate: '+escapeHtml(err.message||String(err)),'error');}
   }
 
 

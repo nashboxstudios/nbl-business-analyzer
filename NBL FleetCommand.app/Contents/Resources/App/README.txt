@@ -1,3 +1,17 @@
+NBL FleetCommand — Version 128
+
+Version 128 - Recruitment Candidate Save Protection
+
+- Saves only the edited candidate, leaving other candidates in the cloud untouched.
+- Column layout changes save settings only. Explicit migration/import remains additive and does not delete absent records.
+- Deletes a candidate only through the confirmed Delete action and verifies the database returned that one deleted record.
+- Adds a restrictive database DELETE policy that blocks older tabs from deleting candidates absent from their loaded list. Existing organization and role access remains in force.
+- Reports cloud-save failures rather than treating a successful local-folder write as cloud success. PDF-import and Road Test saves now check the save result.
+- Retains v127 PDF-import fix, v126 collapsible sections, and hiring report changes.
+- The v128 database policy has been applied to the current Nashbox Logistics cloud project. SUPABASE_v128_RECRUITMENT_SAVE_PROTECTION.sql is included for other installations.
+- Deploy this package and refresh all open FleetCommand tabs to use the new candidate-level save behavior.
+- This update does not recover records that are already missing. No candidate data is bundled in the release.
+
 NBL FleetCommand — Version 127
 
 Version 127 - First Advantage PDF Import Fix
