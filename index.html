@@ -6,7 +6,7 @@
   <title>NBL FleetCommand</title>
   <meta name="theme-color" content="#35164E" />
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=125" />
+  <link rel="stylesheet" href="styles.css?v=126" />
 </head>
 <body>
 
@@ -32,7 +32,7 @@
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
         <div class="app-name">NBL FleetCommand</div>
         <div class="app-tagline">Operations Intelligence</div>
-        <div class="app-version">Version 125</div>
+        <div class="app-version">Version 126</div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-standalone nav-main-modules">
@@ -1089,9 +1089,9 @@
   <div class="modal-backdrop hidden" id="recruitmentCandidateModal">
     <div class="modal-card extra-wide">
       <div class="modal-heading"><div><span class="eyebrow">HR Recruitment</span><h2 id="recruitmentCandidateModalTitle">Add Candidate</h2></div><button class="icon-btn" data-close-modal="recruitmentCandidateModal">×</button></div>
-      <div class="hiring-summary-shortcut"><div><strong>Hiring Summary</strong><p>Add hiring notes and create a PDF for your hiring manager.</p></div><button type="button" id="openHiringSummarySectionBtn" class="button secondary">Open Hiring Summary</button></div>
       <form id="recruitmentCandidateForm">
         <input type="hidden" id="recruitmentCandidateId">
+        <details id="recruitmentApplicationSection" class="hr-candidate-section" data-default-open="false"><summary>Application Import</summary><div class="hr-candidate-section-content">
         <div class="hr-application-upload" id="recruitmentApplicationUploadPanel">
           <div class="hr-application-upload-copy">
             <strong id="recruitmentApplicationUploadTitle">Import Candidate Application</strong>
@@ -1101,13 +1101,16 @@
           <input id="recruitmentApplicationPdfInput" class="hr-hidden-file-input" type="file" accept="application/pdf,.pdf">
           <div class="hr-application-parse-status" id="recruitmentApplicationParseStatus">No application selected.</div>
         </div>
+        </div></details>
+        <details id="recruitmentContactSection" class="hr-candidate-section" data-default-open="true" open><summary>Candidate Details</summary><div class="hr-candidate-section-content">
         <div class="form-grid three">
           <div class="form-field"><label>Name</label><input id="recruitmentNameInput" type="text" required placeholder="Candidate name"></div>
           <div class="form-field"><label>Email</label><input id="recruitmentEmailInput" type="email" placeholder="name@example.com"></div>
           <div class="form-field"><label>Phone</label><input id="recruitmentPhoneInput" type="tel" placeholder="Phone number"></div>
         </div>
         <div class="form-field"><label>Latest Address</label><input id="recruitmentAddressInput" type="text" autocomplete="street-address" placeholder="Street address, city, state and ZIP code"></div>
-        <div class="hr-profile-fields-heading"><strong>Driver Profile Details</strong><span>These fields are stored in the candidate profile and do not appear as Recruitment table columns.</span></div>
+        </div></details>
+        <details id="recruitmentProfileSection" class="hr-candidate-section" data-default-open="false"><summary>Driver Profile Details</summary><div class="hr-candidate-section-content">
         <div class="form-grid three">
           <div class="form-field"><label>Date of Birth</label><input id="recruitmentDobInput" type="date"></div>
           <div class="form-field"><label>CDL Number</label><input id="recruitmentCdlNumberInput" type="text" placeholder="Commercial driver's license number"></div>
@@ -1127,14 +1130,14 @@
           <div class="form-field"><label>Type</label><select id="recruitmentTypeInput"><option value="Full Time">Full Time</option><option value="Part Time">Part Time</option></select></div>
           <div class="form-field"><label for="recruitmentDoublesInput">Doubles</label><select id="recruitmentDoublesInput" required><option value="" disabled>Select doubles status</option><option value="Yes With Experience">Yes With Experience</option><option value="Yes No Experience">Yes No Experience</option><option value="No">No</option></select><div id="recruitmentDoublesHelp" class="hr-field-help"></div></div>
         </div>
+        </div></details>
+        <details id="recruitmentHiringStatusSection" class="hr-candidate-section" data-default-open="false"><summary>Hiring Status</summary><div class="hr-candidate-section-content">
         <div class="form-grid three">
           <div class="form-field"><label>Screening Interview</label><input id="recruitmentScreeningInterviewInput" type="date"></div>
           <div class="form-field"><label>FADV Status</label><select id="recruitmentFadvStatusInput"><option value="In Progress">In Progress</option><option value="Complete">Complete</option><option value="Stuck">Stuck</option></select></div>
           <div class="form-field"><label>Ops Interview</label><input id="recruitmentOpsInterviewInput" type="date"></div>
         </div>
         <div class="form-field"><label>Notes</label><textarea id="recruitmentNotesInput" placeholder="Add recruitment notes, follow-up details, concerns, or other information"></textarea></div>
-        <div class="hr-form-divider" aria-hidden="true"></div>
-        <div class="hr-profile-fields-heading"><strong>Hiring Status</strong><span>Hiring screening milestones.</span></div>
         <div class="form-note hr-days-note">Days in Process is calculated automatically from Date Added. It stops when a driver is marked Hired, Rejected, or Terminated.</div>
         <div class="form-grid three">
           <div class="form-field"><label>Drug Test</label><select id="recruitmentDrugTestInput"><option value="Not Taken">Not Taken</option><option value="Taken">Taken</option><option value="Pass">Pass</option><option value="Fail">Fail</option></select></div>
@@ -1145,11 +1148,10 @@
           <div class="form-field"><label>Recruitment Status</label><select id="recruitmentStatusInput"><option value="In Progress">In Progress</option><option value="Hired">Hired</option><option value="Rejected">Rejected</option><option value="Terminated">Terminated</option></select></div>
           <div class="form-field"><label>Start Date</label><input id="recruitmentStartDateInput" type="date"></div>
         </div>
-        <div class="hr-form-divider" aria-hidden="true"></div>
 
-        <section id="hiringSummarySection" class="hiring-summary-editor">
-          <div class="hr-profile-fields-heading"><strong>Hiring Summary</strong><span>Prepare a report to share with the hiring manager. Existing profile and hiring-status fields are included automatically.</span></div>
-          <div class="form-field"><label for="hiringSummaryNotesInput">Hiring Summary Notes</label><textarea id="hiringSummaryNotesInput" maxlength="12000" placeholder="Relevant strengths, gaps, concerns and next steps"></textarea></div>
+        </div></details>
+        <details id="hiringSummarySection" class="hr-candidate-section" data-default-open="false"><summary>Hiring Summary</summary><div class="hr-candidate-section-content">
+            <div class="form-field"><label for="hiringSummaryNotesInput">Hiring Summary Notes</label><textarea id="hiringSummaryNotesInput" maxlength="12000" placeholder="Relevant strengths, gaps, concerns and next steps"></textarea></div>
           <div class="form-grid two">
             <div class="form-field"><label for="hiringSummaryPayRateInput">Proposed Pay Rate (USD)</label><input id="hiringSummaryPayRateInput" type="number" min="0" step="0.01" placeholder="e.g. 240"></div>
             <div class="form-field"><label for="hiringSummaryPayBasisInput">Pay Basis</label><select id="hiringSummaryPayBasisInput"><option value="">Not provided</option><option>Per day</option><option>Per mile</option><option>Per hour</option><option>Per week</option></select></div>
@@ -1163,9 +1165,8 @@
           <p class="hr-field-help">Preview and PDF use your current entries. Save Summary retains them with the candidate profile. SSN, date of birth, CDL number, home address and identity documents are excluded from the report.</p>
           <div class="hiring-summary-actions"><button type="submit" id="hiringSummarySaveBtn" class="button primary">Save Summary</button><button type="button" id="hiringSummaryPreviewBtn" class="button secondary">Preview</button><button type="button" id="hiringSummaryDownloadBtn" class="button secondary">Download PDF</button></div>
           <p id="hiringSummarySaveStatus" class="hr-field-help" role="status"></p>
-        </section>
-        <section id="recruitmentOnboardingTasksSection">
-        <div class="hr-profile-fields-heading"><strong>Onboarding Tasks</strong><span>Track whether each setup item has been sent or completed.</span></div>
+        </div></details>
+        <details id="recruitmentOnboardingTasksSection" class="hr-candidate-section" data-default-open="false"><summary>Onboarding Tasks</summary><div class="hr-candidate-section-content">
         <div class="form-grid three">
           <div class="form-field"><label>Safety Forward</label><select id="recruitmentSafetyForwardInput"><option value="Not Sent">Not Sent</option><option value="Sent">Sent</option></select></div>
           <div class="form-field"><label>ConnectTeams</label><select id="recruitmentConnectTeamsInput"><option value="Not Sent">Not Sent</option><option value="Sent">Sent</option></select></div>
@@ -1173,9 +1174,8 @@
           <div class="form-field"><label>Motive</label><select id="recruitmentMotiveInput"><option value="Not Sent">Not Sent</option><option value="Sent">Sent</option></select></div>
           <div class="form-field"><label>Employee Handbook</label><select id="recruitmentEmployeeHandbookInput"><option value="Not Sent">Not Sent</option><option value="Sent">Sent</option><option value="Signed">Signed</option></select></div>
         </div>
-        <div class="hr-form-divider" aria-hidden="true"></div>
-        </section>
-        <div class="hr-profile-fields-heading"><strong>Driver Documents</strong><span>Up to five private files. Add a document name such as CDL or Med Card. PDF, JPEG, PNG, HEIC, DOC or DOCX; maximum 10 MB each.</span></div>
+        </div></details>
+        <details id="recruitmentDocumentsSection" class="hr-candidate-section" data-default-open="false"><summary>Driver Documents</summary><div class="hr-candidate-section-content">
         <div class="form-grid two hr-document-grid">
           <div class="hr-document-card" data-recruitment-document-slot="1"><div><strong>Document 1</strong><span id="recruitmentDocument1Status">No document uploaded.</span></div><div class="form-grid two"><div class="form-field"><label>Document Name</label><input id="recruitmentDocument1Label" type="text" placeholder="e.g. CDL"></div><div class="form-field"><label>Expiration Date <span class="optional-label">Optional</span></label><input id="recruitmentDocument1Expiry" type="date"></div></div><label class="button secondary hr-document-upload" for="recruitmentDocument1Input">Choose File</label><input id="recruitmentDocument1Input" class="hr-hidden-file-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.doc,.docx,application/pdf,image/jpeg,image/png,image/heic,image/heif,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"><div class="hr-document-actions"><button type="button" class="table-action hidden" data-view-recruitment-document="slot1">View</button><button type="button" class="table-action danger-link hidden" data-delete-recruitment-document="slot1">Delete</button></div></div>
           <div class="hr-document-card" data-recruitment-document-slot="2"><div><strong>Document 2</strong><span id="recruitmentDocument2Status">No document uploaded.</span></div><div class="form-grid two"><div class="form-field"><label>Document Name</label><input id="recruitmentDocument2Label" type="text" placeholder="e.g. Med Card"></div><div class="form-field"><label>Expiration Date <span class="optional-label">Optional</span></label><input id="recruitmentDocument2Expiry" type="date"></div></div><label class="button secondary hr-document-upload" for="recruitmentDocument2Input">Choose File</label><input id="recruitmentDocument2Input" class="hr-hidden-file-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.doc,.docx,application/pdf,image/jpeg,image/png,image/heic,image/heif,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"><div class="hr-document-actions"><button type="button" class="table-action hidden" data-view-recruitment-document="slot2">View</button><button type="button" class="table-action danger-link hidden" data-delete-recruitment-document="slot2">Delete</button></div></div>
@@ -1185,6 +1185,7 @@
         </div>
         <div class="hr-document-card hr-ssn-verification-card"><div><strong>Social Security</strong><span>Card images are not stored in FleetCommand.</span></div><div class="form-field"><label>SSN Verified</label><select id="recruitmentSsnVerifiedInput"><option value="No">No</option><option value="Yes">Yes</option></select></div><div class="hr-field-help">Use ADP for the complete SSN. FleetCommand retains only verification status and the masked last four digits.</div></div>
         <div class="hr-document-upload-status hidden" id="recruitmentDocumentUploadStatus"></div>
+        </div></details>
         <div class="modal-actions"><button type="button" class="button secondary" data-close-modal="recruitmentCandidateModal">Cancel</button><button type="submit" class="button primary">Save Candidate</button></div>
       </form>
     </div>
@@ -1604,6 +1605,6 @@
 
   <script src="core.js?v=117"></script>
   <script src="cloud.js?v=117"></script>
-  <script src="app.js?v=125"></script>
+  <script src="app.js?v=126"></script>
 </body>
 </html>

@@ -704,9 +704,6 @@ body .sidebar{position:fixed;top:0;bottom:0;left:0;z-index:1002;width:min(86vw,3
 .safety-chart-note{margin:6px 0 0;color:#887b8f;font-size:11px}
 
 /* Candidate hiring summary */
-.hiring-summary-shortcut{display:flex;align-items:center;justify-content:space-between;gap:14px;background:#f5f1f8;border:1px solid #e2d8e9;border-radius:9px;padding:12px 14px;margin-bottom:20px}
-.hiring-summary-shortcut strong{color:#35164e;font-size:14px}.hiring-summary-shortcut p{margin:4px 0 0;color:#657285;font-size:12px}.hiring-summary-shortcut .button{flex-shrink:0}
-@media(max-width:600px){.hiring-summary-shortcut{align-items:stretch;flex-direction:column}}
 .hiring-summary-editor{border-top:1px solid #e0e7ed;margin:20px 0;padding-top:18px;scroll-margin-top:16px}
 .hiring-summary-actions{display:flex;gap:9px;flex-wrap:wrap}
 #hiringSummaryPreviewModal{z-index:65}
@@ -726,3 +723,15 @@ body .sidebar{position:fixed;top:0;bottom:0;left:0;z-index:1002;width:min(86vw,3
 .hiring-report dt{color:#526478}.hiring-report dd{margin:0;white-space:pre-wrap}
 .hiring-report dd.complete{color:#216743}.hiring-report dd.issue{color:#a12e2e}.hiring-report dd.pending{color:#8a5d12}
 @media(max-width:600px){.hiring-report{padding:0}.hiring-report header{gap:12px}.hiring-report header img{width:48px;height:48px}.hiring-report header h2{font-size:21px}.hiring-report dl>div{grid-template-columns:1fr;gap:3px}.hiring-summary-editor .form-grid.two{grid-template-columns:1fr}.hiring-summary-actions .button{flex:1 1 120px}}
+
+/* Collapsible candidate profile sections */
+#recruitmentCandidateForm .hr-candidate-section{border:1px solid #e0d7e7;border-radius:9px;margin:0 0 12px;background:#fff;scroll-margin-top:12px}
+#recruitmentCandidateForm .hr-candidate-section>summary{font-size:18px;font-weight:750;line-height:1.35;color:#35164e;background:#f5f1f8;padding:13px 16px;cursor:pointer;border-radius:8px}
+#recruitmentCandidateForm .hr-candidate-section>summary:focus-visible{outline:2px solid #9361b3;outline-offset:2px}
+#recruitmentCandidateForm .hr-candidate-section[open]>summary{border-bottom:1px solid #e0d7e7;border-radius:8px 8px 0 0}
+#recruitmentCandidateForm .hr-candidate-section-content{padding:16px}
+.hiring-report dd.doubles-status{padding:2px 8px;border-radius:4px}
+.hiring-report dd.doubles-status.complete{background:#e3f2e8;color:#216743}
+.hiring-report dd.doubles-status.pending{background:#fff3cd;color:#8a5d12}
+.hiring-report dd.doubles-status.issue{background:#fce8e6;color:#a12e2e}
+@media(max-width:600px){#recruitmentCandidateForm .hr-candidate-section>summary{font-size:17px;padding:12px}#recruitmentCandidateForm .hr-candidate-section-content{padding:12px}}
