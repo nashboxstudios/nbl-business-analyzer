@@ -235,6 +235,26 @@
     return {savedAt:now,count:normalized.length};
   }
 
+  async function upsertRecordRows(table,organizationId,records){
+    const session=await getSession(),userId=session?.user?.id||null,now=new Date().toISOString();
+    const rows=(records||[]).map(row=>({organization_id:organizationId,record_type:String(row.recordType||''),record_key:String(row.recordKey||''),payload:row.payload&&typeof row.payload==='object'?row.payload:{},updated_at:now,updated_by:userId})).filter(row=>row.record_type&&row.record_key);
+    // Keep each request modest. Settlement payloads contain detailed trip data,
+    // so one unbounded request becomes slower and less reliable as history grows.
+    let batch=[],batchBytes=0;
+    const flush=async()=>{
+      if(!batch.length)return;
+      await authFetch(`/rest/v1/${table}?on_conflict=organization_id,record_type,record_key`,{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(batch)});
+      batch=[];batchBytes=0;
+    };
+    for(const row of rows){
+      const bytes=JSON.stringify(row).length;
+      if(batch.length&&(batch.length>=5||batchBytes+bytes>500000))await flush();
+      batch.push(row);batchBytes+=bytes;
+    }
+    await flush();
+    return {savedAt:now,count:rows.length};
+  }
+
   function rowsByType(rows,type){return (rows||[]).filter(row=>row.record_type===type).map(row=>row.payload||{});}
   function keyedRows(rows,type){const out={};for(const row of rows||[])if(row.record_type===type)out[row.record_key]=row.payload||{};return out;}
   function oneRow(rows,type){return (rows||[]).find(row=>row.record_type===type)?.payload||{};}
@@ -248,7 +268,27 @@
 
   async function getFinanceData(organizationId){const rows=await getRecordDomain('nbl_fc_finance_records',organizationId);const payrollSettings=oneRow(rows,'driver_pay_settings'),settlementSettings=oneRow(rows,'settlement_settings');return {payroll:{version:2,...payrollSettings,profiles:keyedRows(rows,'payroll_profile'),periods:keyedRows(rows,'payroll_period')},settlement:{...settlementSettings,catalog:rowsByType(rows,'settlement_statement')},recordCount:rows.length};}
   async function saveDriverPayData(organizationId,data){const records=[{recordType:'driver_pay_settings',recordKey:'main',payload:{version:2,dhMappings:data?.dhMappings||{}}},...Object.entries(data?.profiles||{}).map(([key,payload])=>({recordType:'payroll_profile',recordKey:key,payload})),...Object.entries(data?.periods||{}).map(([key,payload])=>({recordType:'payroll_period',recordKey:key,payload}))];return replaceRecordDomain('nbl_fc_finance_records',organizationId,records,['driver_pay_settings','payroll_profile','payroll_period']);}
-  async function saveSettlementData(organizationId,data){const records=[{recordType:'settlement_settings',recordKey:'main',payload:{version:data?.version||92,currentStatementId:data?.currentStatementId||null,analysisStatementId:data?.analysisStatementId||null,updatedAt:data?.updatedAt||null}},...(data?.catalog||[]).map((x,i)=>({recordType:'settlement_statement',recordKey:String(x.id||x.relativePath||x.fingerprint||`statement_${i}`),payload:x}))];return replaceRecordDomain('nbl_fc_finance_records',organizationId,records,['settlement_settings','settlement_statement']);}
+  function settlementSettings(data){return {version:data?.version||92,currentStatementId:data?.currentStatementId||null,analysisStatementId:data?.analysisStatementId||null,updatedAt:data?.updatedAt||new Date().toISOString()};}
+  function settlementRecord(x,i=0){return {recordType:'settlement_statement',recordKey:String(x?.id||x?.relativePath||x?.fingerprint||`statement_${i}`),payload:x||{}};}
+  async function saveSettlementChanges(organizationId,data){
+    const records=[{recordType:'settlement_settings',recordKey:'main',payload:settlementSettings(data)},...(data?.statements||[]).map(settlementRecord)];
+    const result=await upsertRecordRows('nbl_fc_finance_records',organizationId,records);
+    const deleteKeys=[...new Set((data?.deleteKeys||[]).map(String).filter(Boolean))];
+    if(deleteKeys.length){
+      const qs=new URLSearchParams({organization_id:`eq.${organizationId}`,record_type:'eq.settlement_statement',record_key:`in.(${postgrestQuotedList(deleteKeys)})`});
+      await authFetch(`/rest/v1/nbl_fc_finance_records?${qs}`,{method:'DELETE',headers:{Prefer:'return=minimal'}});
+    }
+    return {...result,deleted:deleteKeys.length};
+  }
+  async function saveSettlementData(organizationId,data){
+    const catalog=data?.catalog||[];
+    const result=await saveSettlementChanges(organizationId,{...settlementSettings(data),statements:catalog});
+    const keep=catalog.map((x,i)=>settlementRecord(x,i).recordKey);
+    const qs=new URLSearchParams({organization_id:`eq.${organizationId}`,record_type:'eq.settlement_statement'});
+    if(keep.length)qs.set('record_key',`not.in.(${postgrestQuotedList(keep)})`);
+    await authFetch(`/rest/v1/nbl_fc_finance_records?${qs}`,{method:'DELETE',headers:{Prefer:'return=minimal'}});
+    return result;
+  }
 
   async function getAuditData(organizationId){const rows=await getRecordDomain('nbl_fc_audit_records',organizationId);return {version:1,...oneRow(rows,'settings'),audits:rowsByType(rows,'audit'),findings:rowsByType(rows,'finding'),recordCount:rows.length};}
   async function saveAuditData(organizationId,data){const records=[{recordType:'settings',recordKey:'main',payload:{version:1,activeTab:data?.activeTab||'dashboard',selectedAuditId:data?.selectedAuditId||''}},...(data?.audits||[]).map((x,i)=>({recordType:'audit',recordKey:String(x.id||`audit_${i}`),payload:x})),...(data?.findings||[]).map((x,i)=>({recordType:'finding',recordKey:String(x.id||`finding_${i}`),payload:x}))];return replaceRecordDomain('nbl_fc_audit_records',organizationId,records,['settings','audit','finding']);}
@@ -292,6 +332,6 @@
   window.NBLCloud={
     url:SUPABASE_URL,
     publishableKey:SUPABASE_PUBLISHABLE_KEY,
-    signIn,signOut,getSession,getMembership,getProfile,saveProfile,updatePassword,getSnapshots,saveSnapshot,getSafetyData,saveSafetyData,getDailyDispatchBoards,saveDailyDispatchBoard,getMaintenanceData,saveMaintenanceData,saveMaintenanceFaults,getRecruitmentData,saveRecruitmentData,getFinanceData,saveDriverPayData,saveSettlementData,getAuditData,saveAuditData,getMeetingData,saveMeetingData,uploadRecruitmentDocument,getRecruitmentDocumentUrl,deleteRecruitmentDocument,clearSession
+    signIn,signOut,getSession,getMembership,getProfile,saveProfile,updatePassword,getSnapshots,saveSnapshot,getSafetyData,saveSafetyData,getDailyDispatchBoards,saveDailyDispatchBoard,getMaintenanceData,saveMaintenanceData,saveMaintenanceFaults,getRecruitmentData,saveRecruitmentData,getFinanceData,saveDriverPayData,saveSettlementData,saveSettlementChanges,getAuditData,saveAuditData,getMeetingData,saveMeetingData,uploadRecruitmentDocument,getRecruitmentDocumentUrl,deleteRecruitmentDocument,clearSession
   };
 })();

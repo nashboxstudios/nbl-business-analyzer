@@ -235,6 +235,13 @@
       updatedAt:new Date().toISOString()
     };
   }
+  function settlementCloudItem(item){
+    if(!item)return null;
+    return {id:item.id,relativePath:item.relativePath||item.id,fileName:item.fileName||'',settlementDate:item.settlementDate||'',payDate:item.payDate||'',fingerprint:item.fingerprint||settlementFingerprint(item.result),result:cloneJson(item.result||{})};
+  }
+  function settlementCloudSettings(){
+    return {version:92,currentStatementId:state.currentStatementId||null,analysisStatementId:state.settlement?.analysisStatementId||null,updatedAt:new Date().toISOString()};
+  }
   function dashboardMileageSnapshot(){
     const mileage=[];
     for(const item of state.catalog||[]){
@@ -362,7 +369,7 @@
     applyAccessVisibility();
     renderCloudModules();
   }
-  async function saveCloudModule(moduleKey,silent=true){
+  async function saveCloudModule(moduleKey,silent=true,options={}){
     if(!cloudConnected()||!window.NBLCloud||!state.cloud?.organization?.id) return false;
     try{
       const orgId=state.cloud.organization.id,structured=state.cloud.structured||{};
@@ -370,7 +377,12 @@
       if(moduleKey==='hr'&&structured.recruitment){await window.NBLCloud.saveRecruitmentData(orgId,sanitizedHrForCloud());state.cloud.lastSync=new Date().toISOString();updateCloudUI();return true;}
       if(moduleKey==='driver_pay'&&structured.finance){await window.NBLCloud.saveDriverPayData(orgId,cloneJson(state.payroll));state.cloud.lastSync=new Date().toISOString();updateCloudUI();return true;}
       if(moduleKey==='settlement'&&structured.finance){
-        await window.NBLCloud.saveSettlementData(orgId,settlementSnapshot());
+        if(options.full){
+          await window.NBLCloud.saveSettlementData(orgId,settlementSnapshot());
+        }else{
+          const current=state.catalog.find(x=>x.id===state.currentStatementId)||state.catalog.find(x=>x.id===state.settlement?.analysisStatementId)||null;
+          await window.NBLCloud.saveSettlementChanges(orgId,{...settlementCloudSettings(),statements:current?[settlementCloudItem(current)]:[]});
+        }
         const dashboardData=dashboardMileageSnapshot(),dashboardRow=await window.NBLCloud.saveSnapshot(orgId,'dashboard',dashboardData,'109');
         state.cloud.snapshots.dashboard=dashboardRow||{module_key:'dashboard',data:dashboardData,source_version:'109',updated_at:new Date().toISOString()};state.dashboard.mileage=dashboardData.mileage;state.cloud.lastSync=new Date().toISOString();updateCloudUI();return true;
       }
@@ -394,6 +406,26 @@
       if(!silent) showAlert(`Could not save ${escapeHtml(CLOUD_MODULE_LABELS[moduleKey]||moduleKey)} to NBL Cloud: ${escapeHtml(err.message||String(err))}`,'error');
       return false;
     }
+  }
+  async function ensureFinanceCloudStorage(){
+    if(!cloudConnected())return;
+    if(state.cloud.structured?.finance&&cloudStructuredLoaded.has('finance'))return;
+    let job=cloudStructuredLoading.get('finance');
+    if(!job){
+      job=loadStructuredOperationalData(true,['finance']).finally(()=>cloudStructuredLoading.delete('finance'));
+      cloudStructuredLoading.set('finance',job);
+    }
+    await job;
+    if(!state.cloud.structured?.finance||!window.NBLCloud?.saveSettlementChanges)throw new Error('Settlement storage is not ready. Refresh FleetCommand and try again.');
+  }
+  async function saveSettlementUploadChanges(statements,deleteKeys=[]){
+    await ensureFinanceCloudStorage();
+    const orgId=state.cloud.organization.id;
+    await window.NBLCloud.saveSettlementChanges(orgId,{...settlementCloudSettings(),statements:(statements||[]).map(settlementCloudItem).filter(Boolean),deleteKeys});
+    const dashboardData=dashboardMileageSnapshot(),dashboardRow=await window.NBLCloud.saveSnapshot(orgId,'dashboard',dashboardData,'118');
+    state.cloud.snapshots.dashboard=dashboardRow||{module_key:'dashboard',data:dashboardData,source_version:'118',updated_at:new Date().toISOString()};
+    state.dashboard.mileage=dashboardData.mileage;state.cloud.lastSync=new Date().toISOString();updateCloudUI();
+    return true;
   }
   function hydrateCloudSnapshots(snapshots){
     const get=k=>snapshots?.[k]?.data;
@@ -592,7 +624,7 @@
       let done=0;
       for(const key of CLOUD_MODULES){
         cloudSetProgress(`Uploading ${escapeHtml(CLOUD_MODULE_LABELS[key])}… (${done+1}/${CLOUD_MODULES.length})`);
-        const ok=await saveCloudModule(key,true); if(!ok) throw new Error(`Cloud upload failed for ${CLOUD_MODULE_LABELS[key]}.`); done++;
+        const ok=await saveCloudModule(key,true,key==='settlement'?{full:true}:{}); if(!ok) throw new Error(`Cloud upload failed for ${CLOUD_MODULE_LABELS[key]}.`); done++;
       }
       cloudSetProgress(`<strong>Migration complete.</strong> ${done} NBL modules were uploaded. Full SSNs were not uploaded.`,'success');
       showAlert(`NBL Cloud migration complete. <strong>${done}</strong> modules uploaded from ${escapeHtml(state.directoryHandle.name)}. Your local data folder was not changed.`,'success');
@@ -1579,7 +1611,9 @@
       return;
     }
     const stats={added:0,replaced:0,duplicates:0,kept:0,errors:[]}; let working=[...(state.catalog||[])],preferredId='';
+    const changedStatements=[],deletedStatementKeys=[];
     try{
+      if(cloudConnected())await ensureFinanceCloudStorage();
       showAlert(`Processing <strong>${files.length}</strong> settlement file${files.length===1?'':'s'}…`,'success');
       let statementsDir=null;
       if(state.directoryHandle){
@@ -1596,31 +1630,37 @@
           const conflict=working.find(x=>x.settlementDate===upload.settlementDate);
           if(conflict&&!confirmSettlementReplacement(upload,conflict)){stats.kept++;continue;}
           const nextWorking=conflict?working.filter(x=>x.settlementDate!==upload.settlementDate):[...working];
+          let addedItem;
           if(statementsDir){
             const destName=`${upload.settlementDate}_settlement.csv`;
             await writeFile(statementsDir,destName,new Uint8Array(upload.ab),'text/csv');
             preferredId=`Statements/${destName}`;
-            nextWorking.push({id:preferredId,relativePath:preferredId,fileName:file.name,result:upload.result,settlementDate:upload.settlementDate,payDate:upload.payDate,fingerprint:upload.fingerprint,lastModified:Date.now()});
+            addedItem={id:preferredId,relativePath:preferredId,fileName:file.name,result:upload.result,settlementDate:upload.settlementDate,payDate:upload.payDate,fingerprint:upload.fingerprint,lastModified:Date.now()};
+            nextWorking.push(addedItem);
           }else{
             const id=`cloud/${upload.settlementDate}/settlement`;
-            const item={id,relativePath:id,fileName:file.name,file:null,result:upload.result,rawText:'',rawBytes:null,settlementDate:upload.settlementDate,payDate:upload.payDate,fingerprint:upload.fingerprint,lastModified:Date.now()};
-            nextWorking.push(item);preferredId=id;
+            addedItem={id,relativePath:id,fileName:file.name,file:null,result:upload.result,rawText:'',rawBytes:null,settlementDate:upload.settlementDate,payDate:upload.payDate,fingerprint:upload.fingerprint,lastModified:Date.now()};
+            nextWorking.push(addedItem);preferredId=id;
           }
+          changedStatements.push(addedItem);
+          const conflictKey=String(conflict?.id||conflict?.relativePath||'');
+          if(conflictKey&&conflictKey!==String(addedItem.id||addedItem.relativePath||''))deletedStatementKeys.push(conflictKey);
           working=nextWorking;if(conflict)stats.replaced++;else stats.added++;
         }catch(err){console.error('Settlement upload failed',file.name,err);stats.errors.push(`${file.name}: ${err.message||String(err)}`);}
       }
       if(state.directoryHandle&&(stats.added||stats.replaced)){
-        await scanFolder(preferredId,true);await saveToFolder(true);if(cloudConnected())await saveCloudModule('settlement',true);
+        await scanFolder(preferredId,true);await saveToFolder(true);
+        if(cloudConnected())await saveSettlementUploadChanges(changedStatements,deletedStatementKeys);
       }else if(!state.directoryHandle&&(stats.added||stats.replaced)){
         const deduped=dedupeSettlementCatalog(working);state.catalog=deduped.active;state.settlement.duplicates=deduped.duplicates;
         state.settlement.analysisStatementId=preferredId||state.catalog[0]?.id||null;populateDateSelectors();if(state.settlement.analysisStatementId)selectStatement(state.settlement.analysisStatementId,false);
-        const ok=await saveCloudModule('settlement',false);if(!ok)throw new Error('The settlements were analyzed but could not be saved to NBL Cloud.');
+        await saveSettlementUploadChanges(changedStatements,deletedStatementKeys);
       }
       const parts=[];
       if(stats.added)parts.push(`<strong>${stats.added}</strong> added`);if(stats.replaced)parts.push(`<strong>${stats.replaced}</strong> replaced`);if(stats.duplicates)parts.push(`<strong>${stats.duplicates}</strong> exact duplicate${stats.duplicates===1?'':'s'} skipped`);if(stats.kept)parts.push(`<strong>${stats.kept}</strong> existing statement${stats.kept===1?'':'s'} kept`);if(stats.errors.length)parts.push(`<strong>${stats.errors.length}</strong> error${stats.errors.length===1?'':'s'}`);
       const detail=stats.errors.length?`<br>${stats.errors.slice(0,3).map(escapeHtml).join('<br>')}${stats.errors.length>3?'<br>…':''}`:'';
       showAlert(`Settlement upload complete: ${parts.join(' • ')||'no changes'}.${detail}`,stats.errors.length?'warning':'success');
-    }catch(err){console.error(err);showAlert(err.message||'Could not upload the settlement files.','error');}
+    }catch(err){console.error(err);showAlert(`The settlements were analyzed but could not be saved to NBL Cloud: ${escapeHtml(err.message||String(err))}`,'error');}
   }
 
   function ratesChanged() {
