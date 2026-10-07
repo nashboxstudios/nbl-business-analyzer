@@ -184,7 +184,8 @@ tfoot td{background:#F7F2F9;border-top-color:#D9CBDF}
 /* v27: Nashville Dispatch Planner */
 .dispatch-toolbar{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:18px}
 .dispatch-toolbar h2{margin:4px 0 6px;color:var(--purple-dark);font-size:22px}.dispatch-toolbar p{margin:0;color:var(--muted);font-size:12px;line-height:1.5;max-width:820px}
-.dispatch-toolbar-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.dispatch-toolbar-actions{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.dispatch-action-group{display:flex;flex-direction:column;gap:5px}.dispatch-action-group>span{padding-left:2px;color:#88798f;font-size:8px;font-weight:900;letter-spacing:.07em;text-transform:uppercase}.dispatch-action-group>div{display:flex;gap:6px;padding:4px;border:1px solid #e5dce9;border-radius:10px;background:#faf8fb}.dispatch-action-group .button{min-height:34px;padding:8px 10px;font-size:9px;white-space:nowrap}.dispatch-reset-action{align-self:flex-end;margin:0 0 5px;padding:5px 3px;border:0;border-bottom:1px solid transparent;background:transparent;color:#887d8d;font:inherit;font-size:9px;font-weight:800;cursor:pointer}.dispatch-reset-action:hover{color:#a12e2e;border-bottom-color:#d8a4a4}
 .dispatch-potential{padding:9px 12px;border-radius:999px;background:#f7f1fa;border:1px solid #e4d8eb;color:var(--purple-dark);font-size:11px;font-weight:850;white-space:nowrap}
 .dispatch-summary-grid{grid-template-columns:repeat(auto-fit,minmax(145px,1fr))}.dispatch-summary-grid .danger strong{color:#a12e2e}.dispatch-summary-grid .success strong{color:var(--green)}
 .dispatch-driver-panel,.dispatch-board-panel,.dispatch-gaps-panel{margin-bottom:18px}
@@ -204,7 +205,7 @@ tfoot td{background:#F7F2F9;border-top-color:#D9CBDF}
 .dispatch-legend{display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:9px;font-weight:800;color:#756c7d}.dispatch-legend span{display:flex;align-items:center;gap:5px}.legend-dot{display:inline-block;width:9px;height:9px;border-radius:50%}.legend-dot.covered{background:#63b58f}.legend-dot.open{background:#df7777}.legend-dot.primary{background:#8a62a5}
 .dispatch-gap-strip{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;padding:16px 18px 18px}.dispatch-gap-day{border:1px solid #e7e0ea;border-radius:10px;padding:11px;background:#fff}.dispatch-gap-day strong{display:block;font-size:11px;color:var(--purple-dark)}.dispatch-gap-day span{display:block;margin-top:5px;font-size:10px;color:#746a79;line-height:1.35}.dispatch-gap-day.clear{background:#f1faf5;border-color:#cfeadb}.dispatch-gap-day.has-gap{background:#fff7f7;border-color:#efcece}.dispatch-gap-day.has-gap span{color:#9a3737}.dispatch-gap-day .gap-count{font-size:18px!important;font-weight:900!important;margin-top:3px!important;color:inherit!important}
 @media(max-width:1100px){.dispatch-toolbar{flex-direction:column}.dispatch-toolbar-actions{justify-content:flex-start}.dispatch-gap-strip{grid-template-columns:repeat(4,1fr)}}
-@media(max-width:700px){.dispatch-gap-strip{grid-template-columns:1fr 1fr}.dispatch-driver-card{min-width:100%}}
+@media(max-width:700px){.dispatch-toolbar-actions{display:grid;grid-template-columns:1fr;width:100%}.dispatch-potential{width:max-content}.dispatch-action-group>div{display:grid;grid-template-columns:1fr 1fr}.dispatch-action-group .button{width:100%}.dispatch-reset-action{justify-self:start}.dispatch-gap-strip{grid-template-columns:1fr 1fr}.dispatch-driver-card{min-width:100%}}
 
 /* v28 Dispatch schedule editing */
 .dispatch-driver-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
@@ -494,7 +495,7 @@ body.hr-global-column-resize,body.hr-global-column-resize *{cursor:col-resize!im
 .hr-document-actions{display:flex;gap:8px;min-height:30px;align-items:center}
 .hr-document-upload-status{margin:10px 0 2px;padding:10px 12px;border-radius:9px;background:#f2eef5;color:#604d6b;font-size:11px;line-height:1.4}
 .hr-document-upload-status.success{background:#edf8f1;color:#276a49}.hr-document-upload-status.error{background:#fff0f0;color:#9b2d2d}.hr-document-upload-status.working{background:#eef4ff;color:#315d91}
-.hr-ssn-verification-card{background:#fffaf3;border-color:#ead8b9}
+.hr-ssn-verification-card{background:#fffaf3;border-color:#ead8b9;margin-top:12px}
 @media(max-width:900px){.hr-document-grid{grid-template-columns:1fr!important}}
 
 /* v60 HR recruitment status grouping */

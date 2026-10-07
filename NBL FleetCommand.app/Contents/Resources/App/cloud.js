@@ -227,8 +227,8 @@
   async function getMaintenanceData(organizationId){const rows=await getRecordDomain('nbl_fc_maintenance_records',organizationId);return {version:2,...oneRow(rows,'settings'),tractors:rowsByType(rows,'tractor'),records:rowsByType(rows,'service'),recordCount:rows.length};}
   async function saveMaintenanceData(organizationId,data){const records=[{recordType:'settings',recordKey:'main',payload:{version:2}},...(data?.tractors||[]).map((x,i)=>({recordType:'tractor',recordKey:String(x.id||x.tractorNumber||`tractor_${i}`),payload:x})),...(data?.records||[]).map((x,i)=>({recordType:'service',recordKey:String(x.id||`service_${i}`),payload:x}))];return replaceRecordDomain('nbl_fc_maintenance_records',organizationId,records,['settings','tractor','service']);}
 
-  async function getRecruitmentData(organizationId){const rows=await getRecordDomain('nbl_fc_recruitment_records',organizationId);return {version:10,...oneRow(rows,'settings'),candidates:rowsByType(rows,'candidate'),recordCount:rows.length};}
-  async function saveRecruitmentData(organizationId,data){const settings={version:10,recruitmentLayout:data?.recruitmentLayout||{},updatedAt:data?.updatedAt||null,cloudPrivacy:data?.cloudPrivacy||{fullSsnStored:false}};const records=[{recordType:'settings',recordKey:'main',payload:settings},...(data?.candidates||[]).map((x,i)=>({recordType:'candidate',recordKey:String(x.id||x.fedexId||`candidate_${i}`),payload:x}))];return replaceRecordDomain('nbl_fc_recruitment_records',organizationId,records,['settings','candidate']);}
+  async function getRecruitmentData(organizationId){const rows=await getRecordDomain('nbl_fc_recruitment_records',organizationId);return {version:11,...oneRow(rows,'settings'),candidates:rowsByType(rows,'candidate'),recordCount:rows.length};}
+  async function saveRecruitmentData(organizationId,data){const settings={version:11,recruitmentLayout:data?.recruitmentLayout||{},updatedAt:data?.updatedAt||null,cloudPrivacy:data?.cloudPrivacy||{fullSsnStored:false}};const records=[{recordType:'settings',recordKey:'main',payload:settings},...(data?.candidates||[]).map((x,i)=>({recordType:'candidate',recordKey:String(x.id||x.fedexId||`candidate_${i}`),payload:x}))];return replaceRecordDomain('nbl_fc_recruitment_records',organizationId,records,['settings','candidate']);}
 
   async function getFinanceData(organizationId){const rows=await getRecordDomain('nbl_fc_finance_records',organizationId);const payrollSettings=oneRow(rows,'driver_pay_settings'),settlementSettings=oneRow(rows,'settlement_settings');return {payroll:{version:2,...payrollSettings,profiles:keyedRows(rows,'payroll_profile'),periods:keyedRows(rows,'payroll_period')},settlement:{...settlementSettings,catalog:rowsByType(rows,'settlement_statement')},recordCount:rows.length};}
   async function saveDriverPayData(organizationId,data){const records=[{recordType:'driver_pay_settings',recordKey:'main',payload:{version:2,dhMappings:data?.dhMappings||{}}},...Object.entries(data?.profiles||{}).map(([key,payload])=>({recordType:'payroll_profile',recordKey:key,payload})),...Object.entries(data?.periods||{}).map(([key,payload])=>({recordType:'payroll_period',recordKey:key,payload}))];return replaceRecordDomain('nbl_fc_finance_records',organizationId,records,['driver_pay_settings','payroll_profile','payroll_period']);}
@@ -248,11 +248,15 @@
   }
   async function uploadRecruitmentDocument(organizationId,candidateId,documentType,file){
     if(!file)throw new Error('Choose a document to upload.');
-    const allowed=new Set(['application/pdf','image/jpeg','image/png']);if(!allowed.has(String(file.type||'').toLowerCase()))throw new Error('Use a PDF, JPG, or PNG file.');
+    const extension=(String(file.name||'').toLowerCase().match(/\.[a-z0-9]+$/)||[''])[0];
+    const mimeByExtension={'.pdf':'application/pdf','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.heic':'image/heic','.heif':'image/heif','.doc':'application/msword','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document'};
+    const allowedExtensions=new Set(Object.keys(mimeByExtension));
+    if(!allowedExtensions.has(extension))throw new Error('Use a PDF, JPEG, PNG, HEIC, DOC, or DOCX file.');
+    const mimeType=mimeByExtension[extension];
     if(Number(file.size)>10*1024*1024)throw new Error('The document must be 10 MB or smaller.');
-    const type=documentType==='med_card'?'med_card':'cdl',safeName=String(file.name||`${type}.bin`).replace(/[^a-zA-Z0-9._-]+/g,'_').slice(-120),path=`${organizationId}/${candidateId}/${type}/${Date.now()}_${safeName}`;
-    await storageRequest(`/storage/v1/object/nbl-recruitment-documents/${encodeStoragePath(path)}`,{method:'POST',headers:{'Content-Type':file.type,'cache-control':'3600','x-upsert':'false'},body:file});
-    return {path,fileName:file.name||safeName,mimeType:file.type,size:Number(file.size)||0,uploadedAt:new Date().toISOString()};
+    const type=String(documentType||'document').replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,40)||'document',safeName=String(file.name||`${type}${extension}`).replace(/[^a-zA-Z0-9._-]+/g,'_').slice(-120),path=`${organizationId}/${candidateId}/${type}/${Date.now()}_${safeName}`;
+    await storageRequest(`/storage/v1/object/nbl-recruitment-documents/${encodeStoragePath(path)}`,{method:'POST',headers:{'Content-Type':mimeType,'cache-control':'3600','x-upsert':'false'},body:file});
+    return {path,fileName:file.name||safeName,mimeType,size:Number(file.size)||0,uploadedAt:new Date().toISOString()};
   }
   async function getRecruitmentDocumentUrl(path){
     const data=await authFetch(`/storage/v1/object/sign/nbl-recruitment-documents/${encodeStoragePath(path)}`,{method:'POST',body:JSON.stringify({expiresIn:120})});

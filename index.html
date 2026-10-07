@@ -32,7 +32,7 @@
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
         <div class="app-name">NBL FleetCommand</div>
         <div class="app-tagline">Operations Intelligence</div>
-        <div class="app-version">Version 110</div>
+        <div class="app-version">Version 112</div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-standalone nav-main-modules">
@@ -633,13 +633,10 @@
             </div>
             <div class="dispatch-toolbar-actions">
               <div class="dispatch-potential" id="dispatchPotential">Best possible: —</div>
-              <button class="button primary" id="optimizeDispatchBtn">Optimize Coverage</button>
-              <button class="button secondary" id="addDispatchRunBtn">+ Add Run</button>
-              <button class="button secondary" id="manageDispatchDriversBtn">Manage Drivers</button>
-              <button class="button secondary" id="manageDispatchTractorsBtn">Manage Tractors</button>
-              <button class="button secondary" id="exportDispatchExcelBtn">Export Team Schedule Excel</button>
-              <button class="button dark" id="exportDispatchPdfBtn">Export Run Coverage PDF</button>
-              <button class="button secondary" id="resetDispatchBtn">Reset Location Plan</button>
+              <div class="dispatch-action-group"><span>Plan</span><div><button class="button primary" id="optimizeDispatchBtn">Optimize Coverage</button><button class="button secondary" id="addDispatchRunBtn">+ Add Run</button></div></div>
+              <div class="dispatch-action-group"><span>Manage</span><div><button class="button secondary" id="manageDispatchDriversBtn">Drivers</button><button class="button secondary" id="manageDispatchTractorsBtn">Tractors</button></div></div>
+              <div class="dispatch-action-group"><span>Export</span><div><button class="button secondary" id="exportDispatchExcelBtn">Schedule Excel</button><button class="button dark" id="exportDispatchPdfBtn">Coverage PDF</button></div></div>
+              <button class="dispatch-reset-action" id="resetDispatchBtn" title="Clear the current location plan and restore its defaults">Reset Plan</button>
             </div>
           </div>
 
@@ -1123,6 +1120,7 @@
         <div class="form-field"><label>Notes</label><textarea id="recruitmentNotesInput" placeholder="Add recruitment notes, follow-up details, concerns, or other information"></textarea></div>
         <div class="hr-form-divider" aria-hidden="true"></div>
         <div class="hr-profile-fields-heading"><strong>Hiring Status</strong><span>Final screening and onboarding milestones.</span></div>
+        <div class="form-note hr-days-note">Days in Process is calculated automatically from Date Added. It stops when a driver is marked Hired, Rejected, or Terminated.</div>
         <div class="form-grid three">
           <div class="form-field"><label>Drug Test</label><select id="recruitmentDrugTestInput"><option value="Not Taken">Not Taken</option><option value="Taken">Taken</option><option value="Pass">Pass</option><option value="Fail">Fail</option></select></div>
           <div class="form-field"><label>Equipment Fam</label><select id="recruitmentEquipmentFamInput"><option value="No">No</option><option value="Sent">Sent</option><option value="Yes">Yes</option></select></div>
@@ -1132,29 +1130,25 @@
           <div class="form-field"><label>Recruitment Status</label><select id="recruitmentStatusInput"><option value="In Progress">In Progress</option><option value="Hired">Hired</option><option value="Rejected">Rejected</option><option value="Terminated">Terminated</option></select></div>
           <div class="form-field"><label>Start Date</label><input id="recruitmentStartDateInput" type="date"></div>
         </div>
-        <div class="form-note hr-days-note">Days in Process is calculated automatically from Date Added. It stops when a driver is marked Hired, Rejected, or Terminated.</div>
         <div class="hr-form-divider" aria-hidden="true"></div>
-        <div class="hr-profile-fields-heading"><strong>Driver Documents</strong><span>Private files. PDF, JPG or PNG; maximum 10 MB each.</span></div>
-        <div class="form-grid three hr-document-grid">
-          <div class="hr-document-card">
-            <div><strong>CDL</strong><span id="recruitmentCdlDocumentStatus">No document uploaded.</span></div>
-            <label class="button secondary hr-document-upload" for="recruitmentCdlDocumentInput">Choose File</label>
-            <input id="recruitmentCdlDocumentInput" class="hr-hidden-file-input" type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png">
-            <div class="hr-document-actions"><button type="button" class="table-action hidden" id="recruitmentCdlDocumentViewBtn">View</button><button type="button" class="table-action danger-link hidden" id="recruitmentCdlDocumentDeleteBtn">Delete</button></div>
-          </div>
-          <div class="hr-document-card">
-            <div><strong>Medical Card</strong><span id="recruitmentMedCardDocumentStatus">No document uploaded.</span></div>
-            <div class="form-field"><label>Expiration Date</label><input id="recruitmentMedCardExpiryInput" type="date"></div>
-            <label class="button secondary hr-document-upload" for="recruitmentMedCardDocumentInput">Choose File</label>
-            <input id="recruitmentMedCardDocumentInput" class="hr-hidden-file-input" type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png">
-            <div class="hr-document-actions"><button type="button" class="table-action hidden" id="recruitmentMedCardDocumentViewBtn">View</button><button type="button" class="table-action danger-link hidden" id="recruitmentMedCardDocumentDeleteBtn">Delete</button></div>
-          </div>
-          <div class="hr-document-card hr-ssn-verification-card">
-            <div><strong>Social Security</strong><span>Card images are not stored in FleetCommand.</span></div>
-            <div class="form-field"><label>SSN Verified</label><select id="recruitmentSsnVerifiedInput"><option value="No">No</option><option value="Yes">Yes</option></select></div>
-            <div class="hr-field-help">Use ADP for the complete SSN. FleetCommand retains only verification status and the masked last four digits.</div>
-          </div>
+        <div class="hr-profile-fields-heading"><strong>Onboarding</strong><span>Track whether each setup item has been sent or completed.</span></div>
+        <div class="form-grid three">
+          <div class="form-field"><label>Safety Forward</label><select id="recruitmentSafetyForwardInput"><option value="Not Sent">Not Sent</option><option value="Sent">Sent</option></select></div>
+          <div class="form-field"><label>ConnectTeams</label><select id="recruitmentConnectTeamsInput"><option value="Not Sent">Not Sent</option><option value="Sent">Sent</option></select></div>
+          <div class="form-field"><label>ADP</label><select id="recruitmentAdpInput"><option value="Not Sent">Not Sent</option><option value="Sent">Sent</option></select></div>
+          <div class="form-field"><label>Motive</label><select id="recruitmentMotiveInput"><option value="Not Sent">Not Sent</option><option value="Sent">Sent</option></select></div>
+          <div class="form-field"><label>Employee Handbook</label><select id="recruitmentEmployeeHandbookInput"><option value="Not Sent">Not Sent</option><option value="Sent">Sent</option><option value="Signed">Signed</option></select></div>
         </div>
+        <div class="hr-form-divider" aria-hidden="true"></div>
+        <div class="hr-profile-fields-heading"><strong>Driver Documents</strong><span>Up to five private files. Add a document name such as CDL or Med Card. PDF, JPEG, PNG, HEIC, DOC or DOCX; maximum 10 MB each.</span></div>
+        <div class="form-grid two hr-document-grid">
+          <div class="hr-document-card" data-recruitment-document-slot="1"><div><strong>Document 1</strong><span id="recruitmentDocument1Status">No document uploaded.</span></div><div class="form-grid two"><div class="form-field"><label>Document Name</label><input id="recruitmentDocument1Label" type="text" placeholder="e.g. CDL"></div><div class="form-field"><label>Expiration Date <span class="optional-label">Optional</span></label><input id="recruitmentDocument1Expiry" type="date"></div></div><label class="button secondary hr-document-upload" for="recruitmentDocument1Input">Choose File</label><input id="recruitmentDocument1Input" class="hr-hidden-file-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.doc,.docx,application/pdf,image/jpeg,image/png,image/heic,image/heif,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"><div class="hr-document-actions"><button type="button" class="table-action hidden" data-view-recruitment-document="slot1">View</button><button type="button" class="table-action danger-link hidden" data-delete-recruitment-document="slot1">Delete</button></div></div>
+          <div class="hr-document-card" data-recruitment-document-slot="2"><div><strong>Document 2</strong><span id="recruitmentDocument2Status">No document uploaded.</span></div><div class="form-grid two"><div class="form-field"><label>Document Name</label><input id="recruitmentDocument2Label" type="text" placeholder="e.g. Med Card"></div><div class="form-field"><label>Expiration Date <span class="optional-label">Optional</span></label><input id="recruitmentDocument2Expiry" type="date"></div></div><label class="button secondary hr-document-upload" for="recruitmentDocument2Input">Choose File</label><input id="recruitmentDocument2Input" class="hr-hidden-file-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.doc,.docx,application/pdf,image/jpeg,image/png,image/heic,image/heif,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"><div class="hr-document-actions"><button type="button" class="table-action hidden" data-view-recruitment-document="slot2">View</button><button type="button" class="table-action danger-link hidden" data-delete-recruitment-document="slot2">Delete</button></div></div>
+          <div class="hr-document-card" data-recruitment-document-slot="3"><div><strong>Document 3</strong><span id="recruitmentDocument3Status">No document uploaded.</span></div><div class="form-grid two"><div class="form-field"><label>Document Name</label><input id="recruitmentDocument3Label" type="text" placeholder="e.g. MVR"></div><div class="form-field"><label>Expiration Date <span class="optional-label">Optional</span></label><input id="recruitmentDocument3Expiry" type="date"></div></div><label class="button secondary hr-document-upload" for="recruitmentDocument3Input">Choose File</label><input id="recruitmentDocument3Input" class="hr-hidden-file-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.doc,.docx,application/pdf,image/jpeg,image/png,image/heic,image/heif,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"><div class="hr-document-actions"><button type="button" class="table-action hidden" data-view-recruitment-document="slot3">View</button><button type="button" class="table-action danger-link hidden" data-delete-recruitment-document="slot3">Delete</button></div></div>
+          <div class="hr-document-card" data-recruitment-document-slot="4"><div><strong>Document 4</strong><span id="recruitmentDocument4Status">No document uploaded.</span></div><div class="form-grid two"><div class="form-field"><label>Document Name</label><input id="recruitmentDocument4Label" type="text" placeholder="e.g. Offer Letter"></div><div class="form-field"><label>Expiration Date <span class="optional-label">Optional</span></label><input id="recruitmentDocument4Expiry" type="date"></div></div><label class="button secondary hr-document-upload" for="recruitmentDocument4Input">Choose File</label><input id="recruitmentDocument4Input" class="hr-hidden-file-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.doc,.docx,application/pdf,image/jpeg,image/png,image/heic,image/heif,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"><div class="hr-document-actions"><button type="button" class="table-action hidden" data-view-recruitment-document="slot4">View</button><button type="button" class="table-action danger-link hidden" data-delete-recruitment-document="slot4">Delete</button></div></div>
+          <div class="hr-document-card" data-recruitment-document-slot="5"><div><strong>Document 5</strong><span id="recruitmentDocument5Status">No document uploaded.</span></div><div class="form-grid two"><div class="form-field"><label>Document Name</label><input id="recruitmentDocument5Label" type="text" placeholder="e.g. Other"></div><div class="form-field"><label>Expiration Date <span class="optional-label">Optional</span></label><input id="recruitmentDocument5Expiry" type="date"></div></div><label class="button secondary hr-document-upload" for="recruitmentDocument5Input">Choose File</label><input id="recruitmentDocument5Input" class="hr-hidden-file-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.doc,.docx,application/pdf,image/jpeg,image/png,image/heic,image/heif,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"><div class="hr-document-actions"><button type="button" class="table-action hidden" data-view-recruitment-document="slot5">View</button><button type="button" class="table-action danger-link hidden" data-delete-recruitment-document="slot5">Delete</button></div></div>
+        </div>
+        <div class="hr-document-card hr-ssn-verification-card"><div><strong>Social Security</strong><span>Card images are not stored in FleetCommand.</span></div><div class="form-field"><label>SSN Verified</label><select id="recruitmentSsnVerifiedInput"><option value="No">No</option><option value="Yes">Yes</option></select></div><div class="hr-field-help">Use ADP for the complete SSN. FleetCommand retains only verification status and the masked last four digits.</div></div>
         <div class="hr-document-upload-status hidden" id="recruitmentDocumentUploadStatus"></div>
         <div class="modal-actions"><button type="button" class="button secondary" data-close-modal="recruitmentCandidateModal">Cancel</button><button type="submit" class="button primary">Save Candidate</button></div>
       </form>
@@ -1225,7 +1219,7 @@
         <input type="hidden" id="dispatchRunEconomicsId">
         <div class="form-grid two">
           <div class="form-field"><label>Location</label><select id="dispatchRunLocationInput" required></select></div>
-          <div class="form-field"><label>Run Type</label><select id="dispatchRunTypeInput"><option value="assigned">Assigned Run</option><option value="unassigned">Unassigned / URR</option><option value="spot">Spot</option></select></div>
+          <div class="form-field"><label>Run Type</label><select id="dispatchRunTypeInput"><option value="assigned">Dedicated</option><option value="unassigned">URR</option><option value="spot">Spot</option></select></div>
         </div>
         <div class="form-grid two">
           <div class="form-field"><label>Run Name</label><input id="dispatchRunNameInput" type="text" required placeholder="e.g. Nashville - Knoxville"></div>
