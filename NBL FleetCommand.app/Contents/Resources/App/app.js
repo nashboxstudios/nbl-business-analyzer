@@ -932,6 +932,10 @@
       $('fileMeta').textContent=s.loadedAt?`Motive Safety • ${fmtDate(s.startDate)} to ${fmtDate(s.endDate)} • refreshed ${new Date(s.loadedAt).toLocaleString()}`:'Choose a reporting period and load Motive safety data.';
       renderSafety();
       if(!s.loadedAt&&!s.loading&&state.motive.configured) loadSafetyData(true);
+    } else if(screen==='drivers') {
+      if(hasResult && !financeLocked) renderDriverTable();
+    } else if(screen==='summary') {
+      if(state.catalog.length && !financeLocked) renderSummary();
     } else if(screen==='settlement-reports') {
       $('fileMeta').textContent=workspace ? `${label} • ${state.catalog.length} settlement${state.catalog.length===1?'':'s'} available for reporting` : 'Connect NBL Cloud or choose your local data folder to begin.';
       if(workspace && !financeLocked){
