@@ -20,7 +20,7 @@ w.eval(fs.readFileSync(root+'/recruitment-test.js','utf8'));
 w.NBLRecruitmentTest.init({getContext:()=>({orgId:'org',connected:true,allowed:true,userName:'Test'})});
 const rows=()=>[...d.querySelectorAll('[data-rt-edit]')].map(x=>x.dataset.rtEdit);
 (async()=>{
- await w.NBLRecruitmentTest.open();assert.deepEqual(rows(),['test_a','test_m','test_z']);assert.equal(d.querySelectorAll('[data-rt-sort]').length,7);
+ await w.NBLRecruitmentTest.open();assert.deepEqual(rows(),['test_a','test_m','test_z']);assert.equal(d.querySelectorAll('[data-rt-sort]').length,28);assert.equal(d.querySelectorAll('[data-rt-stage]').length,0);assert.deepEqual([...d.querySelectorAll('[data-rt-group]')].map(x=>x.dataset.rtGroup),['In Progress','Hired','Rejected','Terminated']);
  for(const [key] of E.TABLE_COLUMNS){
   d.querySelector(`[data-rt-sort="${key}"]`).click();
   // Name starts ascending, so its first click selects descending.
@@ -36,6 +36,11 @@ const rows=()=>[...d.querySelectorAll('[data-rt-edit]')].map(x=>x.dataset.rtEdit
  }
  w.NBLRecruitmentTest.reset();await w.NBLRecruitmentTest.open();assert.deepEqual(rows(),['test_a','test_m','test_z']);
  for(const [doubles,color] of [['No','#a92323'],['Yes No Experience','#946800'],['Yes With Experience','#157344']])assert(E.summaryHtml({...fixtures[0],doubles}).includes('color:'+color));
+ fixtures.push(candidate('zoe_atl','Zoe','Atlanta','Screening','2026-10-03'));
+ for(const [id,name,status] of [['h','Aaron','Hired'],['r','Alan','Rejected'],['t','Adam','Terminated']]){const c=candidate(id,name,'Nashville','Screening','2026-10-03');c.recruitmentStatus=status;fixtures.push(c);}
+ await w.NBLRecruitmentTest.open(true);assert.deepEqual(rows(),['test_a','test_m','test_zoe_atl','test_z','test_h','test_r','test_t'],'Fixed group order; default Name then Location within each group');
+ for(const body of d.querySelectorAll('[data-rt-group]')){assert(body.children[0].classList.contains('rt-group-heading'));assert(body.children[1].classList.contains('rt-group-columns'));assert.equal(body.children[1].querySelectorAll('[data-rt-sort]').length,7);}
+ const hired=d.getElementById('rtGroup');hired.value='Hired';hired.dispatchEvent(new w.Event('change'));assert.deepEqual(rows(),['test_h']);assert.equal(d.querySelectorAll('[data-rt-group]').length,1);hired.value='';hired.dispatchEvent(new w.Event('change'));assert.equal(d.querySelectorAll('[data-rt-group]').length,4);
  const report=E.summaryHtml(fixtures[0]);assert(report.includes('--purple:#5B2A86'));assert(report.includes('--orange:#F15A24'));assert(report.includes('nashbox-logistics-logo.png'));assert(report.includes('print-color-adjust:exact'));
  console.log('PASS seven-column sort toggles, missing values last, numeric/calendar day counts, workflow stage ordering, filters/refresh/reset, brand summary');w.close();
 })().catch(e=>{console.error(e);w.close();process.exit(1)});

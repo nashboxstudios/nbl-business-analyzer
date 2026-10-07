@@ -83,6 +83,8 @@ function validate(c){
  }else errors.push('Already a regular employee');
  return errors;
 }
+const GROUPS=['In Progress','Hired','Rejected','Terminated'];
+const candidateGroup=c=>GROUPS.includes(c.recruitmentStatus)?c.recruitmentStatus:'In Progress';
 const TABLE_COLUMNS=[['name','Name'],['location','Location'],['stage','Current Stage'],['nextAction','Next Action'],['dueDate','Due Date'],['assignedTo','Assigned To'],['days','Days in Process']];
 // Calendar days avoid off-by-one results from midnight, time zones, or DST.
 function calendarDay(value){
@@ -100,9 +102,12 @@ function sortCandidates(candidates,key='name',direction='asc',today){
  const v=c=>key==='days'?daysInProcess(c,today):key==='stage'?STAGES.indexOf(c.testPipeline?.stage):['name','location'].includes(key)?c[key]:c.testPipeline?.[key];
  const missing=x=>x===undefined||x===null||String(x).trim()==='';
  return [...candidates].sort((a,b)=>{
-  const x=v(a),y=v(b);if(missing(x)||missing(y))return missing(x)?(missing(y)?0:1):-1;
-  const result=typeof x==='number'&&typeof y==='number'?x-y:collator.compare(String(x),String(y));
-  return direction==='desc'?-result:result;
+  const x=v(a),y=v(b);if(missing(x)!==missing(y))return missing(x)?1:-1;
+  const result=missing(x)&&missing(y)?0:typeof x==='number'&&typeof y==='number'?x-y:collator.compare(String(x),String(y));
+  if(result)return direction==='desc'?-result:result;
+  // Name is the default primary key; location orders candidates with the same name.
+  if(key==='name'){const x=a.location,y=b.location;if(missing(x)||missing(y))return missing(x)?(missing(y)?0:1):-1;return collator.compare(String(x),String(y));}
+  return 0;
  });
 }
 function summaryHtml(candidate,logoUrl='assets/nashbox-logistics-logo.png',format='letter'){
@@ -147,11 +152,11 @@ function summaryHtml(candidate,logoUrl='assets/nashbox-logistics-logo.png',forma
  ${question('Screening Interview Notes','',s.notes)}</section>${phone?'':`<p class="footnote">Prepared ${e(new Date().toLocaleDateString('en-US'))} · Missing answers are shown as “Not recorded”.</p>`}</main></body></html>`;
 }
 
-const engine={STAGES,normalize,reconcile,validate,scheduleKey,recordOpsAgreements,SCREENING_QUESTIONS,APPLICATION_PROCESS,summaryHtml,TABLE_COLUMNS,daysInProcess,sortCandidates};
+const engine={STAGES,normalize,reconcile,validate,scheduleKey,recordOpsAgreements,SCREENING_QUESTIONS,APPLICATION_PROCESS,summaryHtml,TABLE_COLUMNS,daysInProcess,sortCandidates,GROUPS,candidateGroup};
 if(typeof module!=='undefined'&&module.exports)module.exports=engine;
 if(!root.document)return;
 const esc=x=>String(x??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
-let bridge,records=[],workspace='',generation=0,draft=null,busy=false,loaded=false,editingGeneration=0,search='',filter='In Progress',stageFilter='',sortKey='name',sortDirection='asc';
+let bridge,records=[],workspace='',generation=0,draft=null,busy=false,loaded=false,editingGeneration=0,search='',filter='',sortKey='name',sortDirection='asc';
 const ctx=()=>bridge?.getContext()||{};
 const get=(o,path)=>path.split('.').reduce((v,k)=>v?.[k],o);
 function put(o,path,v){const keys=path.split('.');let x=o;keys.slice(0,-1).forEach(k=>x=x[k]||(x[k]={}));x[keys.at(-1)]=v;}
@@ -164,7 +169,6 @@ function field(path,label,type='text',options){
 const f=(k,l,t='text',opts)=>field(k,l,t,opts);
 const pf=(section,k,l,t='text',opts)=>f(`testPipeline.${section}.${k}`,l,t,opts);
 const yes=['Yes','No'];const decisions=['Proceed','Hold','Do Not Proceed'];
-const section=(title,html,open=false)=>`<details class="rt-section"${open?' open':''}><summary>${esc(title)}</summary><div class="rt-grid">${html}</div></details>`;
 function message(msg,error=false){const x=el('rtMessage');if(x){x.textContent=msg;x.classList.toggle('rt-error',error);x.setAttribute('role',error?'alert':'status');}}
 function checkContext(org,gen){if(ctx().orgId!==org||generation!==gen||!ctx().connected||!ctx().allowed)throw new Error('Your workspace changed. Reopen Recruitment – Test.');}
 async function open(force=false){
@@ -178,13 +182,15 @@ async function open(force=false){
 }
 function render(){
  const host=el('recruitmentTestScreen');if(!host)return;
- const matches=sortCandidates(records.filter(c=>(!filter||c.recruitmentStatus===filter||filter==='In Progress'&&!['Hired','Rejected','Terminated'].includes(c.recruitmentStatus))&&(!stageFilter||c.testPipeline.stage===stageFilter)&&`${c.name} ${c.location||''}`.toLowerCase().includes(search.toLowerCase())),sortKey,sortDirection);
- host.innerHTML=`<div class="card rt-banner"><h2>Recruitment – Test</h2><p>Work with a separate copy of candidates. Changes here are saved to the test module. Review the suggested stage for each copied candidate.</p><div class="rt-toolbar"><button class="button primary" id="rtAdd">Add Test Candidate</button><button class="button secondary" id="rtRefresh">Refresh</button></div></div><div class="rt-stage-counts">${STAGES.map(s=>`<button class="rt-stage-chip${stageFilter===s?' active':''}" data-rt-stage="${s}">${s}<strong>${records.filter(c=>c.testPipeline.stage===s).length}</strong></button>`).join('')}</div><div class="card"><div class="rt-toolbar"><input id="rtSearch" aria-label="Search test candidates" placeholder="Search name or location" value="${esc(search)}"><select id="rtGroup" aria-label="Candidate group"><option value="">All groups</option>${['In Progress','Hired','Rejected','Terminated'].map(s=>`<option${s===filter?' selected':''}>${s}</option>`).join('')}</select><span>${matches.length} of ${records.length} test candidates</span></div><div class="rt-table-wrap"><table class="rt-table"><thead><tr>${TABLE_COLUMNS.map(([key,label])=>`<th scope="col" aria-sort="${key===sortKey?(sortDirection==='asc'?'ascending':'descending'):'none'}"><button type="button" class="rt-sort${key===sortKey?' active':''}" data-rt-sort="${key}" aria-label="Sort by ${label}${key===sortKey?(sortDirection==='asc'?', descending next':', ascending next'):''}"><span>${label}</span><span class="rt-sort-indicator" aria-hidden="true">${key===sortKey?(sortDirection==='asc'?'▲':'▼'):'↕'}</span></button></th>`).join('')}</tr></thead><tbody>${matches.map(c=>{const p=c.testPipeline,days=daysInProcess(c);return `<tr><td><button class="rt-link" data-rt-edit="${esc(c.id)}">${esc(c.name||'Unnamed candidate')}</button>${p.onHold?'<span class="rt-badge">On Hold</span>':''}${!p.stageReviewed?'<small>Stage needs review</small>':''}</td><td>${esc(c.location||'—')}</td><td>${esc(p.stage)}</td><td>${esc(p.nextAction||'—')}</td><td>${esc(p.dueDate||'—')}</td><td>${esc(p.assignedTo||'—')}</td><td>${days===null?'—':days}</td></tr>`;}).join('')||'<tr><td colspan="7">No matching candidates.</td></tr>'}</tbody></table></div></div>`;
- host.querySelectorAll('[data-rt-sort]').forEach(x=>x.onclick=()=>{sortDirection=sortKey===x.dataset.rtSort&&sortDirection==='asc'?'desc':'asc';sortKey=x.dataset.rtSort;render();host.querySelector(`[data-rt-sort="${sortKey}"]`)?.focus();});
+ const matches=sortCandidates(records.filter(c=>(!filter||candidateGroup(c)===filter)&&`${c.name} ${c.location||''}`.toLowerCase().includes(search.toLowerCase())),sortKey,sortDirection);
+ const columns=()=>`<tr class="rt-group-columns">${TABLE_COLUMNS.map(([key,label])=>`<th scope="col" aria-sort="${key===sortKey?(sortDirection==='asc'?'ascending':'descending'):'none'}"><button type="button" class="rt-sort${key===sortKey?' active':''}" data-rt-sort="${key}" aria-label="Sort by ${label}${key===sortKey?(sortDirection==='asc'?', descending next':', ascending next'):''}"><span>${label}</span><span class="rt-sort-indicator" aria-hidden="true">${key===sortKey?(sortDirection==='asc'?'▲':'▼'):'↕'}</span></button></th>`).join('')}</tr>`;
+ const row=c=>{const p=c.testPipeline,days=daysInProcess(c);return `<tr><td><button class="rt-link" data-rt-edit="${esc(c.id)}">${esc(c.name||'Unnamed candidate')}</button>${p.onHold?'<span class="rt-badge">On Hold</span>':''}${!p.stageReviewed?'<small>Stage needs review</small>':''}</td><td>${esc(c.location||'—')}</td><td>${esc(p.stage)}</td><td>${esc(p.nextAction||'—')}</td><td>${esc(p.dueDate||'—')}</td><td>${esc(p.assignedTo||'—')}</td><td>${days===null?'—':days}</td></tr>`;};
+ const groups=GROUPS.filter(g=>!filter||g===filter).map(g=>{const rows=matches.filter(c=>candidateGroup(c)===g);return `<tbody data-rt-group="${g}"><tr class="rt-group-heading ${g.toLowerCase().replaceAll(' ','-')}"><th colspan="7" scope="rowgroup"><span>${g}<strong>${rows.length}</strong></span></th></tr>${columns()}${rows.map(row).join('')||`<tr class="rt-empty"><td colspan="7">No ${search?'matching ':''}candidates in ${g}.</td></tr>`}</tbody>`;}).join('');
+ host.innerHTML=`<div class="card rt-banner"><h2>Recruitment – Test</h2><p>Work with a separate copy of candidates. Changes here are saved to the test module. Review the suggested stage for each copied candidate.</p><div class="rt-toolbar"><button class="button primary" id="rtAdd">Add Test Candidate</button><button class="button secondary" id="rtRefresh">Refresh</button></div></div><div class="card"><div class="rt-toolbar"><input id="rtSearch" aria-label="Search test candidates" placeholder="Search name or location" value="${esc(search)}"><select id="rtGroup" aria-label="Candidate group"><option value="">All groups</option>${GROUPS.map(g=>`<option${g===filter?' selected':''}>${g}</option>`).join('')}</select><span>${matches.length} of ${records.length} test candidates</span><small class="rt-sort-note">Default order: Name, then Location</small></div><div class="rt-table-wrap"><table class="rt-table" aria-label="Test candidates grouped by recruitment status">${groups}</table></div></div>`;
+ host.querySelectorAll('[data-rt-sort]').forEach(x=>x.onclick=()=>{const group=x.closest('[data-rt-group]').dataset.rtGroup;sortDirection=sortKey===x.dataset.rtSort&&sortDirection==='asc'?'desc':'asc';sortKey=x.dataset.rtSort;render();host.querySelector(`[data-rt-group="${group}"] [data-rt-sort="${sortKey}"]`)?.focus();});
  el('rtAdd').onclick=()=>edit();el('rtRefresh').onclick=()=>open(true);
  el('rtSearch').oninput=e=>{search=e.target.value;const pos=e.target.selectionStart;render();el('rtSearch').focus();el('rtSearch').setSelectionRange(pos,pos);};
  el('rtGroup').onchange=e=>{filter=e.target.value;render();};
- host.querySelectorAll('[data-rt-stage]').forEach(x=>x.onclick=()=>{stageFilter=stageFilter===x.dataset.rtStage?'':x.dataset.rtStage;render();});
  host.querySelectorAll('[data-rt-edit]').forEach(x=>x.onclick=()=>edit(x.dataset.rtEdit));
 }
 function edit(id){
@@ -192,15 +198,16 @@ function edit(id){
  draft=normalize(id?records.find(c=>c.id===id):{id:'test_'+root.crypto.randomUUID(),name:'',createdAt:new Date().toISOString(),recruitmentStatus:'In Progress',testPipeline:{stage:'Screening',stageReviewed:true,history:[]}});editingGeneration=generation;
  let modal=el('rtModal');if(!modal){modal=document.createElement('dialog');modal.id='rtModal';modal.className='rt-modal';document.body.append(modal);modal.addEventListener('cancel',e=>{e.preventDefault();close();});}modal.innerHTML=profile();bindProfile();if(!modal.open)modal.showModal();
 }
-function profile(){
+function profile(openSections=[]){
  const p=draft.testPipeline;
+ const section=(title,html)=>`<details class="rt-section"${openSections.includes(title)?' open':''}><summary>${esc(title)}</summary><div class="rt-grid">${html}</div></details>`;
  const summary=`<p class="rt-wide">A summary for the Ops Manager combining Candidate Details, Background &amp; Drug Screen, and Screening Interview.</p><button type="button" class="button secondary" id="rtSummary">Print / Save PDF</button><button type="button" class="button secondary" id="rtSummaryPhone">Phone PDF</button>`;
  const importer=`<div class="rt-wide rt-import-box"><h3>Import First Advantage Application</h3><p>Choose the driver’s First Advantage PDF to fill detected name, contact, current address, DOB, FedEx ID, and CDL details. Review the imported values, then Save Draft.</p><label class="rt-field" for="rtImportFile"><span>First Advantage PDF (up to 15 MB)</span><input type="file" id="rtImportFile" accept=".pdf,application/pdf"></label><button type="button" class="button secondary" id="rtImport">Read First Advantage PDF</button></div>`;
  const histories=p.history.slice().reverse().map(h=>`<li>${esc(new Date(h.at).toLocaleString())} — ${esc(h.action)}${h.by?' · '+esc(h.by):''}</li>`).join('');
  const docs=Object.entries(draft.documents).filter(([,d])=>d?.path).map(([k,d])=>`<div class="rt-doc"><span>${esc(d.label||d.fileName||k)}</span><button type="button" data-rt-view="${esc(k)}">View</button><button type="button" data-rt-remove="${esc(k)}">Remove from test copy</button></div>`).join('');
  return `<form id="rtForm"><div class="rt-modal-header"><div><small>Recruitment – Test</small><h2>${esc(draft.name||'New Test Candidate')}</h2></div><button type="button" class="button secondary" id="rtClose" aria-label="Close candidate">Close</button></div><div id="rtMessage" aria-live="polite"></div>
- ${section('Candidate Details',importer+f('name','Name')+f('email','Email','email')+f('phone','Phone','tel')+f('location','Location')+f('address','Current address')+f('fedexId','FedEx ID'),true)}
- ${section('Current Stage & Next Action',`<p class="rt-wide"><strong>Current Stage: ${esc(p.stage)}</strong>${p.onHold?' · On Hold':''}. ${p.stageReviewed?'':'Suggested from existing records; review before advancing.'}</p>`+(!p.stageReviewed?f('testPipeline.stage','Confirm starting stage','text',STAGES)+f('testPipeline.stageReviewed','I reviewed this starting stage','checkbox'):'')+f('testPipeline.nextAction','Next action')+f('testPipeline.dueDate','Due date','date')+f('testPipeline.assignedTo','Assigned to')+f('testPipeline.onHold','On Hold','checkbox')+f('testPipeline.holdReason','Hold reason','textarea')+f('recruitmentStatus','Candidate group','text',['In Progress','Rejected','Terminated',...(p.stage==='Regular Employee'?['Hired']:[])])+`<div class="rt-wide"><h3>Stage history</h3><ol class="rt-history">${histories||'<li>No stage changes yet.</li>'}</ol></div>`,true)}
+ ${section('Candidate Details',importer+f('name','Name')+f('email','Email','email')+f('phone','Phone','tel')+f('location','Location')+f('address','Current address')+f('fedexId','FedEx ID'))}
+ ${section('Current Stage & Next Action',`<p class="rt-wide"><strong>Current Stage: ${esc(p.stage)}</strong>${p.onHold?' · On Hold':''}. ${p.stageReviewed?'':'Suggested from existing records; review before advancing.'}</p>`+(!p.stageReviewed?f('testPipeline.stage','Confirm starting stage','text',STAGES)+f('testPipeline.stageReviewed','I reviewed this starting stage','checkbox'):'')+f('testPipeline.nextAction','Next action')+f('testPipeline.dueDate','Due date','date')+f('testPipeline.assignedTo','Assigned to')+f('testPipeline.onHold','On Hold','checkbox')+f('testPipeline.holdReason','Hold reason','textarea')+f('recruitmentStatus','Candidate group','text',['In Progress','Rejected','Terminated',...(p.stage==='Regular Employee'?['Hired']:[])])+`<div class="rt-wide"><h3>Stage history</h3><ol class="rt-history">${histories||'<li>No stage changes yet.</li>'}</ol></div>`)}
  ${section('Driver Qualifications',f('dob','Date of birth','date')+f('medicalCardExpiry','Medical card expiry','date')+f('cdlNumber','CDL number')+f('cdlIssuingState','CDL state')+f('cdlExpiry','CDL expiry','date'))}
  ${section('Screening Interview',
   pf('screening','date','Interview date','date')+pf('screening','interviewer','Interviewer')+
@@ -220,20 +227,25 @@ function profile(){
   pf('screening','consent',SCREENING_QUESTIONS.consent,'text',yes)+pf('screening','documents',SCREENING_QUESTIONS.documents,'text',yes)+
   `<div class="rt-wide rt-instructions"><h3>Explain the Application Process</h3><p>${esc(APPLICATION_PROCESS)}</p></div>`+
   pf('screening','processExplained','Application and drug-screen process explained','checkbox')+
-  pf('screening','decision','Decision','text',decisions)+pf('screening','notes','Interview notes','textarea'),p.stage==='Screening')}
- ${section('Background & Drug Screen',pf('background','applicationSent','FADV application sent','date')+pf('background','fadvStatus','FADV status','text',['Not Sent','Sent','In Progress','Stuck','Complete'])+pf('background','drugStatus','Drug screen status','text',['Not Sent','Sent','Scheduled','Pending','Pass','Fail'])+pf('background','drugSent','Drug screen email sent','date')+pf('background','readyForOps','Manager: application has progressed enough to schedule Ops','checkbox')+pf('background','notes','Background / drug-screen notes','textarea')+'<p class="rt-wide rt-help">FADV and drug screen continue independently when the candidate moves to Ops.</p>',p.stage==='Background & Drug Screen')}
+  pf('screening','decision','Decision','text',decisions)+pf('screening','notes','Interview notes','textarea'))}
+ ${section('Background & Drug Screen',pf('background','applicationSent','FADV application sent','date')+pf('background','fadvStatus','FADV status','text',['Not Sent','Sent','In Progress','Stuck','Complete'])+pf('background','drugStatus','Drug screen status','text',['Not Sent','Sent','Scheduled','Pending','Pass','Fail'])+pf('background','drugSent','Drug screen email sent','date')+pf('background','readyForOps','Manager: application has progressed enough to schedule Ops','checkbox')+pf('background','notes','Background / drug-screen notes','textarea')+'<p class="rt-wide rt-help">FADV and drug screen continue independently when the candidate moves to Ops.</p>')}
  ${section('Hiring Summary',summary)}
- ${section('Ops Interview',pf('ops','date','Ops interview date','date')+pf('ops','agreedDays','Work Days Agreed Upon')+pf('ops','dispatchAgreement','Dispatch Schedule Times Explained And Agreed Upon')+pf('ops','doublesAgreement','Doubles Requirement Explained And Agreed Upon')+`<p class="rt-wide rt-help">Record the candidate’s agreement in each text field. Include the working days, shift and approximate dispatch times, and whether pulling and assembling doubles is required.</p>`+(p.ops.shiftStart||p.ops.dispatchTime||p.ops.doublesRequired?`<p class="rt-wide rt-help">Previous Ops details: shift ${esc(p.ops.shiftStart||'—')} to ${esc(p.ops.shiftEnd||'—')}; dispatch ${esc(p.ops.dispatchTime||'—')}; doubles ${esc(p.ops.doublesRequired||'—')}. Schedule acceptance: ${esc(p.ops.scheduleAccepted||'Not recorded')}; doubles acceptance: ${esc(p.ops.doublesAccepted||'Not recorded')}.</p>`:''),p.stage==='Ops Interview')}
- ${section('Road Test',f('roadTest','Road test status','text',['Not Scheduled','Scheduled','Pass','Fail'])+f('roadTestForm.date','Test date','date')+f('roadTestForm.timeFrom','Time From','time')+f('roadTestForm.timeTo','Time To','time')+f('roadTestForm.testAdminName','Administrator')+f('roadTestForm.testAdminFedexId','Administrator FedEx ID')+f('roadTestForm.certificateNumber','Certificate number')+f('roadTestForm.tractorNumber','Tractor number')+f('roadTestForm.trailerNumber','Trailer number')+pf('training','roadNotes','Road test notes','textarea')+`<button type="button" class="button secondary" id="rtRoadPdf">Export Road Test PDF</button>`,p.stage==='Road Test')}
- ${section('Position & Offer',f('type','Part / Full Time','text',['Full Time','Part Time'])+f('position','Position')+f('shift','Shift preference','text',['Day','Night','Flexible'])+f('hiringSummary.proposedPay','Proposed pay')+f('offerLetter','Offer letter status','text',['Not Sent','Sent','Accepted','Declined'])+f('startDate','Proposed start date','date'),p.stage==='Offer & Onboarding')}
+ ${section('Ops Interview',pf('ops','date','Ops interview date','date')+pf('ops','agreedDays','Work Days Agreed Upon')+pf('ops','dispatchAgreement','Dispatch Schedule Times Explained And Agreed Upon')+pf('ops','doublesAgreement','Doubles Requirement Explained And Agreed Upon')+`<p class="rt-wide rt-help">Record the candidate’s agreement in each text field. Include the working days, shift and approximate dispatch times, and whether pulling and assembling doubles is required.</p>`+(p.ops.shiftStart||p.ops.dispatchTime||p.ops.doublesRequired?`<p class="rt-wide rt-help">Previous Ops details: shift ${esc(p.ops.shiftStart||'—')} to ${esc(p.ops.shiftEnd||'—')}; dispatch ${esc(p.ops.dispatchTime||'—')}; doubles ${esc(p.ops.doublesRequired||'—')}. Schedule acceptance: ${esc(p.ops.scheduleAccepted||'Not recorded')}; doubles acceptance: ${esc(p.ops.doublesAccepted||'Not recorded')}.</p>`:''))}
+ ${section('Road Test',f('roadTest','Road test status','text',['Not Scheduled','Scheduled','Pass','Fail'])+f('roadTestForm.date','Test date','date')+f('roadTestForm.timeFrom','Time From','time')+f('roadTestForm.timeTo','Time To','time')+f('roadTestForm.testAdminName','Administrator')+f('roadTestForm.testAdminFedexId','Administrator FedEx ID')+f('roadTestForm.certificateNumber','Certificate number')+f('roadTestForm.tractorNumber','Tractor number')+f('roadTestForm.trailerNumber','Trailer number')+pf('training','roadNotes','Road test notes','textarea')+`<button type="button" class="button secondary" id="rtRoadPdf">Export Road Test PDF</button>`)}
+ ${section('Position & Offer',f('type','Part / Full Time','text',['Full Time','Part Time'])+f('position','Position')+f('shift','Shift preference','text',['Day','Night','Flexible'])+f('hiringSummary.proposedPay','Proposed pay')+f('offerLetter','Offer letter status','text',['Not Sent','Sent','Accepted','Declined'])+f('startDate','Proposed start date','date'))}
 
- ${section('Onboarding Tasks',['adp','sf','motive','handbook','connectTeams','eVerify'].map(k=>pf('onboarding',k,k==='handbook'?'Handbook':k==='connectTeams'?'Connect Teams':k==='eVerify'?'E-Verify':k.toUpperCase()+' access','text',['Not Sent','Sent','Complete',...(k==='handbook'?['Signed']:[])])).join('')+pf('onboarding','notes','Onboarding notes','textarea'),p.stage==='Offer & Onboarding')}
- ${section('Training',pf('training','startDate','Training start date','date')+pf('training','trainer','Trainer')+pf('training','result','Training result','text',['Not Started','In Progress','Complete'])+pf('training','completedDate','Completed date','date')+pf('training','notes','Training notes','textarea'),p.stage==='Training')}
+ ${section('Onboarding Tasks',['adp','sf','motive','handbook','connectTeams','eVerify'].map(k=>pf('onboarding',k,k==='handbook'?'Handbook':k==='connectTeams'?'Connect Teams':k==='eVerify'?'E-Verify':k.toUpperCase()+' access','text',['Not Sent','Sent','Complete',...(k==='handbook'?['Signed']:[])])).join('')+pf('onboarding','notes','Onboarding notes','textarea'))}
+ ${section('Training',pf('training','startDate','Training start date','date')+pf('training','trainer','Trainer')+pf('training','result','Training result','text',['Not Started','In Progress','Complete'])+pf('training','completedDate','Completed date','date')+pf('training','notes','Training notes','textarea'))}
  ${section('Document Upload',`<div class="rt-wide" id="rtDocuments">${docs||'<p>No documents.</p>'}</div><p class="rt-wide rt-help">Removing a document here only removes the test reference. Uploads are stored under this test candidate. Do not upload SSN documents.</p><label class="rt-field"><span>Document label</span><input id="rtDocLabel"></label><label class="rt-field"><span>Document expiry (optional)</span><input type="date" id="rtDocExpiry"></label><label class="rt-field"><span>Upload document</span><input type="file" id="rtDocFile" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.doc,.docx"></label><button type="button" class="button secondary" id="rtUpload">Upload & Save</button>`)}
  <div class="rt-footer"><button type="submit" class="button primary" id="rtSave">Save Draft</button><button type="button" class="button secondary" id="rtAdvance"${p.stage==='Regular Employee'?' disabled':''}>${p.stage==='Training'?'Complete Training / Hire':'Move to Next Stage'}</button></div></form>`;
 }
+function redrawProfile(){
+ const modal=el('rtModal'),opened=[...modal.querySelectorAll('details[open]')].map(x=>x.querySelector('summary').textContent);
+ modal.innerHTML=profile(opened);bindProfile();
+}
 function collect(){el('rtForm').querySelectorAll('[data-rt-field]').forEach(x=>put(draft,x.dataset.rtField,x.type==='checkbox'?x.checked:x.value));return draft;}
 function bindProfile(){
+ el('rtForm').addEventListener('invalid',e=>{const section=e.target.closest('details');if(section)section.open=true;},true);
  el('rtClose').onclick=close;el('rtForm').onsubmit=e=>{e.preventDefault();save(false);};el('rtAdvance').onclick=()=>save(true);
  el('rtForm').querySelectorAll('[data-rt-field]').forEach(x=>x.addEventListener('change',()=>{
   const path=x.dataset.rtField;put(draft,path,x.type==='checkbox'?x.checked:x.value);
@@ -244,7 +256,7 @@ function bindProfile(){
  }));
  el('rtSummary').onclick=()=>summary(collect());el('rtSummaryPhone').onclick=()=>summary(collect(),'phone');el('rtImportFile').onchange=()=>importPdf();el('rtRoadPdf').onclick=roadPdf;el('rtUpload').onclick=upload;el('rtImport').onclick=importPdf;
  el('rtForm').querySelectorAll('[data-rt-view]').forEach(x=>x.onclick=async()=>{const tab=root.open('about:blank','_blank');try{const url=await root.NBLCloud.getRecruitmentDocumentUrl(draft.documents[x.dataset.rtView].path);if(tab){tab.opener=null;tab.location.href=url;}else message('Allow popups to view documents.',true);}catch(e){tab?.close();message(e.message,true);}});
- el('rtForm').querySelectorAll('[data-rt-remove]').forEach(x=>x.onclick=()=>{collect();delete draft.documents[x.dataset.rtRemove];el('rtModal').innerHTML=profile();bindProfile();message('Reference removed from draft. Save Draft to keep this change.');});
+ el('rtForm').querySelectorAll('[data-rt-remove]').forEach(x=>x.onclick=()=>{collect();delete draft.documents[x.dataset.rtRemove];redrawProfile();message('Reference removed from draft. Save Draft to keep this change.');});
 }
 function close(){if(busy){message('Wait for the current save to finish.');return;}el('rtModal')?.close();draft=null;}
 function lock(value){busy=value;el('rtForm')?.querySelectorAll('input,select,textarea,button').forEach(x=>x.disabled=value||(x.id==='rtAdvance'&&draft?.testPipeline.stage==='Regular Employee'));}
@@ -271,7 +283,7 @@ async function save(advance){
  if(prior&&!!prior.testPipeline.onHold!==!!p.onHold)p.history.push({at:new Date().toISOString(),by:ctx().userName,action:p.onHold?`On Hold: ${p.holdReason}`:'Resumed from Hold'});
  if(prior&&prior.recruitmentStatus!==c.recruitmentStatus)p.history.push({at:new Date().toISOString(),by:ctx().userName,action:`Group: ${c.recruitmentStatus}`});
  c.updatedAt=new Date().toISOString();lock(true);message('Saving…');
- try{await persist(c);el('rtModal').innerHTML=profile();bindProfile();message(advance?'Saved and moved to '+draft.testPipeline.stage+'.':'Draft saved to Recruitment – Test.');}
+ try{await persist(c);redrawProfile();message(advance?'Saved and moved to '+draft.testPipeline.stage+'.':'Draft saved to Recruitment – Test.');}
  catch(e){message(e.message+' Your draft is still open. If another user changed this record, copy your notes and close / refresh before retrying.',true);}
  finally{lock(false);}
 }
@@ -280,7 +292,7 @@ async function upload(){
  if(!draft.name.trim()||!file||!label){message('Enter a name, document label and file.',true);return;}
  if(/\bssn\b|social.?security/i.test(label+' '+file.name)){message('SSN documents cannot be uploaded here.',true);return;}
  const org=workspace,gen=editingGeneration;lock(true);message('Uploading…');
- try{checkContext(org,gen);const c=clone(draft);const meta=await root.NBLCloud.uploadRecruitmentDocument(org,c.id,'test_'+root.crypto.randomUUID(),file);checkContext(org,gen);c.documents['test_'+root.crypto.randomUUID()]={...meta,label,expiry};draft=clone(c);await persist(c);el('rtModal').innerHTML=profile();bindProfile();message('Document uploaded and test candidate saved.');}
+ try{checkContext(org,gen);const c=clone(draft);const meta=await root.NBLCloud.uploadRecruitmentDocument(org,c.id,'test_'+root.crypto.randomUUID(),file);checkContext(org,gen);c.documents['test_'+root.crypto.randomUUID()]={...meta,label,expiry};draft=clone(c);await persist(c);redrawProfile();message('Document uploaded and test candidate saved.');}
  catch(e){message(e.message,true);}finally{lock(false);}
 }
 async function authHeaders(){const s=await root.NBLCloud.getSession();if(!s)throw new Error('Sign in again.');return {'Content-Type':'application/json',Authorization:'Bearer '+s.access_token};}
@@ -291,7 +303,7 @@ async function importPdf(){
   if(fields.name&&draft.name&&fields.name.toLowerCase()!==draft.name.toLowerCase()&&!root.confirm(`PDF name is ${fields.name}. Apply its driver data to ${draft.name}?`)){message('Import canceled. Driver data unchanged.');return;}
   const allowed=['name','email','phone','address','dob','cdlNumber','cdlIssuingState','cdlExpiry','medicalCardExpiry','endorsements','fedexId'];if(!allowed.some(k=>fields[k]))throw new Error('No supported driver fields were detected in this PDF.');for(const k of allowed)if(fields[k])draft[k]=fields[k];
   const endorsements=String(fields.endorsements||'');if(/\bT\b|doubles|triples/i.test(endorsements)&&(!draft.doubles||draft.doubles==='No'))draft.doubles='Yes No Experience';
-  el('rtModal').innerHTML=profile();bindProfile();message('Driver data added to draft. Review the fields and Save Draft.');
+  redrawProfile();message('Driver data added to draft. Review the fields and Save Draft.');
  }catch(e){message(e.message,true);}finally{lock(false);}
 }
 // Match the original Recruitment module’s name-based electronic signatures.
@@ -337,6 +349,6 @@ function summary(c,format='letter'){
  const tab=root.open('about:blank','_blank');if(!tab){message('Allow popups to print the summary.',true);return;}
  tab.opener=null;tab.document.write(summaryHtml(c,new URL('assets/nashbox-logistics-logo.png',document.baseURI).href,format));tab.document.close();
 }
-function reset(){generation++;workspace='';records=[];loaded=false;draft=null;busy=false;search='';filter='In Progress';stageFilter='';sortKey='name';sortDirection='asc';el('rtModal')?.close();el('rtModal')?.remove();if(el('recruitmentTestScreen'))el('recruitmentTestScreen').innerHTML='';}
+function reset(){generation++;workspace='';records=[];loaded=false;draft=null;busy=false;search='';filter='';sortKey='name';sortDirection='asc';el('rtModal')?.close();el('rtModal')?.remove();if(el('recruitmentTestScreen'))el('recruitmentTestScreen').innerHTML='';}
 root.NBLRecruitmentTest={init:b=>{bridge=b;},open,reset,engine};
 })(typeof window==='undefined'?globalThis:window);

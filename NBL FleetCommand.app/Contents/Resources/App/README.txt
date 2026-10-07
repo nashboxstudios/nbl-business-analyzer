@@ -1,4 +1,10 @@
-NBL FleetCommand — Version 135
+NBL FleetCommand — Version 136
+
+Version 136 - Grouped Recruitment Test Table
+- Removes the stage-count tiles above the table.
+- Groups candidates in order: In Progress, Hired, Rejected, Terminated.
+- All seven columns remain sortable within each group; default order is Name, then Location.
+- Candidate profiles start with every section collapsed. Expanded sections stay open during save, import, or upload.
 
 Version 135 - Shorter Hiring Summary
 - Standard and Phone PDF summaries omit email, current address, the Driver Qualifications section, background dates, and the application-process instruction paragraph.

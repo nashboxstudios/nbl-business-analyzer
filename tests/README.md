@@ -1,4 +1,4 @@
-Recruitment Test verification (v135)
+Recruitment Test verification (v136)
 
 - `node tests/recruitment-table.cjs` with jsdom: all seven ascending/descending sorts,
   blank values last, numeric day counts, calendar-day/DST checks, screening-date-only
@@ -43,3 +43,8 @@ a truncated archive. Physical iOS/Android print behavior was not tested.
 V135 verifies summary exclusions in both letter and phone formats, while profile
 fields and screening instructions remain available. Both print layouts were
 rendered and visually reviewed with synthetic candidate data.
+
+V136 verifies four ordered status groups, no stage tiles, Name/Location tie ordering,
+column sorting within groups, filtering, and profiles collapsed on open/reopen/new.
+Expanded sections are retained when saving or importing. Engine, table, and full
+app DOM checks passed. Native browser verification remains unavailable as above.
