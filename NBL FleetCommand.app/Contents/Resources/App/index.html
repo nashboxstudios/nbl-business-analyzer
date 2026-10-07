@@ -6,7 +6,7 @@
   <title>NBL FleetCommand</title>
   <meta name="theme-color" content="#35164E" />
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=94" />
+  <link rel="stylesheet" href="styles.css?v=96" />
 </head>
 <body>
 
@@ -32,7 +32,7 @@
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
         <div class="app-name">NBL FleetCommand</div>
         <div class="app-tagline">Operations Intelligence</div>
-        <div class="app-version">Version 94</div>
+        <div class="app-version">Version 96</div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-standalone">
@@ -1455,6 +1455,19 @@
     </div>
   </div>
 
+  <div class="modal-backdrop hidden" id="dailyRefusalModal">
+    <div class="modal-card daily-refusal-modal-card">
+      <div class="modal-heading"><div><span class="eyebrow">Daily Dispatch</span><h2>Record Driver Refusal</h2></div><button class="icon-btn" data-close-modal="dailyRefusalModal">×</button></div>
+      <p class="daily-refusal-route-note">Route: <strong id="dailyRefusalRouteName">—</strong></p>
+      <form id="dailyRefusalForm">
+        <input type="hidden" id="dailyRefusalRouteId">
+        <div class="form-field"><label>Driver Who Refused</label><select id="dailyRefusalDriverInput" required></select></div>
+        <div class="form-field"><label>Note <span class="optional-label">Optional</span></label><input id="dailyRefusalNoteInput" maxlength="120" placeholder="Brief note, if needed"></div>
+        <div class="modal-actions"><button type="button" class="button secondary" data-close-modal="dailyRefusalModal">Cancel</button><button type="submit" class="button primary">Record Refusal</button></div>
+      </form>
+    </div>
+  </div>
+
   <div class="modal-backdrop hidden" id="dashboardCustomizeModal">
     <div class="modal-card dashboard-customize-card">
       <div class="modal-heading"><div><span class="eyebrow">Personal dashboard</span><h2>Customize Dashboard</h2></div><button class="icon-btn" data-close-modal="dashboardCustomizeModal">×</button></div>
@@ -1469,8 +1482,8 @@
     </div>
   </div>
 
-  <script src="core.js?v=94"></script>
-  <script src="cloud.js?v=94"></script>
-  <script src="app.js?v=94"></script>
+  <script src="core.js?v=96"></script>
+  <script src="cloud.js?v=96"></script>
+  <script src="app.js?v=96"></script>
 </body>
 </html>
