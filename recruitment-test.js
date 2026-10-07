@@ -85,6 +85,23 @@ function validate(c){
 }
 const GROUPS=['In Progress','Hired','Rejected','Terminated'];
 const candidateGroup=c=>GROUPS.includes(c.recruitmentStatus)?c.recruitmentStatus:'In Progress';
+const identityFields=['name','email','phone','fedexId','cdlNumber','cdlIssuingState'];
+const identityText=x=>String(x||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+function nameKey(value){return identityText(value).replace(/[,]/g,' ').replace(/[^\p{L}\p{N}\s]/gu,'').split(/\s+/).filter(Boolean).sort().join(' ');}
+function phoneKey(value){const digits=String(value||'').replace(/\D/g,'');return digits.length===11&&digits.startsWith('1')?digits.slice(1):digits.length===10?digits:'';}
+const idKey=value=>identityText(value).replace(/[^a-z0-9]/g,'');
+function duplicateMatches(candidate,candidates){
+ const same=(a,b)=>!!a&&a===b;
+ return candidates.filter(c=>c.id!==candidate.id&&!c.deletedAt).map(c=>{
+  const reasons=[],name=nameKey(candidate.name);
+  if(name.includes(' ')&&same(name,nameKey(c.name)))reasons.push('Name');
+  const email=identityText(candidate.email);if(email.includes('@')&&same(email,identityText(c.email)))reasons.push('Email');
+  if(same(phoneKey(candidate.phone),phoneKey(c.phone)))reasons.push('Phone');
+  if(same(idKey(candidate.fedexId),idKey(c.fedexId)))reasons.push('FedEx ID');
+  if(same(idKey(candidate.cdlNumber),idKey(c.cdlNumber))&&(!candidate.cdlIssuingState||!c.cdlIssuingState||same(idKey(candidate.cdlIssuingState),idKey(c.cdlIssuingState))))reasons.push('CDL');
+  return {candidate:c,reasons};
+ }).filter(x=>x.reasons.length);
+}
 const TABLE_COLUMNS=[['name','Name'],['location','Location'],['stage','Current Stage'],['nextAction','Next Action'],['dueDate','Due Date'],['assignedTo','Assigned To'],['days','Days in Process']];
 // Calendar days avoid off-by-one results from midnight, time zones, or DST.
 function calendarDay(value){
@@ -152,7 +169,7 @@ function summaryHtml(candidate,logoUrl='assets/nashbox-logistics-logo.png',forma
  ${question('Screening Interview Notes','',s.notes)}</section>${phone?'':`<p class="footnote">Prepared ${e(new Date().toLocaleDateString('en-US'))} · Missing answers are shown as “Not recorded”.</p>`}</main></body></html>`;
 }
 
-const engine={STAGES,normalize,reconcile,validate,scheduleKey,recordOpsAgreements,SCREENING_QUESTIONS,APPLICATION_PROCESS,summaryHtml,TABLE_COLUMNS,daysInProcess,sortCandidates,GROUPS,candidateGroup};
+const engine={STAGES,normalize,reconcile,validate,scheduleKey,recordOpsAgreements,SCREENING_QUESTIONS,APPLICATION_PROCESS,summaryHtml,TABLE_COLUMNS,daysInProcess,sortCandidates,GROUPS,candidateGroup,duplicateMatches};
 if(typeof module!=='undefined'&&module.exports)module.exports=engine;
 if(!root.document)return;
 const esc=x=>String(x??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
@@ -177,14 +194,14 @@ async function open(force=false){
  if(workspace!==c.orgId){reset();workspace=c.orgId;}
  if(loaded&&!force){render();return;}
  const org=workspace,gen=generation;host.innerHTML='<div class="card">Loading candidates…</div>';
- try{const data=await root.NBLCloud.getRecruitmentTestData(org);checkContext(org,gen);records=data.candidates.map(normalize);loaded=true;render();}
+ try{const data=await root.NBLCloud.getRecruitmentTestData(org);checkContext(org,gen);records=data.candidates.filter(c=>!c.deletedAt).map(normalize);loaded=true;render();}
  catch(e){if(generation!==gen)return;host.innerHTML=`<div class="card"><h2>Recruitment</h2><p class="rt-error">${esc(e.message)}</p><button class="button" id="rtRetry">Retry</button></div>`;el('rtRetry').onclick=()=>open(true);}
 }
 function render(){
  const host=el('recruitmentTestScreen');if(!host)return;
  const matches=sortCandidates(records.filter(c=>(!filter||candidateGroup(c)===filter)&&`${c.name} ${c.location||''}`.toLowerCase().includes(search.toLowerCase())),sortKey,sortDirection);
  const columns=()=>`<tr class="rt-group-columns">${TABLE_COLUMNS.map(([key,label])=>`<th scope="col" aria-sort="${key===sortKey?(sortDirection==='asc'?'ascending':'descending'):'none'}"><button type="button" class="rt-sort${key===sortKey?' active':''}" data-rt-sort="${key}" aria-label="Sort by ${label}${key===sortKey?(sortDirection==='asc'?', descending next':', ascending next'):''}"><span>${label}</span><span class="rt-sort-indicator" aria-hidden="true">${key===sortKey?(sortDirection==='asc'?'▲':'▼'):'↕'}</span></button></th>`).join('')}</tr>`;
- const row=c=>{const p=c.testPipeline,days=daysInProcess(c);return `<tr><td><button class="rt-link" data-rt-edit="${esc(c.id)}">${esc(c.name||'Unnamed candidate')}</button>${p.onHold?'<span class="rt-badge">On Hold</span>':''}${!p.stageReviewed?'<small>Stage needs review</small>':''}</td><td>${esc(c.location||'—')}</td><td>${esc(p.stage)}</td><td>${esc(p.nextAction||'—')}</td><td>${esc(p.dueDate||'—')}</td><td>${esc(p.assignedTo||'—')}</td><td>${days===null?'—':days}</td></tr>`;};
+ const row=c=>{const p=c.testPipeline,days=daysInProcess(c);return `<tr><td><button class="rt-link" data-rt-edit="${esc(c.id)}">${esc(c.name||'Unnamed candidate')}</button>${duplicateMatches(c,records).length?'<span class="rt-duplicate-badge">Possible duplicate</span><small>'+esc(createdLabel(c))+'</small>':''}${p.onHold?'<span class="rt-badge">On Hold</span>':''}${!p.stageReviewed?'<small>Stage needs review</small>':''}</td><td>${esc(c.location||'—')}</td><td>${esc(p.stage)}</td><td>${esc(p.nextAction||'—')}</td><td>${esc(p.dueDate||'—')}</td><td>${esc(p.assignedTo||'—')}</td><td>${days===null?'—':days}</td></tr>`;};
  const groups=GROUPS.filter(g=>!filter||g===filter).map(g=>{const rows=matches.filter(c=>candidateGroup(c)===g);return `<tbody data-rt-group="${g}"><tr class="rt-group-heading ${g.toLowerCase().replaceAll(' ','-')}"><th colspan="7" scope="rowgroup"><span>${g}<strong>${rows.length}</strong></span></th></tr>${columns()}${rows.map(row).join('')||`<tr class="rt-empty"><td colspan="7">No ${search?'matching ':''}candidates in ${g}.</td></tr>`}</tbody>`;}).join('');
  host.innerHTML=`<div class="card rt-banner"><h2>Recruitment</h2><p>Track candidates from screening through interviews, onboarding, and training.</p><div class="rt-toolbar"><button class="button primary" id="rtAdd">Add Candidate</button><button class="button secondary" id="rtRefresh">Refresh</button></div></div><div class="card"><div class="rt-toolbar"><input id="rtSearch" aria-label="Search candidates" placeholder="Search name or location" value="${esc(search)}"><select id="rtGroup" aria-label="Candidate group"><option value="">All groups</option>${GROUPS.map(g=>`<option${g===filter?' selected':''}>${g}</option>`).join('')}</select><span>${matches.length} of ${records.length} candidates</span><small class="rt-sort-note">Default order: Name, then Location</small></div><div class="rt-table-wrap"><table class="rt-table" aria-label="Candidates grouped by recruitment status">${groups}</table></div></div>`;
  host.querySelectorAll('[data-rt-sort]').forEach(x=>x.onclick=()=>{const group=x.closest('[data-rt-group]').dataset.rtGroup;sortDirection=sortKey===x.dataset.rtSort&&sortDirection==='asc'?'desc':'asc';sortKey=x.dataset.rtSort;render();host.querySelector(`[data-rt-group="${group}"] [data-rt-sort="${sortKey}"]`)?.focus();});
@@ -205,7 +222,7 @@ function profile(openSections=[]){
  const importer=`<div class="rt-wide rt-import-box"><h3>Import First Advantage Application</h3><p>Choose the driver’s First Advantage PDF to fill detected name, contact, current address, DOB, FedEx ID, and CDL details. Review the imported values, then Save Draft.</p><label class="rt-field" for="rtImportFile"><span>First Advantage PDF (up to 15 MB)</span><input type="file" id="rtImportFile" accept=".pdf,application/pdf"></label><button type="button" class="button secondary" id="rtImport">Read First Advantage PDF</button></div>`;
  const histories=p.history.slice().reverse().map(h=>`<li>${esc(new Date(h.at).toLocaleString())} — ${esc(h.action)}${h.by?' · '+esc(h.by):''}</li>`).join('');
  const docs=Object.entries(draft.documents).filter(([,d])=>d?.path).map(([k,d])=>`<div class="rt-doc"><span>${esc(d.label||d.fileName||k)}</span><button type="button" data-rt-view="${esc(k)}">View</button><button type="button" data-rt-remove="${esc(k)}">Remove from profile</button></div>`).join('');
- return `<form id="rtForm"><div class="rt-modal-header"><div><small>Recruitment</small><h2>${esc(draft.name||'New Candidate')}</h2></div><button type="button" class="button secondary" id="rtClose" aria-label="Close candidate">Close</button></div><div id="rtMessage" aria-live="polite"></div>
+ return `<form id="rtForm"><div class="rt-modal-header"><div><small>Recruitment</small><h2>${esc(draft.name||'New Candidate')}</h2>${draft._cloudUpdatedAt?'<small>'+esc(createdLabel(draft))+'</small>':''}</div><button type="button" class="button secondary" id="rtClose" aria-label="Close candidate">Close</button></div><div id="rtMessage" aria-live="polite"></div><div id="rtDuplicateWarning" class="rt-duplicate-warning" role="status" aria-live="polite" hidden></div>
  ${section('Candidate Details',importer+f('name','Name')+f('email','Email','email')+f('phone','Phone','tel')+f('location','Location')+f('address','Current address')+f('fedexId','FedEx ID'))}
  ${section('Current Stage & Next Action',`<p class="rt-wide"><strong>Current Stage: ${esc(p.stage)}</strong>${p.onHold?' · On Hold':''}. ${p.stageReviewed?'':'Suggested from existing records; review before advancing.'}</p>`+(!p.stageReviewed?f('testPipeline.stage','Confirm starting stage','text',STAGES)+f('testPipeline.stageReviewed','I reviewed this starting stage','checkbox'):'')+f('testPipeline.nextAction','Next action')+f('testPipeline.dueDate','Due date','date')+f('testPipeline.assignedTo','Assigned to')+f('testPipeline.onHold','On Hold','checkbox')+f('testPipeline.holdReason','Hold reason','textarea')+f('recruitmentStatus','Candidate group','text',['In Progress','Rejected','Terminated',...(p.stage==='Regular Employee'?['Hired']:[])])+`<div class="rt-wide"><h3>Stage history</h3><ol class="rt-history">${histories||'<li>No stage changes yet.</li>'}</ol></div>`)}
  ${section('Driver Qualifications',f('dob','Date of birth','date')+f('medicalCardExpiry','Medical card expiry','date')+f('cdlNumber','CDL number')+f('cdlIssuingState','CDL state')+f('cdlExpiry','CDL expiry','date'))}
@@ -237,7 +254,32 @@ function profile(openSections=[]){
  ${section('Onboarding Tasks',['adp','sf','motive','handbook','connectTeams','eVerify'].map(k=>pf('onboarding',k,k==='handbook'?'Handbook':k==='connectTeams'?'Connect Teams':k==='eVerify'?'E-Verify':k.toUpperCase()+' access','text',['Not Sent','Sent','Complete',...(k==='handbook'?['Signed']:[])])).join('')+pf('onboarding','notes','Onboarding notes','textarea'))}
  ${section('Training',pf('training','startDate','Training start date','date')+pf('training','trainer','Trainer')+pf('training','result','Training result','text',['Not Started','In Progress','Complete'])+pf('training','completedDate','Completed date','date')+pf('training','notes','Training notes','textarea'))}
  ${section('Document Upload',`<div class="rt-wide" id="rtDocuments">${docs||'<p>No documents.</p>'}</div><p class="rt-wide rt-help">Removing a document here removes it from this profile. The stored file remains available. Uploads are stored under this candidate. Do not upload SSN documents.</p><label class="rt-field"><span>Document label</span><input id="rtDocLabel"></label><label class="rt-field"><span>Document expiry (optional)</span><input type="date" id="rtDocExpiry"></label><label class="rt-field"><span>Upload document</span><input type="file" id="rtDocFile" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.doc,.docx"></label><button type="button" class="button secondary" id="rtUpload">Upload & Save</button>`)}
- <div class="rt-footer"><button type="submit" class="button primary" id="rtSave">Save Draft</button><button type="button" class="button secondary" id="rtAdvance"${p.stage==='Regular Employee'?' disabled':''}>${p.stage==='Training'?'Complete Training / Hire':'Move to Next Stage'}</button></div></form>`;
+ <div class="rt-footer"><button type="submit" class="button primary" id="rtSave">Save Draft</button><button type="button" class="button secondary" id="rtAdvance"${p.stage==='Regular Employee'?' disabled':''}>${p.stage==='Training'?'Complete Training / Hire':'Move to Next Stage'}</button>${draft._cloudUpdatedAt?'<button type="button" class="button rt-delete" id="rtDelete">Delete Candidate</button>':''}</div></form>`;
+}
+function createdLabel(c){const value=c.createdAt||c.dateAdded,d=new Date(value);return !value||Number.isNaN(d.getTime())?'Creation date not recorded':'Created '+d.toLocaleString('en-US');}
+function duplicateDescription(match){const c=match.candidate;return `${c.name} · ${c.location||c.domicile||'Location not recorded'} · ${candidateGroup(c)} · ${createdLabel(c)} · Screening: ${c.testPipeline?.screening?.date||'No interview date'} · Matching ${match.reasons.join(', ')}`;}
+function showDuplicateWarning(){
+ const box=el('rtDuplicateWarning');if(!box||!draft)return;
+ const matches=duplicateMatches(draft,records);box.hidden=!matches.length;
+ box.innerHTML=matches.length?`<strong>Possible duplicate profile${matches.length>1?'s':''}</strong><p>Review the existing profile before saving another record for this driver.</p><ul>${matches.map(m=>`<li>${esc(duplicateDescription(m))}</li>`).join('')}</ul>`:'';
+}
+async function checkDuplicates(candidate){
+ const org=workspace,gen=editingGeneration;checkContext(org,gen);
+ const data=await root.NBLCloud.getRecruitmentTestData(org);checkContext(org,gen);
+ records=data.candidates.filter(c=>!c.deletedAt).map(normalize);render();showDuplicateWarning();
+ const prior=records.find(c=>c.id===candidate.id);
+ if(candidate._cloudUpdatedAt&&(!prior||prior._cloudUpdatedAt!==candidate._cloudUpdatedAt))throw new Error('This candidate changed or was deleted in another session. Close and refresh Recruitment.');
+ const matches=duplicateMatches(candidate,records),changed=!prior||identityFields.some(k=>String(prior[k]||'')!==String(candidate[k]||''));
+ if(matches.length&&changed&&!root.confirm('Possible duplicate profile detected:\n\n'+matches.map(duplicateDescription).join('\n\n')+'\n\nSave this as a separate candidate anyway?'))throw new Error('Save canceled. Review the existing candidate; your draft is still available.');
+}
+async function deleteCandidate(){
+ if(busy||!draft?._cloudUpdatedAt)return;
+ const candidate=records.find(c=>c.id===draft.id);if(!candidate)return;
+ if(!root.confirm(`Delete ${candidate.name} from Recruitment?\n${createdLabel(candidate)}\n\nThis removes this profile from the candidate list and discards unsaved changes. A recovery copy and uploaded files are retained. The Recruitment Archive is unaffected.`))return;
+ const org=workspace,gen=editingGeneration;lock(true);message('Deleting candidate…');
+ try{checkContext(org,gen);await root.NBLCloud.deleteRecruitmentTestCandidate(org,candidate.id,candidate._cloudUpdatedAt);checkContext(org,gen);records=records.filter(c=>c.id!==candidate.id);el('rtModal')?.close();draft=null;render();const notice=document.createElement('p');notice.id='rtListMessage';notice.className='rt-list-message';notice.setAttribute('role','status');notice.textContent=candidate.name+' deleted from Recruitment.';el('recruitmentTestScreen').prepend(notice);}
+ catch(e){message(e.message+' The profile is still open.',true);}
+ finally{lock(false);}
 }
 function redrawProfile(){
  const modal=el('rtModal'),opened=[...modal.querySelectorAll('details[open]')].map(x=>x.querySelector('summary').textContent);
@@ -246,21 +288,24 @@ function redrawProfile(){
 function collect(){el('rtForm').querySelectorAll('[data-rt-field]').forEach(x=>put(draft,x.dataset.rtField,x.type==='checkbox'?x.checked:x.value));return draft;}
 function bindProfile(){
  el('rtForm').addEventListener('invalid',e=>{const section=e.target.closest('details');if(section)section.open=true;},true);
+ showDuplicateWarning();if(el('rtDelete'))el('rtDelete').onclick=deleteCandidate;
  el('rtClose').onclick=close;el('rtForm').onsubmit=e=>{e.preventDefault();save(false);};el('rtAdvance').onclick=()=>save(true);
  el('rtForm').querySelectorAll('[data-rt-field]').forEach(x=>x.addEventListener('change',()=>{
-  const path=x.dataset.rtField;put(draft,path,x.type==='checkbox'?x.checked:x.value);
+  const path=x.dataset.rtField;put(draft,path,x.type==='checkbox'?x.checked:x.value);showDuplicateWarning();
   if(OPS_FIELDS.some(k=>path==='testPipeline.ops.'+k)){
    delete draft.testPipeline.ops.confirmedSchedule;
    message('Agreement notes changed. Record the candidate’s current agreement, then Save Draft or Move to Next Stage.');
   }
  }));
+ el('rtForm').querySelectorAll('[data-rt-field]').forEach(x=>{if(identityFields.includes(x.dataset.rtField))x.addEventListener('input',()=>{put(draft,x.dataset.rtField,x.value);showDuplicateWarning();});});
  el('rtSummary').onclick=()=>summary(collect());el('rtSummaryPhone').onclick=()=>summary(collect(),'phone');el('rtImportFile').onchange=()=>importPdf();el('rtRoadPdf').onclick=roadPdf;el('rtUpload').onclick=upload;el('rtImport').onclick=importPdf;
  el('rtForm').querySelectorAll('[data-rt-view]').forEach(x=>x.onclick=async()=>{const tab=root.open('about:blank','_blank');try{const url=await root.NBLCloud.getRecruitmentDocumentUrl(draft.documents[x.dataset.rtView].path);if(tab){tab.opener=null;tab.location.href=url;}else message('Allow popups to view documents.',true);}catch(e){tab?.close();message(e.message,true);}});
  el('rtForm').querySelectorAll('[data-rt-remove]').forEach(x=>x.onclick=()=>{collect();delete draft.documents[x.dataset.rtRemove];redrawProfile();message('Reference removed from draft. Save Draft to keep this change.');});
 }
 function close(){if(busy){message('Wait for the current save to finish.');return;}el('rtModal')?.close();draft=null;}
 function lock(value){busy=value;el('rtForm')?.querySelectorAll('input,select,textarea,button').forEach(x=>x.disabled=value||(x.id==='rtAdvance'&&draft?.testPipeline.stage==='Regular Employee'));}
-async function persist(candidate){
+async function persist(candidate,duplicatesChecked=false){
+ if(!duplicatesChecked)await checkDuplicates(candidate);
  const org=workspace,gen=editingGeneration;checkContext(org,gen);const result=await root.NBLCloud.saveRecruitmentTestCandidate(org,candidate,candidate._cloudUpdatedAt);checkContext(org,gen);
  const index=records.findIndex(c=>c.id===candidate.id);if(index<0)records.push(normalize(result));else records[index]=normalize(result);draft=normalize(result);render();return result;
 }
@@ -292,7 +337,7 @@ async function upload(){
  if(!draft.name.trim()||!file||!label){message('Enter a name, document label and file.',true);return;}
  if(/\bssn\b|social.?security/i.test(label+' '+file.name)){message('SSN documents cannot be uploaded here.',true);return;}
  const org=workspace,gen=editingGeneration;lock(true);message('Uploading…');
- try{checkContext(org,gen);const c=clone(draft);const meta=await root.NBLCloud.uploadRecruitmentDocument(org,c.id,'test_'+root.crypto.randomUUID(),file);checkContext(org,gen);c.documents['test_'+root.crypto.randomUUID()]={...meta,label,expiry};draft=clone(c);await persist(c);redrawProfile();message('Document uploaded and candidate saved.');}
+ try{checkContext(org,gen);const c=clone(draft);await checkDuplicates(c);const meta=await root.NBLCloud.uploadRecruitmentDocument(org,c.id,'test_'+root.crypto.randomUUID(),file);checkContext(org,gen);c.documents['test_'+root.crypto.randomUUID()]={...meta,label,expiry};draft=clone(c);await persist(c,true);redrawProfile();message('Document uploaded and candidate saved.');}
  catch(e){message(e.message,true);}finally{lock(false);}
 }
 async function authHeaders(){const s=await root.NBLCloud.getSession();if(!s)throw new Error('Sign in again.');return {'Content-Type':'application/json',Authorization:'Bearer '+s.access_token};}

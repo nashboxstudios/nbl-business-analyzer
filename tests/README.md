@@ -1,4 +1,4 @@
-Recruitment Test verification (v137)
+Recruitment Test verification (v138)
 
 - `node tests/recruitment-table.cjs` with jsdom: all seven ascending/descending sorts,
   blank values last, numeric day counts, calendar-day/DST checks, screening-date-only
@@ -53,3 +53,11 @@ V137 checks Recruitment under People, Recruitment Archive in the last sidebar
 group, module/page/profile/report labels, and save/reopen through the active
 workflow while preserving the original candidate module. The existing data
 stores and cloud APIs are retained; this release does not migrate candidates.
+
+V138 verifies duplicate name/order/case and identity normalization, blank/self/
+deleted exclusions, CDL state distinction, live flags, canceled duplicate save/
+upload, delete cancellation/failure/success, recovery data and files retained,
+refresh exclusion, and stale writes blocked. Engine, table, and full app DOM
+suites passed. A rolled-back authenticated cloud fixture verified scoped
+updates, retained recovery data, stale update rejection, and outsider isolation;
+no real candidate was deleted. No schema or permission changes are required.

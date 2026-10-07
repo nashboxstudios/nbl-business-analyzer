@@ -288,23 +288,39 @@
   async function getRecruitmentTestData(organizationId){
     const rows=await getRecordDomain('nbl_fc_recruitment_test_records',organizationId);
     if(!rows.some(r=>r.record_type==='settings'))throw new Error('Recruitment Test has not been initialized for this organization.');
-    return {candidates:rows.filter(r=>r.record_type==='candidate').map(r=>({...r.payload,_cloudUpdatedAt:r.updated_at}))};
+    return {candidates:rows.filter(r=>r.record_type==='candidate'&&!r.payload?.deletedAt).map(r=>({...r.payload,_cloudUpdatedAt:r.updated_at}))};
   }
   async function saveRecruitmentTestCandidate(organizationId,candidate,expectedUpdatedAt){
     if(!organizationId||!String(candidate?.id||'').startsWith('test_'))throw new Error('A test candidate ID and organization are required.');
+    if(candidate.deletedAt)throw new Error('This candidate has been deleted. Refresh Recruitment.');
     const session=await getSession();if(!session)throw new Error('Please sign in again.');
     const payload=JSON.parse(JSON.stringify(candidate));delete payload._cloudUpdatedAt;
     for(const obj of [payload,payload.roadTestForm||{}])for(const key of ['ssnFull','ssn','socialSecurityNumber'])delete obj[key];
     const row={payload,updated_at:new Date(Math.max(Date.now(),(Date.parse(expectedUpdatedAt)||0)+1)).toISOString(),updated_by:session.user.id};
     let rows;
     if(expectedUpdatedAt){
-      const qs=new URLSearchParams({organization_id:`eq.${organizationId}`,record_type:'eq.candidate',record_key:`eq.${candidate.id}`,updated_at:`eq.${expectedUpdatedAt}`,select:'payload,updated_at'});
+      const qs=new URLSearchParams({organization_id:`eq.${organizationId}`,record_type:'eq.candidate',record_key:`eq.${candidate.id}`,updated_at:`eq.${expectedUpdatedAt}`,'payload->>deletedAt':'is.null',select:'payload,updated_at'});
       rows=await authFetch(`/rest/v1/nbl_fc_recruitment_test_records?${qs}`,{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify(row)});
     }else{
       rows=await authFetch('/rest/v1/nbl_fc_recruitment_test_records?select=payload,updated_at',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({...row,organization_id:organizationId,record_type:'candidate',record_key:candidate.id})});
     }
-    if(!Array.isArray(rows)||rows.length!==1)throw new Error('This test record changed in another session. Refresh the test list before saving again.');
+    if(!Array.isArray(rows)||rows.length!==1)throw new Error('This candidate changed or was deleted in another session. Refresh Recruitment before saving again.');
     return {...rows[0].payload,_cloudUpdatedAt:rows[0].updated_at};
+  }
+
+  // Reversible deletion uses the existing organization RLS and a version check.
+  // Preserve the stored payload and shared document objects; never use a list replacement.
+  async function deleteRecruitmentTestCandidate(organizationId,candidateId,expectedUpdatedAt){
+    if(!organizationId||!String(candidateId||'').startsWith('test_')||!expectedUpdatedAt)throw new Error('A saved candidate and its version are required to delete.');
+    const session=await getSession();if(!session)throw new Error('Please sign in again.');
+    const qs=new URLSearchParams({organization_id:`eq.${organizationId}`,record_type:'eq.candidate',record_key:`eq.${candidateId}`,updated_at:`eq.${expectedUpdatedAt}`,'payload->>deletedAt':'is.null',select:'record_key,payload,updated_at'});
+    const current=await authFetch(`/rest/v1/nbl_fc_recruitment_test_records?${qs}`);
+    if(!Array.isArray(current)||current.length!==1||current[0].record_key!==candidateId||current[0].payload?.deletedAt||current[0].updated_at!==expectedUpdatedAt)throw new Error('This candidate changed or was deleted in another session. Close and refresh before deleting.');
+    const deletedAt=new Date(Math.max(Date.now(),(Date.parse(expectedUpdatedAt)||0)+1)).toISOString();
+    const payload={...current[0].payload,deletedAt,deletedBy:session.user.id};
+    const rows=await authFetch(`/rest/v1/nbl_fc_recruitment_test_records?${qs}`,{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({payload,updated_at:deletedAt,updated_by:session.user.id})});
+    if(!Array.isArray(rows)||rows.length!==1||rows[0].record_key!==candidateId||rows[0].payload?.deletedAt!==deletedAt)throw new Error('Candidate was not deleted. Close and refresh Recruitment before trying again.');
+    return true;
   }
 
   async function getFinanceData(organizationId){const rows=await getRecordDomain('nbl_fc_finance_records',organizationId);const payrollSettings=oneRow(rows,'driver_pay_settings'),settlementSettings=oneRow(rows,'settlement_settings');return {payroll:{version:2,...payrollSettings,profiles:keyedRows(rows,'payroll_profile'),periods:keyedRows(rows,'payroll_period')},settlement:{...settlementSettings,catalog:rowsByType(rows,'settlement_statement')},recordCount:rows.length};}
@@ -373,6 +389,6 @@
   window.NBLCloud={
     url:SUPABASE_URL,
     publishableKey:SUPABASE_PUBLISHABLE_KEY,
-    signIn,signOut,getSession,getMembership,getProfile,saveProfile,updatePassword,getSnapshots,saveSnapshot,getSafetyData,saveSafetyData,getDailyDispatchBoards,saveDailyDispatchBoard,getMaintenanceData,saveMaintenanceData,saveMaintenanceFaults,getRecruitmentData,saveRecruitmentData,deleteRecruitmentCandidate,getRecruitmentTestData,saveRecruitmentTestCandidate,getFinanceData,saveDriverPayData,saveSettlementData,saveSettlementChanges,getAuditData,saveAuditData,getMeetingData,saveMeetingData,uploadRecruitmentDocument,getRecruitmentDocumentUrl,deleteRecruitmentDocument,clearSession
+    signIn,signOut,getSession,getMembership,getProfile,saveProfile,updatePassword,getSnapshots,saveSnapshot,getSafetyData,saveSafetyData,getDailyDispatchBoards,saveDailyDispatchBoard,getMaintenanceData,saveMaintenanceData,saveMaintenanceFaults,getRecruitmentData,saveRecruitmentData,deleteRecruitmentCandidate,getRecruitmentTestData,saveRecruitmentTestCandidate,deleteRecruitmentTestCandidate,getFinanceData,saveDriverPayData,saveSettlementData,saveSettlementChanges,getAuditData,saveAuditData,getMeetingData,saveMeetingData,uploadRecruitmentDocument,getRecruitmentDocumentUrl,deleteRecruitmentDocument,clearSession
   };
 })();

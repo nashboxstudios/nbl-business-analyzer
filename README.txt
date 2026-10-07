@@ -1,4 +1,11 @@
-NBL FleetCommand — Version 137
+NBL FleetCommand — Version 138
+
+Version 138 - Candidate Deletion and Duplicate Review
+- Saved Recruitment profiles include Delete Candidate with an explicit confirmation.
+- Deletion hides that profile from Recruitment and keeps a recovery record and document objects. Original Recruitment Archive records are preserved.
+- Possible duplicates are flagged in the table and profile by normalized full name, email, phone, FedEx ID, or CDL/state. Warnings include creation date and screening interview date.
+- New or changed identities matching an existing profile require confirmation before saving or uploading. Existing matches remain visibly flagged.
+- Fresh cloud checks and version-checked writes protect against deleting changed records or restoring deleted profiles with stale saves.
 
 Version 137 - Recruitment Promotion and Archive
 - Recruitment under People now opens the newer interview and hiring workflow, previously Recruitment - Test.
