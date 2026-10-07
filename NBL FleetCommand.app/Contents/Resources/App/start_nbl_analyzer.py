@@ -391,6 +391,28 @@ def unwrap_item(item, key):
     return item if isinstance(item, dict) else {}
 
 
+def summarize_motive_safety_payload(payload, list_key, item_key):
+    """Return non-sensitive diagnostics without sending event media or locations to the browser."""
+    items = [unwrap_item(x, item_key) for x in extract_list(payload, list_key)]
+    total = payload.get('total') if isinstance(payload, dict) else None
+    if total is None and isinstance(payload, dict) and isinstance(payload.get('pagination'), dict):
+        total = payload['pagination'].get('total')
+    types = {}
+    media_count = 0
+    for item in items:
+        event_type = str(item.get('type') or item.get('event_type') or item.get('primary_behavior') or 'unknown').strip()
+        types[event_type] = types.get(event_type, 0) + 1
+        media = item.get('camera_media')
+        if isinstance(media, dict) and (media.get('available') is True or media.get('downloadable_images') or media.get('downloadable_videos')):
+            media_count += 1
+    return {
+        'records_returned': len(items),
+        'total': int(total) if isinstance(total, (int, float)) else len(items),
+        'event_types': types,
+        'camera_media_records': media_count,
+    }
+
+
 def fetch_all(path, list_key, per_page=100, max_pages=50):
     out = []
     page = 1
@@ -2964,7 +2986,7 @@ class NBLHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == '/health':
-            return self.send_json({'ok': True, 'app': 'NBL FleetCommand', 'version': 97})
+            return self.send_json({'ok': True, 'app': 'NBL FleetCommand', 'version': 98})
         if parsed.path.startswith('/api/') and not require_nbl_api_access(self, parsed.path, 'GET'):
             return
         if parsed.path == '/api/admin/users':
@@ -2991,7 +3013,11 @@ class NBLHandler(SimpleHTTPRequestHandler):
                 if not key:
                     return self.send_json({'ok': False, 'configured': False, 'message': 'Configure a Motive API key first.'}, 400)
                 vehicles_ok = ifta_ok = hos_logs_ok = gps_access_ok = gps_data_ok = False
+                safety_events_ok = speeding_events_ok = False
                 vehicles_message = ifta_message = hos_logs_message = gps_message = ''
+                safety_events_message = speeding_events_message = ''
+                safety_events_result = {'records_returned': 0, 'total': 0, 'event_types': {}, 'camera_media_records': 0}
+                speeding_events_result = {'records_returned': 0, 'total': 0, 'event_types': {}, 'camera_media_records': 0}
                 gps_result = {}
                 vehicle_count = None
                 try:
@@ -3015,6 +3041,30 @@ class NBLHandler(SimpleHTTPRequestHandler):
                     hos_logs_ok = True
                 except Exception as exc:
                     hos_logs_message = str(exc)
+                safety_end = date.today()
+                safety_start = safety_end - timedelta(days=30)
+                safety_params = {
+                    'start_date': safety_start.isoformat(),
+                    'end_date': safety_end.isoformat(),
+                    'per_page': 25,
+                    'page_no': 1,
+                }
+                try:
+                    payload, _ = motive_request('/v2/driver_performance_events', safety_params, timeout=35)
+                    safety_events_ok = True
+                    safety_events_result = summarize_motive_safety_payload(payload, 'driver_performance_events', 'driver_performance_event')
+                    if not safety_events_result['records_returned']:
+                        safety_events_message = 'API access confirmed; no performance events were returned for the last 30 days.'
+                except Exception as exc:
+                    safety_events_message = str(exc)
+                try:
+                    payload, _ = motive_request('/v2/speeding_events', safety_params, timeout=35)
+                    speeding_events_ok = True
+                    speeding_events_result = summarize_motive_safety_payload(payload, 'speeding_events', 'speeding_event')
+                    if not speeding_events_result['records_returned']:
+                        speeding_events_message = 'API access confirmed; no speeding events were returned for the last 30 days.'
+                except Exception as exc:
+                    speeding_events_message = str(exc)
                 if vehicles_ok:
                     try:
                         gps_result = test_historical_gps_access()
@@ -3034,6 +3084,14 @@ class NBLHandler(SimpleHTTPRequestHandler):
                     'gps_access_ok': gps_access_ok,
                     'gps_data_ok': gps_data_ok,
                     'gps_result': gps_result,
+                    'safety_test_start': safety_start.isoformat(),
+                    'safety_test_end': safety_end.isoformat(),
+                    'safety_events_ok': safety_events_ok,
+                    'safety_events_message': safety_events_message,
+                    'safety_events_result': safety_events_result,
+                    'speeding_events_ok': speeding_events_ok,
+                    'speeding_events_message': speeding_events_message,
+                    'speeding_events_result': speeding_events_result,
                     'vehicle_count': vehicle_count,
                     'vehicles_message': vehicles_message,
                     'ifta_message': ifta_message,
@@ -3179,13 +3237,13 @@ def main():
     # that is still running from hijacking a newer build's browser window.
     server = ThreadingHTTPServer((HOST, REQUESTED_PORT), NBLHandler)
     actual_port = int(server.server_address[1])
-    url = f'http://localhost:{actual_port}/index.html?v=97'
+    url = f'http://localhost:{actual_port}/index.html?v=98'
     if PORT_FILE:
         try:
             Path(PORT_FILE).write_text(url, encoding='utf-8')
         except Exception:
             pass
-    print('NBL FleetCommand v92 is running.')
+    print('NBL FleetCommand v98 is running.')
     print(f'Open: {url}')
     print('Motive API credentials use MOTIVE_API_KEY when provided; local builds fall back to the protected local key file.')
     print('Keep this process running while using the app.')
