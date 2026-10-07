@@ -112,6 +112,9 @@ tfoot td{background:#F7F2F9;border-top-color:#D9CBDF}
 .priority-pill.p1{background:#f8dddd;color:#a02e2e}
 .priority-pill.p2{background:#fff0c9;color:#7a5a10}
 .priority-pill.p3{background:#e9eef2;color:#526675}
+.maintenance-severity{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:900;white-space:nowrap}
+.severity-critical{background:#f8dddd;color:#9b1c1c}.severity-high{background:#ffe6cd;color:#a34800}.severity-medium{background:#fff0c9;color:#71530b}.severity-low{background:#e2f3e8;color:#17683b}
+.maintenance-table td small{display:block;margin-top:4px;color:#718096;max-width:360px;white-space:normal}
 .resolved-row td{opacity:.72;background:#fafbfb}
 .overdue-meeting-row td{background:#fff8f8}
 .due-overdue{color:#b12f2f;font-weight:850}

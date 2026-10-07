@@ -559,6 +559,36 @@ def fetch_motive_drivers():
     return out
 
 
+def fetch_motive_fault_codes():
+    """Fetch and normalize Motive vehicle diagnostic fault codes."""
+    raw = fetch_all_with_params('/v1/fault_codes', 'fault_codes', 'fault_code', {'per_page': 100})
+    result = []
+    for item in raw:
+        vehicle = item.get('vehicle') if isinstance(item.get('vehicle'), dict) else {}
+        result.append({
+            'id': item.get('id'),
+            'code': str(item.get('code') or ''),
+            'label': str(item.get('code_label') or ''),
+            'description': str(item.get('code_description') or ''),
+            'status': str(item.get('status') or ''),
+            'severity': str(item.get('dtc_severity') or 'Unclassified'),
+            'firstObservedAt': item.get('first_observed_at') or item.get('first_observed'),
+            'lastObservedAt': item.get('last_observed_at') or item.get('last_observed'),
+            'type': str(item.get('type') or ''),
+            'fmi': item.get('fmi'),
+            'fmiDescription': str(item.get('fmi_description') or ''),
+            'occurrenceCount': item.get('occurrence_count') or 0,
+            'observations': item.get('num_observations') or 0,
+            'network': str(item.get('network') or ''),
+            'vehicle': {
+                'id': vehicle.get('id'), 'number': str(vehicle.get('number') or ''),
+                'year': vehicle.get('year'), 'make': str(vehicle.get('make') or ''),
+                'model': str(vehicle.get('model') or ''), 'vin': str(vehicle.get('vin') or '')
+            }
+        })
+    return result
+
+
 
 def extract_gps_points(payload):
     """Recursively find breadcrumb-like records containing latitude/longitude."""
@@ -3195,6 +3225,9 @@ class NBLHandler(SimpleHTTPRequestHandler):
             if parsed.path == '/api/motive/drivers':
                 drivers = fetch_motive_drivers()
                 return self.send_json({'ok': True, 'drivers': drivers, 'count': len(drivers)})
+            if parsed.path == '/api/motive/fault-codes':
+                fault_codes = fetch_motive_fault_codes()
+                return self.send_json({'ok': True, 'faultCodes': fault_codes, 'count': len(fault_codes)})
             if parsed.path == '/api/motive/safety':
                 qs = parse_qs(parsed.query)
                 start_day = parse_iso_day((qs.get('start_date') or [''])[0])
@@ -3369,13 +3402,13 @@ def main():
     # that is still running from hijacking a newer build's browser window.
     server = ThreadingHTTPServer((HOST, REQUESTED_PORT), NBLHandler)
     actual_port = int(server.server_address[1])
-    url = f'http://localhost:{actual_port}/index.html?v=110'
+    url = f'http://localhost:{actual_port}/index.html?v=113'
     if PORT_FILE:
         try:
             Path(PORT_FILE).write_text(url, encoding='utf-8')
         except Exception:
             pass
-    print('NBL FleetCommand v112 is running.')
+    print('NBL FleetCommand v113 is running.')
     print(f'Open: {url}')
     print('Motive API credentials use MOTIVE_API_KEY when provided; local builds fall back to the protected local key file.')
     print('Keep this process running while using the app.')

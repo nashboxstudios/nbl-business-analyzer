@@ -6,7 +6,7 @@
   <title>NBL FleetCommand</title>
   <meta name="theme-color" content="#35164E" />
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=110" />
+  <link rel="stylesheet" href="styles.css?v=113" />
 </head>
 <body>
 
@@ -32,7 +32,7 @@
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
         <div class="app-name">NBL FleetCommand</div>
         <div class="app-tagline">Operations Intelligence</div>
-        <div class="app-version">Version 112</div>
+        <div class="app-version">Version 113</div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-standalone nav-main-modules">
@@ -45,9 +45,18 @@
             <button class="nav-btn nav-btn-child" data-icon="D" data-screen="daily-dispatch">Daily Dispatch Board</button>
             <button class="nav-btn nav-btn-child" data-icon="W" data-screen="dispatch">Weekly Dispatch Planner</button>
             <button class="nav-btn nav-btn-child" data-icon="M" data-screen="meetings">Meetings</button>
-            <button class="nav-btn nav-btn-child" data-icon="F" data-screen="maintenance">Fleet Maintenance</button>
             <button class="nav-btn nav-btn-child" data-icon="A" data-screen="audit">Audit</button>
             <button class="nav-btn nav-btn-child" data-icon="M" data-screen="motive">Motive</button>
+          </div>
+        </div>
+
+        <div class="nav-group" data-nav-group="maintenance">
+          <button type="button" class="nav-group-toggle" aria-expanded="true"><span class="nav-group-title">Maintenance</span><span class="nav-group-chevron" aria-hidden="true">▾</span></button>
+          <div class="nav-group-items">
+            <button class="nav-btn nav-btn-child" data-icon="F" data-screen="maintenance">Fleet Maintenance</button>
+            <button class="nav-btn nav-btn-child" data-icon="T" data-screen="trip-inspections">Trip Inspections</button>
+            <button class="nav-btn nav-btn-child" data-icon="C" data-screen="fault-codes">Motive Fault Codes</button>
+            <button class="nav-btn nav-btn-child" data-icon="T" data-screen="maintenance-tasks">Maintenance Tasks</button>
           </div>
         </div>
 
@@ -390,8 +399,8 @@
           <div class="meeting-toolbar">
             <div>
               <span class="eyebrow">Operations Meetings</span>
-              <h2>Meeting & Inspection Tracker</h2>
-              <p>Track truck inspection issues and management meeting action items in one place.</p>
+              <h2>Management Meetings</h2>
+              <p>Track discussion topics, responsibilities, due dates and completion status.</p>
             </div>
             <div class="meeting-toolbar-actions">
               <button class="button dark" id="exportMeetingsBtn" disabled>Export Meetings Excel</button>
@@ -399,19 +408,6 @@
           </div>
 
           <div class="summary-grid" id="meetingCards"></div>
-
-          <div class="panel meeting-panel">
-            <div class="panel-heading">
-              <div><h2>Truck Inspection Reports</h2><p>Record tractor issues found during inspections and track whether they have been addressed.</p></div>
-              <div class="panel-heading-actions">
-                <button class="button secondary" id="resetInspectionWidthsBtn" title="Restore the default column widths">Reset Column Widths</button>
-                <button class="button primary" id="addInspectionBtn">+ Add Inspection Report</button>
-              </div>
-            </div>
-            <div class="table-wrap">
-              <table id="inspectionTable" class="meeting-table inspection-table"><thead></thead><tbody></tbody></table>
-            </div>
-          </div>
 
           <div class="panel meeting-panel management-panel">
             <div class="panel-heading">
@@ -425,6 +421,24 @@
               <table id="managementMeetingTable" class="meeting-table management-meeting-table"><thead></thead><tbody></tbody></table>
             </div>
           </div>
+        </div>
+
+        <div id="tripInspectionsScreen" class="screen hidden">
+          <div class="meeting-toolbar"><div><span class="eyebrow">Maintenance</span><h2>Trip Inspections</h2><p>Record pre-trip and post-trip defects and turn repair needs into maintenance tasks.</p></div><div class="meeting-toolbar-actions"><button class="button dark" id="exportInspectionsBtn" disabled>Export Inspections Excel</button></div></div>
+          <div class="summary-grid" id="tripInspectionCards"></div>
+          <div class="panel meeting-panel"><div class="panel-heading"><div><h2>Pre/Post-Trip Inspection Reports</h2><p>Existing inspection records have been retained and moved here from Meetings.</p></div><div class="panel-heading-actions"><button class="button secondary" id="resetInspectionWidthsBtn" title="Restore the default column widths">Reset Column Widths</button><button class="button primary" id="addInspectionBtn">+ Add Inspection Report</button></div></div><div class="table-wrap"><table id="inspectionTable" class="meeting-table inspection-table"><thead></thead><tbody></tbody></table></div></div>
+        </div>
+
+        <div id="faultCodesScreen" class="screen hidden">
+          <div class="maintenance-toolbar"><div><span class="eyebrow">Maintenance Intelligence</span><h2>Motive Fault Codes</h2><p>Translate Motive diagnostic faults into prioritized, practical next actions.</p></div><div class="maintenance-actions"><select id="faultStatusFilter"><option value="all">All statuses</option><option value="open">Open</option><option value="closed">Closed</option></select><button class="button primary" id="refreshFaultCodesBtn">Refresh from Motive</button></div></div>
+          <div class="summary-grid" id="faultCodeCards"></div>
+          <div class="panel"><div class="panel-heading"><div><h2>Diagnostic Faults</h2><p>Guidance is triage support only; a qualified technician should diagnose and approve repairs.</p></div></div><div class="table-wrap"><table id="faultCodesTable" class="maintenance-table"><thead></thead><tbody></tbody></table></div></div>
+        </div>
+
+        <div id="maintenanceTasksScreen" class="screen hidden">
+          <div class="maintenance-toolbar"><div><span class="eyebrow">Maintenance</span><h2>Maintenance Tasks</h2><p>Create, assign, schedule and track work generated from inspections, Motive faults or manual requests.</p></div><div class="maintenance-actions"><select id="maintenanceTaskStatusFilter"><option value="open">Open tasks</option><option value="all">All tasks</option><option value="Completed">Completed</option></select><button class="button primary" id="addMaintenanceTaskBtn">+ Add Task</button></div></div>
+          <div class="summary-grid" id="maintenanceTaskCards"></div>
+          <div class="panel"><div class="panel-heading"><div><h2>Work Queue</h2><p>Critical and overdue work stays at the top.</p></div></div><div class="table-wrap"><table id="maintenanceTasksTable" class="maintenance-table"><thead></thead><tbody></tbody></table></div></div>
         </div>
 
         <div id="hrScreen" class="screen hidden">
@@ -1476,6 +1490,19 @@
     </div>
   </div>
 
+  <div class="modal-backdrop hidden" id="maintenanceTaskModal">
+    <div class="modal-card wide">
+      <div class="modal-heading"><div><span class="eyebrow">Maintenance Work</span><h2 id="maintenanceTaskModalTitle">Add Maintenance Task</h2></div><button class="icon-btn" data-close-modal="maintenanceTaskModal">×</button></div>
+      <form id="maintenanceTaskForm">
+        <input id="maintenanceTaskEditId" type="hidden"><input id="maintenanceTaskSourceType" type="hidden"><input id="maintenanceTaskSourceId" type="hidden">
+        <div class="form-grid three"><div class="form-field"><label>Task</label><input id="maintenanceTaskTitle" required></div><div class="form-field"><label>Tractor #</label><input id="maintenanceTaskTractor" list="tractorNumberList"></div><div class="form-field"><label>Priority</label><select id="maintenanceTaskPriority"><option>Critical</option><option>High</option><option selected>Medium</option><option>Low</option></select></div></div>
+        <div class="form-grid three"><div class="form-field"><label>Assigned To</label><input id="maintenanceTaskAssignee" placeholder="Person or shop"></div><div class="form-field"><label>Due Date</label><input id="maintenanceTaskDueDate" type="date"></div><div class="form-field"><label>Status</label><select id="maintenanceTaskStatus"><option>New</option><option>Assigned</option><option>Scheduled</option><option>Waiting for Parts</option><option>Completed</option></select></div></div>
+        <div class="form-grid"><div class="form-field"><label>Dispatch Restriction</label><select id="maintenanceTaskDoNotDispatch"><option value="N">May remain in service</option><option value="Y">Do not dispatch</option></select></div><div class="form-field"><label>Notes / Required Action</label><textarea id="maintenanceTaskNotes" rows="4"></textarea></div></div>
+        <div class="modal-actions"><button type="button" class="button secondary" data-close-modal="maintenanceTaskModal">Cancel</button><button type="submit" class="button primary">Save Task</button></div>
+      </form>
+    </div>
+  </div>
+
 
   <div class="modal-backdrop hidden" id="myProfileModal">
     <div class="modal-card finance-security-card">
@@ -1546,8 +1573,8 @@
     </div>
   </div>
 
-  <script src="core.js?v=110"></script>
-  <script src="cloud.js?v=110"></script>
-  <script src="app.js?v=110"></script>
+  <script src="core.js?v=113"></script>
+  <script src="cloud.js?v=113"></script>
+  <script src="app.js?v=113"></script>
 </body>
 </html>
