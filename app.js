@@ -6334,6 +6334,7 @@
   $('addRecruitmentCandidateBtn')?.addEventListener('click',()=>openRecruitmentCandidateModal());
   $('recruitmentCandidateForm')?.addEventListener('submit',saveRecruitmentCandidateFromForm);
   $('hiringSummaryPreviewBtn')?.addEventListener('click',previewHiringSummary);
+  $('openHiringSummarySectionBtn')?.addEventListener('click',()=>{$('hiringSummarySection').scrollIntoView({block:'start',behavior:'smooth'});$('hiringSummaryNotesInput').focus({preventScroll:true});});
   $('hiringSummaryDownloadBtn')?.addEventListener('click',()=>downloadHiringSummaryPdf());
   $('hiringSummaryPreviewDownloadBtn')?.addEventListener('click',()=>downloadHiringSummaryPdf(true));
   $('recruitmentRoadTestForm')?.addEventListener('submit',saveRecruitmentRoadTest);
