@@ -1,3 +1,15 @@
+NBL FleetCommand — Version 92
+
+Version 92 - Bulk Settlement Upload + Duplicate Protection
+-----------------------------------------------------------
+- Settlement upload now accepts multiple CSV files in one selection.
+- Exact duplicates are detected by a content fingerprint and skipped automatically, even when filenames differ.
+- A different statement with the same settlement date prompts the Owner to replace it or retain the current active statement.
+- Local replacement files use one canonical filename per settlement date.
+- Existing duplicate files are excluded from every calculation and shown in a review panel on Settlement Summary.
+- Upload completion reports statements added, replaced, skipped, retained, and any file errors.
+
+
 NBL FleetCommand — Version 91
 
 Version 91 - Focused Financial Trends

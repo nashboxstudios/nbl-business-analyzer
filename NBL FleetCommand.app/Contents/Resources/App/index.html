@@ -6,7 +6,7 @@
   <title>NBL FleetCommand</title>
   <meta name="theme-color" content="#35164E" />
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=91" />
+  <link rel="stylesheet" href="styles.css?v=92" />
 </head>
 <body>
 
@@ -32,7 +32,7 @@
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
         <div class="app-name">NBL FleetCommand</div>
         <div class="app-tagline">Operations Intelligence</div>
-        <div class="app-version">Version 91</div>
+        <div class="app-version">Version 92</div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-group" data-nav-group="operations">
@@ -94,7 +94,7 @@
           <p id="fileMeta">Choose your NBL business data folder to begin.</p>
         </div>
         <div class="actions">
-          <label class="button primary file-button" id="uploadStatementBtn">Upload Statement<input id="fileInput" type="file" accept=".csv,text/csv" hidden></label>
+          <label class="button primary file-button" id="uploadStatementBtn">Upload Statements<input id="fileInput" type="file" accept=".csv,text/csv" multiple hidden></label>
           <button class="button secondary" id="saveBtn" disabled>Save Report</button>
           <button class="button dark" id="exportBtn" disabled>Export Excel</button>
         </div>
@@ -108,7 +108,7 @@
           <p id="emptyStateText">Sign in to NBL Cloud for the shared online workspace. You can also connect your existing local NBL data folder for migration, backup, and local report storage.</p>
           <div class="empty-actions">
             <button class="button secondary big" id="emptyChooseFolderBtn">Choose Data Folder</button>
-            <label class="button primary file-button big" id="emptyUploadStatementBtn">Upload Settlement CSV<input type="file" id="emptyFileInput" accept=".csv,text/csv" hidden></label>
+            <label class="button primary file-button big" id="emptyUploadStatementBtn">Upload Settlement CSVs<input type="file" id="emptyFileInput" accept=".csv,text/csv" multiple hidden></label>
           </div>
         </div>
 
@@ -168,6 +168,10 @@
             <div class="panel latest-detail-panel">
               <div class="panel-heading"><div><h2>Most Recent Statement Metrics</h2><p>Automatically pulled from the newest settlement statement in the Statements folder.</p></div></div>
               <div class="latest-detail-grid" id="latestDetailGrid"></div>
+            </div>
+            <div class="panel settlement-duplicate-panel hidden" id="settlementDuplicatePanel">
+              <div class="panel-heading"><div><h2>Duplicate Statements Excluded</h2><p>These files are retained for review but are not included in reports or calculations.</p></div><div class="history-count" id="settlementDuplicateCount">0 duplicates</div></div>
+              <div class="table-wrap"><table id="settlementDuplicateTable" class="reports-table settlement-duplicate-table"><thead><tr><th>Settlement Date</th><th>Excluded File</th><th>Active File</th><th>Reason</th></tr></thead><tbody></tbody></table></div>
             </div>
             <div class="panel settlement-history-panel">
               <div class="panel-heading"><div><h2>Settlement History</h2><p>All settlement statements currently stored in your NBL business data folder.</p></div><div class="history-count" id="historyCount">0 statements</div></div>
@@ -1418,8 +1422,8 @@
     </div>
   </div>
 
-  <script src="core.js?v=91"></script>
-  <script src="cloud.js?v=91"></script>
-  <script src="app.js?v=91"></script>
+  <script src="core.js?v=92"></script>
+  <script src="cloud.js?v=92"></script>
+  <script src="app.js?v=92"></script>
 </body>
 </html>
