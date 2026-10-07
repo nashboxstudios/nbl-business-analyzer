@@ -1,3 +1,11 @@
+NBL FleetCommand — Version 119
+
+Version 119 - Recruitment Table Cleanup
+
+- Removes Email, Phone, FedEx ID, Shift, Type, Date Added, Screening Interview, and Ops Interview from the Recruitment summary table.
+- Keeps every removed field stored and editable inside the individual candidate profile.
+- Migrates previously saved Recruitment table layouts so the removed columns do not reappear.
+
 NBL FleetCommand — Version 118
 
 Version 118 - Reliable Incremental Settlement Uploads

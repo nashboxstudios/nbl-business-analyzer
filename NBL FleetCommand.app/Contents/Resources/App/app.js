@@ -15,10 +15,10 @@
     inspection:[85,90,120,180,120,90,110],
     management:[85,140,180,120,100,75,110]
   };
-  const HR_RECRUITMENT_LAYOUT_VERSION = 4;
+  const HR_RECRUITMENT_LAYOUT_VERSION = 5;
   const HR_RECRUITMENT_STATUSES = ['In Progress','Hired','Rejected','Terminated'];
   const HR_RECRUITMENT_FIXED_COLUMNS = ['name'];
-  const HR_RECRUITMENT_DEFAULT_ORDER = ['name','email','phone','domicile','fedexId','shift','type','doubles','dateAdded','screeningInterview','fadvStatus','notes','opsInterview','equipmentFam','roadTest','drugTest','offerLetter','startDate','recruitmentStatus','daysInProcess','actions'];
+  const HR_RECRUITMENT_DEFAULT_ORDER = ['name','domicile','doubles','fadvStatus','notes','equipmentFam','roadTest','drugTest','offerLetter','startDate','recruitmentStatus','daysInProcess','actions'];
   const HR_RECRUITMENT_DEFAULT_WIDTHS = {
     name:190,email:220,phone:150,domicile:145,fedexId:105,shift:90,type:110,doubles:90,dateAdded:110,screeningInterview:135,fadvStatus:120,notes:240,opsInterview:120,equipmentFam:110,roadTest:115,drugTest:110,offerLetter:120,startDate:110,recruitmentStatus:135,daysInProcess:120,actions:190
   };
