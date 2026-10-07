@@ -236,7 +236,7 @@
         }
       }
     }
-    return {version:98,mileage,updatedAt:new Date().toISOString()};
+    return {version:99,mileage,updatedAt:new Date().toISOString()};
   }
   function normalizeCloudSettlementCatalog(data){
     const ss=data&&typeof data==='object'?data:{};
@@ -350,12 +350,12 @@
   async function saveCloudModule(moduleKey,silent=true){
     if(!cloudConnected()||!window.NBLCloud||!state.cloud?.organization?.id) return false;
     try{
-      const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'98');
-      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'98',updated_at:new Date().toISOString()};
+      const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'99');
+      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'99',updated_at:new Date().toISOString()};
       if(moduleKey==='settlement'){
         const dashboardData=dashboardMileageSnapshot();
-        const dashboardRow=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,'dashboard',dashboardData,'98');
-        state.cloud.snapshots.dashboard=dashboardRow||{module_key:'dashboard',data:dashboardData,source_version:'98',updated_at:new Date().toISOString()};
+        const dashboardRow=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,'dashboard',dashboardData,'99');
+        state.cloud.snapshots.dashboard=dashboardRow||{module_key:'dashboard',data:dashboardData,source_version:'99',updated_at:new Date().toISOString()};
         state.dashboard.mileage=dashboardData.mileage;
       }
       state.cloud.hasSnapshotData=true; state.cloud.lastSync=new Date().toISOString(); updateCloudUI();
