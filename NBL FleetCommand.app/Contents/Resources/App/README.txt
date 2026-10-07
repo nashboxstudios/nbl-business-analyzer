@@ -1,4 +1,32 @@
-NBL FleetCommand — Version 129
+NBL FleetCommand — Version 130
+
+Version 130 - Recruitment Test
+- People > Recruitment – Test contains separate copies of the current cloud candidates.
+- Review the suggested starting stage for each copied candidate.
+- Save Draft keeps incomplete interview work. Move to Next Stage checks prerequisites.
+- Screening and Ops forms follow the two interview spreadsheet tabs.
+- Background / drug-screen status continues independently; managers may authorize early Ops.
+- Agreed schedule or doubles requirement changes require fresh candidate acknowledgment.
+- On Hold requires a reason. Do Not Proceed marks the test candidate Rejected.
+- Offer / onboarding and training completion lead to the Hired group.
+- Hiring Summary supports Print / Save PDF and excludes FADV, road-test status,
+  medical-card expiry, proposed start date, equipment familiarity and sensitive identity fields.
+- Document upload is last, after one Onboarding Tasks section. Removing a copied
+  document reference does not delete the original document.
+- Cloud saves update only one test record and reject stale concurrent changes.
+- Existing Recruitment candidates, dispatch roster and employee records are not modified.
+- Test records are a one-time snapshot, not an automatic mirror of future candidates.
+- No applications, offers or onboarding messages are sent by this module.
+
+Cloud setup: SUPABASE_v130_RECRUITMENT_TEST.sql creates isolated storage and copies
+candidates once per organization. It has already been applied to the current NBL workspace.
+Rerunning the script preserves existing test edits. Owners and Operations can access it;
+existing Finance restrictions continue to apply.
+
+Validation: node tests/recruitment-test.cjs
+UI interaction suite: node tests/recruitment-test-dom.cjs (requires jsdom)
+Browser suite: node tests/recruitment-test-browser.cjs (requires Playwright and Chromium);
+set NBL_TEST_URL and optionally NBL_TEST_BROWSER for your test server / browser.
 
 Version 129 - Current Application Address
 

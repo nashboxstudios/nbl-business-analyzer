@@ -6,7 +6,8 @@
   <title>NBL FleetCommand</title>
   <meta name="theme-color" content="#35164E" />
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=129" />
+  <link rel="stylesheet" href="styles.css?v=130" />
+  <link rel="stylesheet" href="recruitment-test.css?v=130">
 </head>
 <body>
 
@@ -32,7 +33,7 @@
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
         <div class="app-name">NBL FleetCommand</div>
         <div class="app-tagline">Operations Intelligence</div>
-        <div class="app-version">Version 129</div>
+        <div class="app-version">Version 130</div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-standalone nav-main-modules">
@@ -64,6 +65,7 @@
           <button type="button" class="nav-group-toggle" aria-expanded="true"><span class="nav-group-title">People</span><span class="nav-group-chevron" aria-hidden="true">▾</span></button>
           <div class="nav-group-items">
             <button class="nav-btn nav-btn-child" data-icon="R" data-screen="hr">Recruitment</button>
+            <button class="nav-btn nav-btn-child" data-icon="T" data-screen="recruitment-test">Recruitment – Test</button>
             <button class="nav-btn nav-btn-child hidden" data-icon="U" id="userAccessNav" data-screen="users">Users</button>
           </div>
         </div>
@@ -109,6 +111,7 @@
 
       <section class="content">
         <div id="alertArea"></div>
+        <section id="recruitmentTestScreen" class="screen hidden"></section>
         <div id="dashboardScreen" class="screen hidden">
           <div class="dashboard-intro">
             <div><span class="eyebrow">Operations overview</span><h2 id="dashboardGreeting">Welcome to FleetCommand</h2><p>Key activity across mileage, dispatch, and fleet maintenance.</p></div>
@@ -1604,7 +1607,8 @@
   </div>
 
   <script src="core.js?v=117"></script>
-  <script src="cloud.js?v=128"></script>
-  <script src="app.js?v=129"></script>
+  <script src="cloud.js?v=130"></script>
+  <script src="recruitment-test.js?v=130"></script>
+  <script src="app.js?v=130"></script>
 </body>
 </html>

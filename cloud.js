@@ -285,6 +285,28 @@
     return true;
   }
 
+  async function getRecruitmentTestData(organizationId){
+    const rows=await getRecordDomain('nbl_fc_recruitment_test_records',organizationId);
+    if(!rows.some(r=>r.record_type==='settings'))throw new Error('Recruitment Test has not been initialized for this organization.');
+    return {candidates:rows.filter(r=>r.record_type==='candidate').map(r=>({...r.payload,_cloudUpdatedAt:r.updated_at}))};
+  }
+  async function saveRecruitmentTestCandidate(organizationId,candidate,expectedUpdatedAt){
+    if(!organizationId||!String(candidate?.id||'').startsWith('test_'))throw new Error('A test candidate ID and organization are required.');
+    const session=await getSession();if(!session)throw new Error('Please sign in again.');
+    const payload=JSON.parse(JSON.stringify(candidate));delete payload._cloudUpdatedAt;
+    for(const obj of [payload,payload.roadTestForm||{}])for(const key of ['ssnFull','ssn','socialSecurityNumber'])delete obj[key];
+    const row={payload,updated_at:new Date(Math.max(Date.now(),(Date.parse(expectedUpdatedAt)||0)+1)).toISOString(),updated_by:session.user.id};
+    let rows;
+    if(expectedUpdatedAt){
+      const qs=new URLSearchParams({organization_id:`eq.${organizationId}`,record_type:'eq.candidate',record_key:`eq.${candidate.id}`,updated_at:`eq.${expectedUpdatedAt}`,select:'payload,updated_at'});
+      rows=await authFetch(`/rest/v1/nbl_fc_recruitment_test_records?${qs}`,{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify(row)});
+    }else{
+      rows=await authFetch('/rest/v1/nbl_fc_recruitment_test_records?select=payload,updated_at',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({...row,organization_id:organizationId,record_type:'candidate',record_key:candidate.id})});
+    }
+    if(!Array.isArray(rows)||rows.length!==1)throw new Error('This test record changed in another session. Refresh the test list before saving again.');
+    return {...rows[0].payload,_cloudUpdatedAt:rows[0].updated_at};
+  }
+
   async function getFinanceData(organizationId){const rows=await getRecordDomain('nbl_fc_finance_records',organizationId);const payrollSettings=oneRow(rows,'driver_pay_settings'),settlementSettings=oneRow(rows,'settlement_settings');return {payroll:{version:2,...payrollSettings,profiles:keyedRows(rows,'payroll_profile'),periods:keyedRows(rows,'payroll_period')},settlement:{...settlementSettings,catalog:rowsByType(rows,'settlement_statement')},recordCount:rows.length};}
   async function saveDriverPayData(organizationId,data){const records=[{recordType:'driver_pay_settings',recordKey:'main',payload:{version:2,dhMappings:data?.dhMappings||{}}},...Object.entries(data?.profiles||{}).map(([key,payload])=>({recordType:'payroll_profile',recordKey:key,payload})),...Object.entries(data?.periods||{}).map(([key,payload])=>({recordType:'payroll_period',recordKey:key,payload}))];return replaceRecordDomain('nbl_fc_finance_records',organizationId,records,['driver_pay_settings','payroll_profile','payroll_period']);}
   function settlementSettings(data){return {version:data?.version||92,currentStatementId:data?.currentStatementId||null,analysisStatementId:data?.analysisStatementId||null,updatedAt:data?.updatedAt||new Date().toISOString()};}
@@ -351,6 +373,6 @@
   window.NBLCloud={
     url:SUPABASE_URL,
     publishableKey:SUPABASE_PUBLISHABLE_KEY,
-    signIn,signOut,getSession,getMembership,getProfile,saveProfile,updatePassword,getSnapshots,saveSnapshot,getSafetyData,saveSafetyData,getDailyDispatchBoards,saveDailyDispatchBoard,getMaintenanceData,saveMaintenanceData,saveMaintenanceFaults,getRecruitmentData,saveRecruitmentData,deleteRecruitmentCandidate,getFinanceData,saveDriverPayData,saveSettlementData,saveSettlementChanges,getAuditData,saveAuditData,getMeetingData,saveMeetingData,uploadRecruitmentDocument,getRecruitmentDocumentUrl,deleteRecruitmentDocument,clearSession
+    signIn,signOut,getSession,getMembership,getProfile,saveProfile,updatePassword,getSnapshots,saveSnapshot,getSafetyData,saveSafetyData,getDailyDispatchBoards,saveDailyDispatchBoard,getMaintenanceData,saveMaintenanceData,saveMaintenanceFaults,getRecruitmentData,saveRecruitmentData,deleteRecruitmentCandidate,getRecruitmentTestData,saveRecruitmentTestCandidate,getFinanceData,saveDriverPayData,saveSettlementData,saveSettlementChanges,getAuditData,saveAuditData,getMeetingData,saveMeetingData,uploadRecruitmentDocument,getRecruitmentDocumentUrl,deleteRecruitmentDocument,clearSession
   };
 })();
