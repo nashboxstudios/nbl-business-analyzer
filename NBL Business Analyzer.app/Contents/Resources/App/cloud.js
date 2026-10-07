@@ -119,13 +119,13 @@
     return out;
   }
 
-  async function saveSnapshot(organizationId,moduleKey,data,sourceVersion='80'){
+  async function saveSnapshot(organizationId,moduleKey,data,sourceVersion='82'){
     const session=await getSession();
     const body=[{
       organization_id:organizationId,
       module_key:moduleKey,
       data:data==null?{}:data,
-      source_version:String(sourceVersion||'80'),
+      source_version:String(sourceVersion||'82'),
       updated_by:session?.user?.id||null,
       updated_at:new Date().toISOString()
     }];

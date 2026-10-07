@@ -1,3 +1,9 @@
+Version 82 - Cloud Settlement Reports
+- Settlement Reports now refreshes Settlement and Driver Pay data directly from NBL Cloud when used online.
+- Added compatibility for existing cloud settlement snapshots, including catalog and legacy single-result shapes.
+- Cloud settlement dates are normalized from each saved result so date-range reports populate reliably online.
+- No Supabase schema change or historical data re-upload is required.
+
 Version 81 - Locked Settlement Reports
 - Added Admin > Reports > Settlement Reports.
 - Owner-only and protected by the Finance Access Code.
