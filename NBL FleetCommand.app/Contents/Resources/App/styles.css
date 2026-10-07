@@ -484,6 +484,19 @@ body.hr-global-column-resize,body.hr-global-column-resize *{cursor:col-resize!im
 /* v59 modal stacking: protected SSN / finance prompts must sit above candidate editor */
 #ssnAccessModal,#financeSecurityModal{z-index:95}
 
+/* v110 Recruitment profile sections and private documents */
+.hr-form-divider{height:1px;background:#ded6e3;margin:18px 0 14px}
+.hr-document-grid{align-items:stretch}
+.hr-document-card{display:flex;flex-direction:column;gap:10px;min-width:0;padding:14px;border:1px solid #ded6e3;border-radius:12px;background:#faf8fb}
+.hr-document-card>div:first-child strong{display:block;color:#4f2f62;font-size:12px;margin-bottom:3px}
+.hr-document-card>div:first-child span{display:block;color:#786c80;font-size:10px;line-height:1.4;overflow-wrap:anywhere}
+.hr-document-upload{align-self:flex-start;margin:0;cursor:pointer}
+.hr-document-actions{display:flex;gap:8px;min-height:30px;align-items:center}
+.hr-document-upload-status{margin:10px 0 2px;padding:10px 12px;border-radius:9px;background:#f2eef5;color:#604d6b;font-size:11px;line-height:1.4}
+.hr-document-upload-status.success{background:#edf8f1;color:#276a49}.hr-document-upload-status.error{background:#fff0f0;color:#9b2d2d}.hr-document-upload-status.working{background:#eef4ff;color:#315d91}
+.hr-ssn-verification-card{background:#fffaf3;border-color:#ead8b9}
+@media(max-width:900px){.hr-document-grid{grid-template-columns:1fr!important}}
+
 /* v60 HR recruitment status grouping */
 .hr-status-pill.progress{background:#eef4ff;color:#315d91;border-color:#d7e5f8}
 .hr-status-pill.terminated{background:#fff0f0;color:#9b2d2d;border-color:#efcccc}

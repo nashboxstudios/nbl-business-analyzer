@@ -240,6 +240,27 @@
   async function getMeetingData(organizationId){const rows=await getRecordDomain('nbl_fc_meeting_records',organizationId);return {version:2,...oneRow(rows,'settings'),inspections:rowsByType(rows,'inspection'),managementItems:rowsByType(rows,'management_item'),recordCount:rows.length};}
   async function saveMeetingData(organizationId,data){const records=[{recordType:'settings',recordKey:'main',payload:{version:2,layoutVersion:data?.layoutVersion||1,columnWidths:data?.columnWidths||{}}},...(data?.inspections||[]).map((x,i)=>({recordType:'inspection',recordKey:String(x.id||`inspection_${i}`),payload:x})),...(data?.managementItems||[]).map((x,i)=>({recordType:'management_item',recordKey:String(x.id||`management_${i}`),payload:x}))];return replaceRecordDomain('nbl_fc_meeting_records',organizationId,records,['settings','inspection','management_item']);}
 
+  function encodeStoragePath(path){return String(path||'').split('/').map(encodeURIComponent).join('/');}
+  async function storageRequest(path,options={}){
+    let session=await getSession();if(!session)throw new Error('Your NBL cloud session has expired. Please sign in again.');
+    const send=async active=>{const response=await fetch(`${SUPABASE_URL}${path}`,{...options,headers:{apikey:SUPABASE_PUBLISHABLE_KEY,Authorization:`Bearer ${active.access_token}`,...(options.headers||{})}});const text=await response.text();let data=null;if(text){try{data=JSON.parse(text);}catch(_){data=text;}}if(!response.ok){const message=data&&typeof data==='object'?(data.message||data.error||data.msg):data;const err=new Error(String(message||`Storage request failed (${response.status})`));err.status=response.status;throw err;}return data;};
+    try{return await send(session);}catch(err){if(err.status!==401)throw err;session=await refreshSession(session);return send(session);}
+  }
+  async function uploadRecruitmentDocument(organizationId,candidateId,documentType,file){
+    if(!file)throw new Error('Choose a document to upload.');
+    const allowed=new Set(['application/pdf','image/jpeg','image/png']);if(!allowed.has(String(file.type||'').toLowerCase()))throw new Error('Use a PDF, JPG, or PNG file.');
+    if(Number(file.size)>10*1024*1024)throw new Error('The document must be 10 MB or smaller.');
+    const type=documentType==='med_card'?'med_card':'cdl',safeName=String(file.name||`${type}.bin`).replace(/[^a-zA-Z0-9._-]+/g,'_').slice(-120),path=`${organizationId}/${candidateId}/${type}/${Date.now()}_${safeName}`;
+    await storageRequest(`/storage/v1/object/nbl-recruitment-documents/${encodeStoragePath(path)}`,{method:'POST',headers:{'Content-Type':file.type,'cache-control':'3600','x-upsert':'false'},body:file});
+    return {path,fileName:file.name||safeName,mimeType:file.type,size:Number(file.size)||0,uploadedAt:new Date().toISOString()};
+  }
+  async function getRecruitmentDocumentUrl(path){
+    const data=await authFetch(`/storage/v1/object/sign/nbl-recruitment-documents/${encodeStoragePath(path)}`,{method:'POST',body:JSON.stringify({expiresIn:120})});
+    const signed=data?.signedURL||data?.signedUrl;if(!signed)throw new Error('Could not create a secure document link.');
+    return /^https?:\/\//i.test(signed)?signed:`${SUPABASE_URL}/storage/v1${signed.startsWith('/')?'':'/'}${signed}`;
+  }
+  async function deleteRecruitmentDocument(path){if(!path)return true;await storageRequest(`/storage/v1/object/nbl-recruitment-documents/${encodeStoragePath(path)}`,{method:'DELETE'});return true;}
+
   async function signOut(){
     const session=loadSession();
     try{
@@ -251,6 +272,6 @@
   window.NBLCloud={
     url:SUPABASE_URL,
     publishableKey:SUPABASE_PUBLISHABLE_KEY,
-    signIn,signOut,getSession,getMembership,getProfile,saveProfile,updatePassword,getSnapshots,saveSnapshot,getSafetyData,saveSafetyData,getDailyDispatchBoards,saveDailyDispatchBoard,getMaintenanceData,saveMaintenanceData,getRecruitmentData,saveRecruitmentData,getFinanceData,saveDriverPayData,saveSettlementData,getAuditData,saveAuditData,getMeetingData,saveMeetingData,clearSession
+    signIn,signOut,getSession,getMembership,getProfile,saveProfile,updatePassword,getSnapshots,saveSnapshot,getSafetyData,saveSafetyData,getDailyDispatchBoards,saveDailyDispatchBoard,getMaintenanceData,saveMaintenanceData,getRecruitmentData,saveRecruitmentData,getFinanceData,saveDriverPayData,saveSettlementData,getAuditData,saveAuditData,getMeetingData,saveMeetingData,uploadRecruitmentDocument,getRecruitmentDocumentUrl,deleteRecruitmentDocument,clearSession
   };
 })();

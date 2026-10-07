@@ -1,4 +1,14 @@
-NBL FleetCommand — Version 109
+NBL FleetCommand — Version 110
+
+Version 110 - Recruitment Profile and Secure Documents
+
+- Adds Latest Address to the candidate profile.
+- Reorganizes the form into profile, hiring status, and driver-document sections.
+- Adds E-Verify, SSN Verified, and Medical Card expiration fields.
+- Adds private CDL and Medical Card uploads with PDF/JPG/PNG validation and a 10 MB limit.
+- Uses temporary secure links to view documents and deletes replaced or removed files.
+- Social Security card images are intentionally not stored; FleetCommand retains verification status and the masked last four digits only.
+- Run SUPABASE_v110_RECRUITMENT_DOCUMENTS.sql once before deploying v110.
 
 Version 109 - Structured Core Module Storage
 

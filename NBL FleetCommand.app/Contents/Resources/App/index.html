@@ -6,7 +6,7 @@
   <title>NBL FleetCommand</title>
   <meta name="theme-color" content="#35164E" />
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=109" />
+  <link rel="stylesheet" href="styles.css?v=110" />
 </head>
 <body>
 
@@ -32,7 +32,7 @@
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
         <div class="app-name">NBL FleetCommand</div>
         <div class="app-tagline">Operations Intelligence</div>
-        <div class="app-version">Version 109</div>
+        <div class="app-version">Version 110</div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-standalone nav-main-modules">
@@ -1094,6 +1094,7 @@
           <div class="form-field"><label>Email</label><input id="recruitmentEmailInput" type="email" placeholder="name@example.com"></div>
           <div class="form-field"><label>Phone</label><input id="recruitmentPhoneInput" type="tel" placeholder="Phone number"></div>
         </div>
+        <div class="form-field"><label>Latest Address</label><input id="recruitmentAddressInput" type="text" autocomplete="street-address" placeholder="Street address, city, state and ZIP code"></div>
         <div class="hr-profile-fields-heading"><strong>Driver Profile Details</strong><span>These fields are stored in the candidate profile and do not appear as Recruitment table columns.</span></div>
         <div class="form-grid three">
           <div class="form-field"><label>Date of Birth</label><input id="recruitmentDobInput" type="date"></div>
@@ -1115,26 +1116,46 @@
           <div class="form-field"><label>Doubles</label><select id="recruitmentDoublesInput"><option value="No">No</option><option value="Yes">Yes</option></select></div>
         </div>
         <div class="form-grid three">
-          <div class="form-field"><label>Recruitment Status</label><select id="recruitmentStatusInput"><option value="In Progress">In Progress</option><option value="Hired">Hired</option><option value="Rejected">Rejected</option><option value="Terminated">Terminated</option></select></div>
           <div class="form-field"><label>Screening Interview</label><input id="recruitmentScreeningInterviewInput" type="date"></div>
           <div class="form-field"><label>FADV Status</label><select id="recruitmentFadvStatusInput"><option value="In Progress">In Progress</option><option value="Complete">Complete</option><option value="Stuck">Stuck</option></select></div>
-        </div>
-        <div class="form-grid two">
           <div class="form-field"><label>Ops Interview</label><input id="recruitmentOpsInterviewInput" type="date"></div>
         </div>
+        <div class="form-grid two"><div class="form-field"><label>Road Test</label><select id="recruitmentRoadTestInput"><option value="Not Scheduled">Not Scheduled</option><option value="Scheduled">Scheduled</option><option value="Pass">Pass</option><option value="Fail">Fail</option></select></div></div>
         <div class="form-field"><label>Notes</label><textarea id="recruitmentNotesInput" placeholder="Add recruitment notes, follow-up details, concerns, or other information"></textarea></div>
-        <div class="form-grid two">
-          <div class="form-field"><label>Equipment Fam</label><select id="recruitmentEquipmentFamInput"><option value="No">No</option><option value="Sent">Sent</option><option value="Yes">Yes</option></select></div>
-          <div class="form-field"><label>Road Test</label><select id="recruitmentRoadTestInput"><option value="Not Scheduled">Not Scheduled</option><option value="Scheduled">Scheduled</option><option value="Pass">Pass</option><option value="Fail">Fail</option></select></div>
-        </div>
-        <div class="form-grid two">
+        <div class="hr-form-divider" aria-hidden="true"></div>
+        <div class="hr-profile-fields-heading"><strong>Hiring Status</strong><span>Final screening and onboarding milestones.</span></div>
+        <div class="form-grid three">
           <div class="form-field"><label>Drug Test</label><select id="recruitmentDrugTestInput"><option value="Not Taken">Not Taken</option><option value="Taken">Taken</option><option value="Pass">Pass</option><option value="Fail">Fail</option></select></div>
+          <div class="form-field"><label>Equipment Fam</label><select id="recruitmentEquipmentFamInput"><option value="No">No</option><option value="Sent">Sent</option><option value="Yes">Yes</option></select></div>
+          <div class="form-field"><label>E-Verify</label><select id="recruitmentEverifyInput"><option value="Not Started">Not Started</option><option value="In Progress">In Progress</option><option value="Verified">Verified</option><option value="Needs Review">Needs Review</option></select></div>
           <div class="form-field"><label>Offer Letter</label><select id="recruitmentOfferLetterInput"><option value="Not Sent">Not Sent</option><option value="Sent">Sent</option><option value="Accepted">Accepted</option><option value="Declined">Declined</option></select></div>
-        </div>
-        <div class="form-grid two">
+          <div class="form-field"><label>Recruitment Status</label><select id="recruitmentStatusInput"><option value="In Progress">In Progress</option><option value="Hired">Hired</option><option value="Rejected">Rejected</option><option value="Terminated">Terminated</option></select></div>
           <div class="form-field"><label>Start Date</label><input id="recruitmentStartDateInput" type="date"></div>
-          <div class="form-note hr-days-note">Days in Process is calculated automatically from Date Added. It stops when a driver is marked Hired, Rejected, or Terminated.</div>
         </div>
+        <div class="form-note hr-days-note">Days in Process is calculated automatically from Date Added. It stops when a driver is marked Hired, Rejected, or Terminated.</div>
+        <div class="hr-form-divider" aria-hidden="true"></div>
+        <div class="hr-profile-fields-heading"><strong>Driver Documents</strong><span>Private files. PDF, JPG or PNG; maximum 10 MB each.</span></div>
+        <div class="form-grid three hr-document-grid">
+          <div class="hr-document-card">
+            <div><strong>CDL</strong><span id="recruitmentCdlDocumentStatus">No document uploaded.</span></div>
+            <label class="button secondary hr-document-upload" for="recruitmentCdlDocumentInput">Choose File</label>
+            <input id="recruitmentCdlDocumentInput" class="hr-hidden-file-input" type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png">
+            <div class="hr-document-actions"><button type="button" class="table-action hidden" id="recruitmentCdlDocumentViewBtn">View</button><button type="button" class="table-action danger-link hidden" id="recruitmentCdlDocumentDeleteBtn">Delete</button></div>
+          </div>
+          <div class="hr-document-card">
+            <div><strong>Medical Card</strong><span id="recruitmentMedCardDocumentStatus">No document uploaded.</span></div>
+            <div class="form-field"><label>Expiration Date</label><input id="recruitmentMedCardExpiryInput" type="date"></div>
+            <label class="button secondary hr-document-upload" for="recruitmentMedCardDocumentInput">Choose File</label>
+            <input id="recruitmentMedCardDocumentInput" class="hr-hidden-file-input" type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png">
+            <div class="hr-document-actions"><button type="button" class="table-action hidden" id="recruitmentMedCardDocumentViewBtn">View</button><button type="button" class="table-action danger-link hidden" id="recruitmentMedCardDocumentDeleteBtn">Delete</button></div>
+          </div>
+          <div class="hr-document-card hr-ssn-verification-card">
+            <div><strong>Social Security</strong><span>Card images are not stored in FleetCommand.</span></div>
+            <div class="form-field"><label>SSN Verified</label><select id="recruitmentSsnVerifiedInput"><option value="No">No</option><option value="Yes">Yes</option></select></div>
+            <div class="hr-field-help">Use ADP for the complete SSN. FleetCommand retains only verification status and the masked last four digits.</div>
+          </div>
+        </div>
+        <div class="hr-document-upload-status hidden" id="recruitmentDocumentUploadStatus"></div>
         <div class="modal-actions"><button type="button" class="button secondary" data-close-modal="recruitmentCandidateModal">Cancel</button><button type="submit" class="button primary">Save Candidate</button></div>
       </form>
     </div>
@@ -1531,8 +1552,8 @@
     </div>
   </div>
 
-  <script src="core.js?v=109"></script>
-  <script src="cloud.js?v=109"></script>
-  <script src="app.js?v=109"></script>
+  <script src="core.js?v=110"></script>
+  <script src="cloud.js?v=110"></script>
+  <script src="app.js?v=110"></script>
 </body>
 </html>
