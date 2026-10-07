@@ -1,3 +1,30 @@
+NBL FleetCommand — Version 139
+
+Version 139 - Motive Driver Eligibility and Scheduled Dispatch
+- Motive account status is authoritative for new driver assignments.
+- Reads active and deactivated driver accounts from the Motive Users directory.
+- Inactive, pending, ambiguous and unmatched accounts cannot be offered for new
+  work after the directory loads. Failed refreshes retain the last known statuses.
+- Automatically refreshes driver status at startup and verifies it before new
+  assignments, manual additions, saved-plan loading, optimize/reset and route saves.
+- Stale Recruitment Hired records and settlements cannot reactivate an inactive driver.
+- Inactive drivers are removed from live weekly coverage and primary defaults.
+- Saved plan loading filters inactive assignments; stored snapshots are retained.
+- Weekly and daily selections, primary-driver choices, current Safety lists and
+  safety assignment choices use consistent driver eligibility.
+- New payroll-profile selections exclude inactive drivers; historical payroll,
+  settlements, saved daily boards, safety records and Recruitment are retained.
+- Existing historical accepted daily rows retain their recorded driver. New or
+  changed accepted assignments require an active verified driver.
+- Includes the previously prepared dedicated-run schedule fix: defaults apply
+  only to the selected operating day, with off-days marked Not Scheduled.
+- All Version 138 Recruitment changes are preserved. No SQL migration is needed.
+
+Validation:
+node tests/inactive-drivers.cjs
+node tests/daily-dispatch-schedule.cjs
+python3 tests/motive-driver-directory.py
+
 NBL FleetCommand — Version 138
 
 Version 138 - Candidate Deletion and Duplicate Review

@@ -100,7 +100,7 @@
     hr:defaultHrData(), hrLoaded:false, recruitmentSearch:'', recruitmentStatusFilter:'', recruitmentSort:{key:'',dir:'asc'}, hrSsn:{draftFull:'',legacyLast4:'',revealed:false,existingCandidate:false,accessResolver:null}, hrApplicationMismatch:{resolver:null},
     audit:{version:1,audits:[],findings:[],activeTab:'dashboard',selectedAuditId:''}, auditLoaded:false,
     dispatch:defaultDispatchData(), dispatchLoaded:false, dispatchSelectedDriverId:null,
-    motive:{backendAvailable:false,configured:false,keyHint:'',storage:'',vehicles:[],drivers:[],lastSync:null,test:null,loading:false},
+    motive:{backendAvailable:false,configured:false,keyHint:'',storage:'',vehicles:[],drivers:[],driversLoaded:false,driversLastSync:null,driversError:'',lastSync:null,test:null,loading:false},
     safety:{version:3,startDate:'',endDate:'',scorecards:[],performanceEvents:[],speedingEvents:[],assignments:{},dismissals:{},driverRecords:{},trendDriverId:'',loadedAt:null,loading:false,error:'',accessErrors:{},driverFilter:'all',eventTypeFilter:'all',statusFilter:'active',rankSort:{key:'adjusted',dir:'asc'}},
     ivmr:{startDate:'',endDate:'',rawTrips:[],trips:[],formatBuilt:false,loadedAt:null,loading:false,routeLoading:false,routeCancelRequested:false,routeStats:null,routeProgress:null,lastPdf:null,historyTest:{loading:false,result:null,error:''}},
     ivmrLocations:defaultIvmrLocationData(), ivmrLocationsLoaded:false,
@@ -1275,7 +1275,7 @@
     }
     for(const d of state.dispatch?.drivers||[]){
       const id=String(d.fedexId||'').trim();
-      if(id&&d.active!==false) map.set(id,{fedexId:id,name:d.name||map.get(id)?.name||`Driver ${id}`});
+      if(id&&dispatchDriverIsActive(d)) map.set(id,{fedexId:id,name:d.name||map.get(id)?.name||`Driver ${id}`});
     }
     for(const [id,p] of Object.entries(state.payroll?.profiles||{})){ if(id) map.set(id,{fedexId:id,name:p.name||map.get(id)?.name||`Driver ${id}`}); }
     return [...map.values()].sort((a,b)=>a.name.localeCompare(b.name)||a.fedexId.localeCompare(b.fedexId));
@@ -1521,7 +1521,7 @@
   }
   function payrollExportResult(){ return state.result ? {...state.result,drivers:payrollRows(),payrollWeekDates:payrollWeekDates(),payrollVersion:2} : null; }
   function renderPayrollProfilesModal(){
-    const known=payrollKnownDrivers(),sel=$('payrollProfileDriverSelect');
+    const known=payrollKnownDrivers().filter(driverIsEligibleForWork),sel=$('payrollProfileDriverSelect');
     if(sel) sel.innerHTML=known.map(d=>`<option value="${escapeHtml(d.fedexId)}">${escapeHtml(d.name)} — ${escapeHtml(d.fedexId)}</option>`).join('');
     const table=$('payrollProfilesTable'); if(!table) return;
     table.querySelector('thead').innerHTML='<tr>'+['Driver','FedEx ID','Pay Method','Rates / Minimum','Active','Action'].map(h=>`<th>${h}</th>`).join('')+'</tr>';
@@ -3791,11 +3791,12 @@
     await saveDispatchData(true); renderDispatch(); setScreen('dispatch'); showAlert(`Saved <strong>${escapeHtml(name)}</strong> as a separate ${escapeHtml(dispatchActiveLocationName())} dispatch table.`,'success');
   }
   async function loadSelectedDispatchPlan(){
-    const plan=dispatchSelectedPlan(); if(!plan)return; if(!confirm(`Load "${plan.name}" onto the ${dispatchActiveLocationName()} planning board? Current unsaved board changes will be replaced.`))return;
+    const plan=dispatchSelectedPlan(); if(!plan)return;if(!await verifyMotiveDriversForWork())return; if(!confirm(`Load "${plan.name}" onto the ${dispatchActiveLocationName()} planning board? Current unsaved board changes will be replaced.`))return;
     const locationId=plan.locationId, currentIds=new Set(dispatchRuns(locationId).map(r=>r.id));
     const outsideRuns=(state.dispatch.runs||[]).filter(r=>(r.locationId||'nashville')!==locationId), outsideAssignments=(state.dispatch.assignments||[]).filter(a=>!currentIds.has(a.runId));
-    const validDrivers=new Set((state.dispatch.drivers||[]).map(d=>d.id)), validTractors=new Set(dispatchTractors().map(t=>t.id));
+    const validDrivers=new Set((state.dispatch.drivers||[]).filter(dispatchDriverIsActive).map(d=>d.id)), validTractors=new Set(dispatchTractors().map(t=>t.id));
     const runs=dispatchClone(plan.runs||[]).map(r=>({...r,locationId,primaryTractorId:r.primaryTractorId&&validTractors.has(r.primaryTractorId)?r.primaryTractorId:''})); const runIds=new Set(runs.map(r=>r.id));
+    for(const run of runs)if(run.primaryDriverId&&!validDrivers.has(run.primaryDriverId))run.primaryDriverId='';
     const assignments=dispatchClone(plan.assignments||[]).filter(a=>runIds.has(a.runId)&&validDrivers.has(a.driverId));
     state.dispatch.runs=[...outsideRuns,...runs]; state.dispatch.assignments=[...outsideAssignments,...assignments]; state.dispatch.activeLocationId=locationId;
     await saveDispatchData(true); renderDispatch(); setScreen('dispatch'); showAlert(`Loaded saved dispatch table <strong>${escapeHtml(plan.name)}</strong>.`,'success');
@@ -3817,7 +3818,7 @@
   function dispatchRuns(locationId=dispatchActiveLocationId()){ return (state.dispatch.runs||[]).filter(r=>(r.locationId||'nashville')===locationId).slice().sort(dispatchRunSort); }
   function dispatchRun(runId){ return (state.dispatch.runs||[]).find(r=>r.id===runId); }
   function dispatchDriver(driverId){ return (state.dispatch.drivers||[]).find(d=>d.id===driverId); }
-  function dispatchDriverIsActive(driver){ return !!driver && driver.active!==false; }
+  function dispatchDriverIsActive(driver){ return driverIsEligibleForWork(driver); }
   function dispatchDriverLocationId(driver){ const ids=new Set(dispatchLocations().map(l=>l.id)); return driver&&ids.has(driver.locationId)?driver.locationId:dispatchLocations()[0]?.id||'nashville'; }
   function dispatchDriversForLocation(locationId=dispatchActiveLocationId()){
     return (state.dispatch.drivers||[]).filter(d=>dispatchDriverIsActive(d)&&dispatchDriverLocationId(d)===locationId);
@@ -3833,9 +3834,9 @@
   function dispatchMotiveVehicleForTractor(t){ const id=String(t?.motiveVehicleId||'').trim(),num=normalizeTractor(t?.tractorNumber),vin=String(t?.vin||'').trim().toUpperCase(); return (state.motive.vehicles||[]).find(v=>(id&&String(v.id||'')===id)||(num&&normalizeTractor(v.number)===num)||(vin&&String(v.vin||'').trim().toUpperCase()===vin))||null; }
   function dispatchExistingMotiveTractor(v){ const id=String(v?.id||'').trim(),num=normalizeTractor(v?.number),vin=String(v?.vin||'').trim().toUpperCase(); return dispatchTractors().find(t=>(id&&String(t.motiveVehicleId||'')===id)||(num&&normalizeTractor(t.tractorNumber)===num)||(vin&&String(t.vin||'').trim().toUpperCase()===vin))||null; }
   function syncDispatchTractorMetadataFromMotive(){ for(const t of dispatchTractors()){ const v=dispatchMotiveVehicleForTractor(t); if(!v) continue; t.motiveVehicleId=String(v.id||t.motiveVehicleId||''); t.tractorNumber=String(v.number||t.tractorNumber||'').trim(); if(v.vin)t.vin=String(v.vin).trim().toUpperCase(); const mm=dispatchMotiveMakeModel(v); if(mm&&mm!=='—')t.makeModel=mm; const odo=motiveOdometer(v); if(odo!=null)t.odometer=Math.round(odo); t.motiveStatus=String(v.status||''); t.locatedAt=String(v.located_at||''); } }
-  function dispatchAssignment(runId,day,assignments=state.dispatch.assignments){ return (assignments||[]).find(a=>a.runId===runId && Number(a.day)===Number(day)); }
-  function dispatchDriverAssignment(driverId,day,assignments=state.dispatch.assignments){ return (assignments||[]).find(a=>a.driverId===driverId && Number(a.day)===Number(day)); }
-  function dispatchDriverAvailable(driver,day){ return !!driver && Array.isArray(driver.availability) && driver.availability.map(Number).includes(Number(day)); }
+  function dispatchAssignment(runId,day,assignments=state.dispatch.assignments){ return (assignments||[]).find(a=>a.runId===runId && Number(a.day)===Number(day)&&dispatchDriverIsActive(dispatchDriver(a.driverId))); }
+  function dispatchDriverAssignment(driverId,day,assignments=state.dispatch.assignments){ return (assignments||[]).find(a=>a.driverId===driverId && Number(a.day)===Number(day)&&dispatchDriverIsActive(dispatchDriver(a.driverId))); }
+  function dispatchDriverAvailable(driver,day){ return dispatchDriverIsActive(driver) && Array.isArray(driver.availability) && driver.availability.map(Number).includes(Number(day)); }
   function dispatchOriginAllowed(driver,run){ return !!driver && !!run && (driver.origins?.includes('*') || driver.origins?.includes(run.origin)); }
   function dispatchOptionalNumber(v){ if(v==null || v==='') return null; const n=Number(v); return Number.isFinite(n)?n:null; }
   function dispatchRunMiles(run){ return dispatchOptionalNumber(run?.milesPerRun); }
@@ -3873,54 +3874,105 @@
     return parts.length>1?`${parts[0]} ${parts.at(-1)}`:(parts[0]||'');
   }
   function motiveDriverEmployeeId(driver){ return String(driver?.employee_id||driver?.driver_company_id||driver?.company_id||driver?.employeeId||'').trim(); }
-  function motiveDriverIsActive(driver){ return !/deactivat|inactive|disabled|terminated/i.test(String(driver?.status||'')); }
+  function motiveDriverIsActive(driver){ return !!driver&&String(driver.status||'').trim().toLowerCase()==='active'; }
+  function motiveMatchesForDriver(driver){
+    if(!driver)return [];
+    const directory=state.motive.drivers||[],motiveId=String(driver.motiveDriverId||driver.motive_driver_id||'').trim(),employeeId=String(driver.fedexId||motiveDriverEmployeeId(driver)||'').trim();
+    if(motiveId){const matches=directory.filter(m=>String(m.id)===motiveId);if(matches.length){if(employeeId&&matches.some(m=>motiveDriverEmployeeId(m)&&motiveDriverEmployeeId(m)!==employeeId))return [];return matches;}}
+    if(employeeId)return directory.filter(m=>motiveDriverEmployeeId(m)===employeeId);
+    // Raw Motive/safety identities can have an ID without an employee ID.
+    if(driver.id!=null){const matches=directory.filter(m=>String(m.id)===String(driver.id));if(matches.length)return matches;}
+    const name=dispatchNameKey(driver.name||[driver.first_name,driver.last_name].filter(Boolean).join(' '));
+    return name?directory.filter(m=>dispatchNameKey(m.name||[m.first_name,m.last_name].filter(Boolean).join(' '))===name):[];
+  }
+  function driverIsEligibleForWork(driver){
+    if(!driver)return false;
+    const matches=motiveMatchesForDriver(driver);
+    if(matches.length)return matches.length===1&&motiveDriverIsActive(matches[0]);
+    const id=String(driver.fedexId||motiveDriverEmployeeId(driver)||'').trim(),linked=id?(state.dispatch?.drivers||[]).filter(d=>String(d.fedexId||'').trim()===id):[];
+    if(driver.active===false||linked.some(d=>d.active===false))return false;
+    const statuses=[driver.motiveStatus,driver.status,...linked.map(d=>d.motiveStatus)].filter(Boolean);
+    if(statuses.some(status=>String(status).trim().toLowerCase()!=='active'))return false;
+    // A completed directory is authoritative. Unmatched/onboarding drivers are
+    // not eligible until Motive confirms an active account.
+    if(state.motive.driversLoaded)return false;
+    if(state.motive.configured)return statuses.some(status=>String(status).trim().toLowerCase()==='active');
+    return true;
+  }
+  function clearInactiveLiveDispatchAssignments(){
+    const inactive=new Set((state.dispatch.drivers||[]).filter(d=>{const matches=motiveMatchesForDriver(d);return matches.length?!(matches.length===1&&motiveDriverIsActive(matches[0])):d.active===false||!!d.motiveStatus&&String(d.motiveStatus).trim().toLowerCase()!=='active';}).map(d=>d.id));let changed=false;
+    const before=state.dispatch.assignments||[],next=before.filter(a=>!inactive.has(a.driverId));
+    if(next.length!==before.length){state.dispatch.assignments=next;changed=true;}
+    for(const run of state.dispatch.runs||[])if(inactive.has(run.primaryDriverId)){run.primaryDriverId='';changed=true;}
+    if(inactive.has(state.dispatchSelectedDriverId))state.dispatchSelectedDriverId=null;
+    // Saved daily boards and plan snapshots retain their historical identities.
+    return changed;
+  }
+  let motiveDirectoryRefresh=null;
+  async function refreshMotiveDriverDirectory(){
+    if(motiveDirectoryRefresh)return motiveDirectoryRefresh;
+    motiveDirectoryRefresh=(async()=>{
+      try{
+        const data=await localApi('/api/motive/drivers');
+        if(!data?.ok||!Array.isArray(data.drivers))throw new Error('Motive returned an incomplete driver directory.');
+        state.motive.drivers=data.drivers;state.motive.driversLoaded=true;state.motive.driversLastSync=new Date().toISOString();state.motive.driversError='';
+        const changed=syncSharedDriverRoster();
+        if(changed&&state.dispatchLoaded&&canAccessModuleKey('dispatch',true))await saveDispatchData(true);
+        return true;
+      }catch(err){state.motive.driversError=err.message||String(err);return false;}
+    })();
+    try{return await motiveDirectoryRefresh;}finally{motiveDirectoryRefresh=null;}
+  }
+  async function verifyMotiveDriversForWork(){
+    if(!state.motive.configured)return true;
+    if(await refreshMotiveDriverDirectory())return true;
+    showAlert('Driver status could not be verified in Motive. Refresh Motive and try again.','warning');return false;
+  }
   function dispatchLocationForDomicile(domicile){
     const text=String(domicile||'').toLowerCase();
     return dispatchLocations().find(l=>text.includes(String(l.name||'').toLowerCase()))?.id||dispatchLocations()[0]?.id||'nashville';
   }
   function syncSharedDriverRoster(){
     state.dispatch.drivers=Array.isArray(state.dispatch.drivers)?state.dispatch.drivers:[];
-    const roster=state.dispatch.drivers, byFedex=new Map(), byName=new Map(); let changed=false;
-    const index=driver=>{const id=String(driver.fedexId||'').trim(),nk=dispatchPersonNameKey(driver.name);if(id)byFedex.set(id,driver);if(nk&&!byName.has(nk))byName.set(nk,driver);};
+    const roster=state.dispatch.drivers, byFedex=new Map(), byName=new Map(),byMotive=new Map(); let changed=false;
+    const index=driver=>{const id=String(driver.fedexId||'').trim(),nk=dispatchNameKey(driver.name);if(id)byFedex.set(id,driver);if(nk&&!byName.has(nk))byName.set(nk,driver);if(driver.motiveDriverId)byMotive.set(String(driver.motiveDriverId),driver);};
     roster.forEach(index);
     const recruitment=(state.hr?.candidates||[]).filter(c=>normalizeRecruitmentStatus(c.recruitmentStatus)==='Hired');
     const recruitById=new Map(recruitment.map(c=>[String(c.fedexId||'').trim(),c]).filter(x=>x[0]));
     const recruitByName=new Map(recruitment.map(c=>[dispatchPersonNameKey(c.name),c]).filter(x=>x[0]));
-    const motiveById=new Map(), motiveByName=new Map();
-    for(const m of state.motive.drivers||[]){const id=motiveDriverEmployeeId(m),nk=dispatchPersonNameKey(m.name||[m.first_name,m.last_name].filter(Boolean).join(' '));if(id)motiveById.set(id,m);if(nk&&!motiveByName.has(nk))motiveByName.set(nk,m);}
-    const ensure=(source,kind)=>{
-      const fedexId=String(source.fedexId||'').trim(),nk=dispatchPersonNameKey(source.name),m=(fedexId&&motiveById.get(fedexId))||(nk&&motiveByName.get(nk)),r=(fedexId&&recruitById.get(fedexId))||(nk&&recruitByName.get(nk));
+        const ensure=(source,kind)=>{
+      const fedexId=String(source.fedexId||'').trim(),nk=dispatchNameKey(source.name),matches=motiveMatchesForDriver(source),m=matches.length===1?matches[0]:null,r=(fedexId&&recruitById.get(fedexId))||(nk&&recruitByName.get(nk));
       const motiveId=motiveDriverEmployeeId(m),canonicalId=fedexId||motiveId,canonicalName=String(r?.name||source.name||m?.name||[m?.first_name,m?.last_name].filter(Boolean).join(' ')||`Driver ${canonicalId}`).trim();
-      let driver=(canonicalId&&byFedex.get(canonicalId))||(nk&&byName.get(nk));
+      let driver=(m&&byMotive.get(String(m.id)))||(canonicalId&&byFedex.get(canonicalId))||(!canonicalId&&nk&&byName.get(nk));
       if(!driver){
         const base=`${kind}_${canonicalId||String(m?.id||r?.id||dispatchPersonNameKey(canonicalName)).replace(/[^a-z0-9]+/g,'_')}`;
         driver={id:base,fedexId:canonicalId,name:canonicalName,role:'urr',locationId:dispatchLocationForDomicile(r?.domicile),availability:[0,1,2,3,4,5,6],availabilityLabel:'Daily',origins:['*'],baseLabel:r?.domicile||'All origins',source:kind,active:true};
         roster.push(driver);index(driver);changed=true;
       }
-      const active=m?motiveDriverIsActive(m):true;
+      const active=m?motiveDriverIsActive(m):(driver.active!==false&&(!state.motive.driversLoaded||driverIsEligibleForWork(driver)));
       const updates={fedexId:canonicalId||driver.fedexId||'',name:canonicalName||driver.name,motiveDriverId:m?.id==null?(driver.motiveDriverId||''):String(m.id),motiveStatus:m?.status||driver.motiveStatus||'',active,source:driver.source||kind};
       for(const [key,value] of Object.entries(updates))if(driver[key]!==value){driver[key]=value;changed=true;}
       index(driver);
     };
-    for(const m of state.motive.drivers||[]) ensure({fedexId:motiveDriverEmployeeId(m),name:m.name||[m.first_name,m.last_name].filter(Boolean).join(' ')},'motive');
+    for(const m of state.motive.drivers||[]) ensure({fedexId:motiveDriverEmployeeId(m),motiveDriverId:String(m.id),name:m.name||[m.first_name,m.last_name].filter(Boolean).join(' ')},'motive');
     for(const c of recruitment) ensure({fedexId:c.fedexId,name:c.name},'recruitment');
     for(const d of settlementDispatchDrivers()) ensure(d,'settlement');
     // Motive is authoritative: a matched deactivated driver is not offered for new work.
-    for(const d of roster){const id=String(d.fedexId||'').trim(),nk=dispatchPersonNameKey(d.name),m=(id&&motiveById.get(id))||(nk&&motiveByName.get(nk));if(m){const active=motiveDriverIsActive(m);if(d.active!==active){d.active=active;changed=true;}if(d.motiveStatus!==String(m.status||'')){d.motiveStatus=String(m.status||'');changed=true;}}else if(d.active==null){d.active=true;changed=true;}}
-    return changed;
+    for(const d of roster){const matches=motiveMatchesForDriver(d),m=matches.length===1?matches[0]:null;if(!matches.length&&!state.motive.driversLoaded)continue;const active=driverIsEligibleForWork(d);if(d.active!==active){d.active=active;changed=true;}if(m){if(d.motiveStatus!==String(m.status||'')){d.motiveStatus=String(m.status||'');changed=true;}if(d.motiveDriverId!==String(m.id)){d.motiveDriverId=String(m.id);changed=true;}}}
+    return clearInactiveLiveDispatchAssignments()||changed;
   }
   function availableDispatchDrivers(){
     const rows=[],byFedex=new Map(),byName=new Map();
     const add=(row,source)=>{
       const fedexId=String(row?.fedexId||'').trim(),name=String(row?.name||'').trim(); if(!name&&!fedexId)return;
-      const nameKey=dispatchNameKey(name),existing=(fedexId&&byFedex.get(fedexId))||(nameKey&&byName.get(nameKey));
+      const nameKey=dispatchNameKey(name),existing=(fedexId&&byFedex.get(fedexId))||(nameKey&&byName.get(nameKey)&&(!fedexId||!byName.get(nameKey).fedexId)?byName.get(nameKey):null);
       if(existing){existing.sources.add(source);if(row.lastSeen&&(!existing.lastSeen||row.lastSeen>existing.lastSeen))existing.lastSeen=row.lastSeen;if(!existing.fedexId&&fedexId){existing.fedexId=fedexId;byFedex.set(fedexId,existing);}if(!existing.hrId&&row.hrId)existing.hrId=row.hrId;return;}
       const item={key:fedexId?`fedex:${fedexId}`:`hr:${row.hrId||nameKey}`,fedexId,name:name||`Driver ${fedexId}`,hrId:row.hrId||'',lastSeen:row.lastSeen||'',sources:new Set([source])};rows.push(item);if(fedexId)byFedex.set(fedexId,item);if(nameKey)byName.set(nameKey,item);
     };
     for(const m of state.motive.drivers||[])if(motiveDriverIsActive(m))add({name:m.name||[m.first_name,m.last_name].filter(Boolean).join(' '),fedexId:motiveDriverEmployeeId(m),motiveDriverId:m.id},'Motive');
     for(const d of settlementDispatchDrivers())add(d,'Settlement');
     for(const c of state.hr?.candidates||[])if(normalizeRecruitmentStatus(c.recruitmentStatus)==='Hired')add({name:c.name,fedexId:c.fedexId,hrId:c.id},'Recruitment');
-    return rows.filter(r=>{const m=(r.fedexId&&motiveByEmployeeId(r.fedexId))||(r.name&&motiveDriverByName(r.name));return !m||motiveDriverIsActive(m);}).map(r=>({...r,sourceLabel:[...r.sources].sort().join(' + ')})).sort((a,b)=>a.name.localeCompare(b.name)||a.fedexId.localeCompare(b.fedexId));
+    return rows.filter(driverIsEligibleForWork).map(r=>({...r,sourceLabel:[...r.sources].sort().join(' + ')})).sort((a,b)=>a.name.localeCompare(b.name)||a.fedexId.localeCompare(b.fedexId));
   }
   function motiveByEmployeeId(id){ const key=String(id||'').trim();return key?(state.motive.drivers||[]).find(d=>motiveDriverEmployeeId(d)===key):null; }
   function motiveDriverByName(name){ const key=dispatchPersonNameKey(name);return key?(state.motive.drivers||[]).find(d=>dispatchPersonNameKey(d.name||[d.first_name,d.last_name].filter(Boolean).join(' '))===key):null; }
@@ -3948,13 +4000,13 @@
   function openDispatchDriverRosterModal(){ renderDispatchDriverRosterModal(); openModal('dispatchDriverRosterModal'); }
   function selectAllSettlementDispatchDrivers(){ document.querySelectorAll('#dispatchSettlementDriversTable [data-settlement-driver-select]:not(:disabled)').forEach(cb=>cb.checked=true); }
   async function importSelectedSettlementDrivers(){
-    const selected=[...document.querySelectorAll('#dispatchSettlementDriversTable [data-settlement-driver-select]:checked')].map(cb=>cb.dataset.settlementDriverSelect); if(!selected.length){showAlert('Select at least one available driver to add.','warning');return;}
+    if(!await verifyMotiveDriversForWork())return;const selected=[...document.querySelectorAll('#dispatchSettlementDriversTable [data-settlement-driver-select]:checked')].map(cb=>cb.dataset.settlementDriverSelect); if(!selected.length){showAlert('Select at least one available driver to add.','warning');return;}
     const loc=$('dispatchSettlementDriverLocationInput')?.value||dispatchActiveLocationId(), source=new Map(availableDispatchDrivers().map(d=>[d.key,d])); let added=0;
     for(const key of selected){ const d=source.get(key); if(!d||dispatchExistingSettlementDriver(d)) continue; const driverSource=d.sources.has('Recruitment')&&d.sources.has('Settlement')?'recruitment_settlement':d.sources.has('Recruitment')?'recruitment':'settlement'; state.dispatch.drivers.push({id:d.fedexId?`fedex_${d.fedexId}`:uid('driver'),fedexId:d.fedexId,name:d.name,role:'urr',locationId:loc,availability:[0,1,2,3,4,5,6],availabilityLabel:'Daily',origins:['*'],baseLabel:dispatchLocations().find(l=>l.id===loc)?.name||'All origins',source:driverSource}); added++; }
     await saveDispatchData(true); renderDispatch(); renderDispatchDriverRosterModal(); showAlert(`<strong>${added}</strong> driver${added===1?'':'s'} added to ${escapeHtml(dispatchLocations().find(l=>l.id===loc)?.name||'Dispatch')}. Edit their schedules as needed.`,'success');
   }
   async function addManualDispatchDriver(e){
-    e.preventDefault(); const name=$('dispatchNewDriverName').value.trim(),fedexId=$('dispatchNewDriverFedexId').value.trim(),locationId=$('dispatchNewDriverLocation').value,days=[...document.querySelectorAll('#dispatchNewDriverDays input[type=checkbox]:checked')].map(cb=>Number(cb.value)).sort((a,b)=>a-b); if(!name)return;
+    e.preventDefault();if(!await verifyMotiveDriversForWork())return; const name=$('dispatchNewDriverName').value.trim(),fedexId=$('dispatchNewDriverFedexId').value.trim(),locationId=$('dispatchNewDriverLocation').value,days=[...document.querySelectorAll('#dispatchNewDriverDays input[type=checkbox]:checked')].map(cb=>Number(cb.value)).sort((a,b)=>a-b); if(!name)return;if(!driverIsEligibleForWork({name,fedexId})){showAlert('This driver is inactive or unverified in Motive and cannot be added.','warning');return;}
     if(fedexId&&dispatchExistingByFedexId(fedexId)){showAlert(`FedEx ID ${escapeHtml(fedexId)} is already in the Dispatch roster.`,'warning');return;} if(!days.length&&!confirm(`${name} has no regular workdays selected. Add the driver anyway?`))return;
     const id=fedexId?`fedex_${fedexId}`:uid('driver'); state.dispatch.drivers.push({id,fedexId,name,role:'urr',locationId,availability:days,availabilityLabel:dispatchAvailabilityLabel(days),origins:['*'],baseLabel:dispatchLocations().find(l=>l.id===locationId)?.name||'All origins',source:'manual'});
     await saveDispatchData(true); $('dispatchNewDriverForm').reset(); fillDispatchLocationSelect($('dispatchNewDriverLocation'),locationId); renderDispatch(); renderDispatchDriverRosterModal(); showAlert(`<strong>${escapeHtml(name)}</strong> added to the Dispatch roster.`,'success');
@@ -4022,7 +4074,7 @@
   }
   function buildOptimizedDispatchAssignments(locationId=dispatchActiveLocationId()){
     const activeRuns=dispatchRuns(locationId),activeIds=new Set(activeRuns.map(r=>r.id));
-    const outside=(state.dispatch.assignments||[]).filter(a=>!activeIds.has(a.runId)); const assignments=[...outside,...dispatchPrimaryAssignments(locationId,outside)]; const drivers=dispatchDriversForLocation(locationId);
+    const outside=(state.dispatch.assignments||[]).filter(a=>!activeIds.has(a.runId)&&dispatchDriverIsActive(dispatchDriver(a.driverId))); const assignments=[...outside,...dispatchPrimaryAssignments(locationId,outside)]; const drivers=dispatchDriversForLocation(locationId);
     for(let day=0;day<7;day++){
       const usedAtDay=new Set(assignments.filter(a=>Number(a.day)===day).map(a=>a.driverId));
       const openRuns=activeRuns.filter(r=>(r.days||[]).map(Number).includes(day)&&!dispatchAssignment(r.id,day,assignments));
@@ -4065,13 +4117,15 @@
     try{const dir=await state.directoryHandle.getDirectoryHandle('Dispatch',{create:true});state.dispatch.version=9;state.dispatch.updatedAt=new Date().toISOString();await writeFile(dir,'dispatch_data.json',JSON.stringify(state.dispatch,null,2),'application/json');if(!silent)showAlert(`Dispatch plan saved to <strong>${escapeHtml(state.directoryHandle.name)}/Dispatch</strong>.`,'success');return true;}catch(err){console.error(err);if(!silent)showAlert('Could not save dispatch data: '+err.message,'error');return false;}
   }
   async function optimizeDispatchCoverage(){
+    if(!await verifyMotiveDriversForWork())return;
     const loc=dispatchActiveLocationName();state.dispatch.assignments=buildOptimizedDispatchAssignments();state.dispatchSelectedDriverId=null;await saveDispatchData(true);renderDispatch();setScreen('dispatch');const st=dispatchCoverageStats(),miles=dispatchEconomics();const milesText=miles.milesComplete?` Lost Miles: <strong>${fmtNum(miles.lostMiles)}</strong>.`:'';showAlert(`${escapeHtml(loc)} dispatch optimized to <strong>${st.covered} of ${st.required}</strong> weekly run assignments (${Math.round(st.coverage*100)}%). <strong>${st.open}</strong> assignment${st.open===1?' remains':'s remain'} uncovered.${milesText}`,'success');
   }
   async function resetDispatchPlan(){
-    const id=dispatchActiveLocationId(),activeIds=new Set(dispatchRuns(id).map(r=>r.id)),outside=(state.dispatch.assignments||[]).filter(a=>!activeIds.has(a.runId));state.dispatch.assignments=[...outside,...dispatchPrimaryAssignments(id,outside)];state.dispatchSelectedDriverId=null;await saveDispatchData(true);renderDispatch();setScreen('dispatch');showAlert(`${escapeHtml(dispatchActiveLocationName())} reset: primary assignments were restored where available and other runs were opened.`,'success');
+    if(!await verifyMotiveDriversForWork())return;
+    const id=dispatchActiveLocationId(),activeIds=new Set(dispatchRuns(id).map(r=>r.id)),outside=(state.dispatch.assignments||[]).filter(a=>!activeIds.has(a.runId)&&dispatchDriverIsActive(dispatchDriver(a.driverId)));state.dispatch.assignments=[...outside,...dispatchPrimaryAssignments(id,outside)];state.dispatchSelectedDriverId=null;await saveDispatchData(true);renderDispatch();setScreen('dispatch');showAlert(`${escapeHtml(dispatchActiveLocationName())} reset: primary assignments were restored where available and other runs were opened.`,'success');
   }
   async function assignDispatchDriver(driverId,runId,day,sourceRunId='',sourceDay=null){
-    const driver=dispatchDriver(driverId),run=dispatchRun(runId),d=Number(day);if(!driver||!run||!(run.days||[]).map(Number).includes(d))return;let override=false,scheduleOverride=false,originOverride=false;
+    const driver=dispatchDriver(driverId),run=dispatchRun(runId),d=Number(day);if(!driver||!run||!(run.days||[]).map(Number).includes(d))return;if(!await verifyMotiveDriversForWork())return;if(!dispatchDriverIsActive(driver)){showAlert('This driver is inactive or unverified in Motive and cannot be assigned.','warning');return;}let override=false,scheduleOverride=false,originOverride=false;
     if(!dispatchDriverAvailable(driver,d)){if(!confirm(`Schedule warning: ${driver.name} is not listed as available on ${DISPATCH_DAYS[d]}. Assign anyway?`))return;override=true;scheduleOverride=true;}
     let locationOverride=false; if(dispatchDriverLocationId(driver)!==(run.locationId||'nashville')){const from=dispatchDriverLocationName(driver),to=dispatchLocations().find(l=>l.id===(run.locationId||'nashville'))?.name||'this location';if(!confirm(`Location warning: ${driver.name} is assigned to ${from}, while this run belongs to ${to}. Assign anyway?`))return;override=true;locationOverride=true;}
     if(!dispatchOriginAllowed(driver,run)){if(!confirm(`Origin warning: ${driver.name} is listed for ${driver.baseLabel}, while ${run.name} starts from ${run.origin}. Assign anyway?`))return;override=true;originOverride=true;}
@@ -4083,9 +4137,9 @@
   async function benchDispatchDriver(driverId,day,sourceRunId='',sourceDay=null){let next=state.dispatch.assignments||[];if(sourceRunId&&sourceDay!=null)next=next.filter(a=>!(a.runId===sourceRunId&&Number(a.day)===Number(sourceDay)&&a.driverId===driverId));else next=next.filter(a=>!(a.driverId===driverId&&Number(a.day)===Number(day)));state.dispatch.assignments=next;state.dispatchSelectedDriverId=null;await saveDispatchData(true);renderDispatch();setScreen('dispatch');}
   function dispatchDriverCardHtml(d,compact=false){const selected=state.dispatchSelectedDriverId===d.id?' selected':'';if(compact)return `<div class="dispatch-bench-chip ${escapeHtml(d.role)}${selected}" draggable="true" data-dispatch-driver="${escapeHtml(d.id)}" data-dispatch-select-driver="${escapeHtml(d.id)}">${escapeHtml(d.name)}</div>`;const idText=d.fedexId?` • FedEx ${escapeHtml(d.fedexId)}`:'';return `<div class="dispatch-driver-card ${escapeHtml(d.role)}${selected}" draggable="true" data-dispatch-driver="${escapeHtml(d.id)}" data-dispatch-select-driver="${escapeHtml(d.id)}"><div class="dispatch-driver-card-top"><span class="dispatch-driver-name">${escapeHtml(d.name)}</span><button type="button" class="dispatch-edit-schedule" draggable="false" data-edit-dispatch-driver="${escapeHtml(d.id)}">Edit Driver</button></div><span class="dispatch-driver-meta">${escapeHtml(d.availabilityLabel)}${idText}</span><span class="dispatch-driver-badge">${escapeHtml(dispatchDriverLocationName(d))}</span></div>`;}
   function openDispatchScheduleModal(driverId){const d=dispatchDriver(driverId);if(!d)return;$('dispatchScheduleDriverId').value=d.id;$('dispatchScheduleDriverName').value=d.name;$('dispatchDriverFedexIdInput').value=d.fedexId||'';fillDispatchLocationSelect($('dispatchDriverLocationInput'),dispatchDriverLocationId(d));document.querySelectorAll('#dispatchScheduleDays input[type=checkbox]').forEach(cb=>cb.checked=(d.availability||[]).map(Number).includes(Number(cb.value)));$('dispatchScheduleModalTitle').textContent=`Edit Driver — ${d.name}`;openModal('dispatchScheduleModal');}
-  async function saveDispatchScheduleFromForm(e){e.preventDefault();const id=$('dispatchScheduleDriverId').value,d=dispatchDriver(id);if(!d)return;const days=[...document.querySelectorAll('#dispatchScheduleDays input[type=checkbox]:checked')].map(cb=>Number(cb.value)).sort((a,b)=>a-b);if(!days.length&&!confirm(`Schedule warning: ${d.name} will have no regular workdays. Save anyway?`))return;const newLocation=$('dispatchDriverLocationInput').value||dispatchDriverLocationId(d),fedexId=$('dispatchDriverFedexIdInput').value.trim();if(fedexId){const duplicate=dispatchExistingByFedexId(fedexId);if(duplicate&&duplicate.id!==d.id){showAlert(`FedEx ID ${escapeHtml(fedexId)} is already assigned to ${escapeHtml(duplicate.name)} in Dispatch.`,'warning');return;}}const conflicts=(state.dispatch.assignments||[]).filter(a=>a.driverId===id&&!days.includes(Number(a.day)));if(conflicts.length){const details=conflicts.slice(0,6).map(a=>`${DISPATCH_DAYS[Number(a.day)]}: ${dispatchRun(a.runId)?.name||a.runId}`).join('\n'),more=conflicts.length>6?`\n…and ${conflicts.length-6} more.`:'';if(!confirm(`Schedule warning: ${conflicts.length} existing assignment${conflicts.length===1?'':'s'} will fall outside ${d.name}'s regular schedule:\n\n${details}${more}\n\nKeep those assignments and save anyway?`))return;}const locationConflicts=(state.dispatch.assignments||[]).filter(a=>a.driverId===id&&(dispatchRun(a.runId)?.locationId||'nashville')!==newLocation);if(locationConflicts.length&&newLocation!==dispatchDriverLocationId(d)){const target=dispatchLocations().find(l=>l.id===newLocation)?.name||'the new location';if(!confirm(`Location warning: ${d.name} has ${locationConflicts.length} existing assignment${locationConflicts.length===1?'':'s'} outside ${target}. Move the driver's home dispatch location and keep those assignments anyway?`))return;}d.fedexId=fedexId;d.locationId=newLocation;d.availability=days;d.availabilityLabel=dispatchAvailabilityLabel(days);d.baseLabel=dispatchDriverLocationName(d);await saveDispatchData(true);closeModal('dispatchScheduleModal');renderDispatch();if(!$('dispatchDriverRosterModal').classList.contains('hidden'))renderDispatchDriverRosterModal();setScreen('dispatch');showAlert(`${escapeHtml(d.name)} updated • ${escapeHtml(dispatchDriverLocationName(d))} • ${escapeHtml(d.availabilityLabel)}. Existing assignments were preserved.`,'success');}
+  async function saveDispatchScheduleFromForm(e){e.preventDefault();if(!await verifyMotiveDriversForWork())return;const id=$('dispatchScheduleDriverId').value,d=dispatchDriver(id);if(!d||!dispatchDriverIsActive(d))return;const days=[...document.querySelectorAll('#dispatchScheduleDays input[type=checkbox]:checked')].map(cb=>Number(cb.value)).sort((a,b)=>a-b);if(!days.length&&!confirm(`Schedule warning: ${d.name} will have no regular workdays. Save anyway?`))return;const newLocation=$('dispatchDriverLocationInput').value||dispatchDriverLocationId(d),fedexId=$('dispatchDriverFedexIdInput').value.trim();if(fedexId){const duplicate=dispatchExistingByFedexId(fedexId);if(duplicate&&duplicate.id!==d.id){showAlert(`FedEx ID ${escapeHtml(fedexId)} is already assigned to ${escapeHtml(duplicate.name)} in Dispatch.`,'warning');return;}}const conflicts=(state.dispatch.assignments||[]).filter(a=>a.driverId===id&&!days.includes(Number(a.day)));if(conflicts.length){const details=conflicts.slice(0,6).map(a=>`${DISPATCH_DAYS[Number(a.day)]}: ${dispatchRun(a.runId)?.name||a.runId}`).join('\n'),more=conflicts.length>6?`\n…and ${conflicts.length-6} more.`:'';if(!confirm(`Schedule warning: ${conflicts.length} existing assignment${conflicts.length===1?'':'s'} will fall outside ${d.name}'s regular schedule:\n\n${details}${more}\n\nKeep those assignments and save anyway?`))return;}const locationConflicts=(state.dispatch.assignments||[]).filter(a=>a.driverId===id&&(dispatchRun(a.runId)?.locationId||'nashville')!==newLocation);if(locationConflicts.length&&newLocation!==dispatchDriverLocationId(d)){const target=dispatchLocations().find(l=>l.id===newLocation)?.name||'the new location';if(!confirm(`Location warning: ${d.name} has ${locationConflicts.length} existing assignment${locationConflicts.length===1?'':'s'} outside ${target}. Move the driver's home dispatch location and keep those assignments anyway?`))return;}d.fedexId=fedexId;d.locationId=newLocation;d.availability=days;d.availabilityLabel=dispatchAvailabilityLabel(days);d.baseLabel=dispatchDriverLocationName(d);await saveDispatchData(true);closeModal('dispatchScheduleModal');renderDispatch();if(!$('dispatchDriverRosterModal').classList.contains('hidden'))renderDispatchDriverRosterModal();setScreen('dispatch');showAlert(`${escapeHtml(d.name)} updated • ${escapeHtml(dispatchDriverLocationName(d))} • ${escapeHtml(d.availabilityLabel)}. Existing assignments were preserved.`,'success');}
   function populateDispatchPrimaryDriverSelect(locationId,selected=''){
-    const drivers=dispatchDriversForLocation(locationId);let html='<option value="">No primary driver</option>'+drivers.map(d=>`<option value="${escapeHtml(d.id)}">${escapeHtml(d.name)}${d.fedexId?` • ${escapeHtml(d.fedexId)}`:''}</option>`).join('');const current=selected?dispatchDriver(selected):null;if(current&&!drivers.some(d=>d.id===selected))html+=`<option value="${escapeHtml(current.id)}">${escapeHtml(current.name)} • ${escapeHtml(dispatchDriverLocationName(current))} (other location)</option>`;$('dispatchRunPrimaryDriverInput').innerHTML=html;$('dispatchRunPrimaryDriverInput').value=selected||'';
+    const drivers=dispatchDriversForLocation(locationId);let html='<option value="">No primary driver</option>'+drivers.map(d=>`<option value="${escapeHtml(d.id)}">${escapeHtml(d.name)}${d.fedexId?` • ${escapeHtml(d.fedexId)}`:''}</option>`).join('');const current=selected?dispatchDriver(selected):null;if(current&&dispatchDriverIsActive(current)&&!drivers.some(d=>d.id===selected))html+=`<option value="${escapeHtml(current.id)}">${escapeHtml(current.name)} • ${escapeHtml(dispatchDriverLocationName(current))} (other location)</option>`;$('dispatchRunPrimaryDriverInput').innerHTML=html;$('dispatchRunPrimaryDriverInput').value=current&&dispatchDriverIsActive(current)?selected:'';
   }
   function populateDispatchPrimaryTractorSelect(locationId,selected=''){
     const el=$('dispatchRunPrimaryTractorInput'); if(!el)return; const tractors=dispatchTractorsForLocation(locationId).slice().sort((a,b)=>String(a.tractorNumber||'').localeCompare(String(b.tractorNumber||''),undefined,{numeric:true})); let html='<option value="">No tractor assigned</option>'+tractors.map(t=>`<option value="${escapeHtml(t.id)}">Tractor ${escapeHtml(t.tractorNumber||'—')} • ${escapeHtml(t.makeModel||'')}</option>`).join(''); const current=selected?dispatchTractor(selected):null; if(current&&!tractors.some(t=>t.id===selected)) html+=`<option value="${escapeHtml(current.id)}">Tractor ${escapeHtml(current.tractorNumber||'—')} • ${escapeHtml(dispatchTractorLocationName(current))} (other location)</option>`; el.innerHTML=html; el.value=selected||'';
@@ -4097,9 +4151,9 @@
     const run=runId?dispatchRun(runId):null;populateDispatchRunModal(run?.locationId||dispatchActiveLocationId(),run?.primaryDriverId||'',run?.primaryTractorId||'');$('dispatchRunEconomicsId').value=run?.id||'';$('dispatchRunTypeInput').value=run?.type||'unassigned';$('dispatchRunNameInput').value=run?.name||'';$('dispatchRunOriginInput').value=run?.origin||dispatchActiveLocationName();$('dispatchRunPrimaryDriverInput').value=run?.primaryDriverId||'';$('dispatchRunMilesInput').value=dispatchRunMiles(run)??'';document.querySelectorAll('#dispatchRunDays input[type=checkbox]').forEach(cb=>cb.checked=(run?.days||[]).map(Number).includes(Number(cb.value)));$('dispatchRunEconomicsTitle').textContent=run?`Edit Run — ${run.name}`:'Add Dispatch Run';openModal('dispatchRunEconomicsModal');
   }
   async function saveDispatchRunEconomicsFromForm(e){
-    e.preventDefault();const existingId=$('dispatchRunEconomicsId').value,existing=existingId?dispatchRun(existingId):null;const days=[...document.querySelectorAll('#dispatchRunDays input[type=checkbox]:checked')].map(cb=>Number(cb.value)).sort((a,b)=>a-b);if(!days.length){showAlert('Select at least one operating day for the run.','warning');return;}
+    e.preventDefault();if(!await verifyMotiveDriversForWork())return;const existingId=$('dispatchRunEconomicsId').value,existing=existingId?dispatchRun(existingId):null;const days=[...document.querySelectorAll('#dispatchRunDays input[type=checkbox]:checked')].map(cb=>Number(cb.value)).sort((a,b)=>a-b);if(!days.length){showAlert('Select at least one operating day for the run.','warning');return;}
     const locationId=$('dispatchRunLocationInput').value,name=$('dispatchRunNameInput').value.trim(),origin=$('dispatchRunOriginInput').value.trim(),type=$('dispatchRunTypeInput').value,primaryDriverId=$('dispatchRunPrimaryDriverInput').value||'',primaryTractorId=$('dispatchRunPrimaryTractorInput')?.value||'';if(!name||!origin)return;
-    const primaryDriver=primaryDriverId?dispatchDriver(primaryDriverId):null;if(primaryDriver&&dispatchDriverLocationId(primaryDriver)!==locationId&&!confirm(`${primaryDriver.name} is assigned to ${dispatchDriverLocationName(primaryDriver)}, not ${dispatchLocations().find(l=>l.id===locationId)?.name||'this run location'}. Keep this driver as the primary driver anyway?`))return; const primaryTractor=primaryTractorId?dispatchTractor(primaryTractorId):null; if(primaryTractor&&dispatchTractorLocationId(primaryTractor)!==locationId&&!confirm(`Tractor ${primaryTractor.tractorNumber||''} is assigned to ${dispatchTractorLocationName(primaryTractor)}, not ${dispatchLocations().find(l=>l.id===locationId)?.name||'this run location'}. Keep this tractor on the run anyway?`))return; const tractorConflicts=primaryTractorId?dispatchTractorConflictRuns(primaryTractorId,existingId,days):[]; if(tractorConflicts.length&&!confirm(`Tractor conflict warning: Tractor ${primaryTractor?.tractorNumber||''} is also assigned to ${tractorConflicts.map(r=>r.name).join(', ')} on overlapping operating days. Save this run assignment anyway?`))return;
+    const primaryDriver=primaryDriverId?dispatchDriver(primaryDriverId):null;if(primaryDriverId&&!dispatchDriverIsActive(primaryDriver)){showAlert('Choose an active Motive driver as primary.','warning');return;}if(primaryDriver&&dispatchDriverLocationId(primaryDriver)!==locationId&&!confirm(`${primaryDriver.name} is assigned to ${dispatchDriverLocationName(primaryDriver)}, not ${dispatchLocations().find(l=>l.id===locationId)?.name||'this run location'}. Keep this driver as the primary driver anyway?`))return; const primaryTractor=primaryTractorId?dispatchTractor(primaryTractorId):null; if(primaryTractor&&dispatchTractorLocationId(primaryTractor)!==locationId&&!confirm(`Tractor ${primaryTractor.tractorNumber||''} is assigned to ${dispatchTractorLocationName(primaryTractor)}, not ${dispatchLocations().find(l=>l.id===locationId)?.name||'this run location'}. Keep this tractor on the run anyway?`))return; const tractorConflicts=primaryTractorId?dispatchTractorConflictRuns(primaryTractorId,existingId,days):[]; if(tractorConflicts.length&&!confirm(`Tractor conflict warning: Tractor ${primaryTractor?.tractorNumber||''} is also assigned to ${tractorConflicts.map(r=>r.name).join(', ')} on overlapping operating days. Save this run assignment anyway?`))return;
     const run=existing||{id:uid('run')};const oldId=run.id;Object.assign(run,{locationId,name,origin,type,primaryDriverId,primaryTractorId,days,scheduleLabel:dispatchAvailabilityLabel(days),milesPerRun:dispatchOptionalNumber($('dispatchRunMilesInput').value)});if(!existing)state.dispatch.runs.push(run);
     // Remove assignments on days no longer operated; preserve remaining manual assignments.
     state.dispatch.assignments=(state.dispatch.assignments||[]).filter(a=>a.runId!==oldId||days.includes(Number(a.day)));
@@ -4117,9 +4171,9 @@
     document.querySelectorAll('#dispatchScreen .dispatch-cell.active').forEach(cell=>{cell.addEventListener('dragover',e=>{e.preventDefault();cell.classList.add('drop-hover');});cell.addEventListener('dragleave',()=>cell.classList.remove('drop-hover'));cell.addEventListener('drop',e=>{e.preventDefault();cell.classList.remove('drop-hover');try{const p=JSON.parse(e.dataTransfer.getData('text/plain'));assignDispatchDriver(p.driverId,cell.dataset.runId,Number(cell.dataset.day),p.sourceRunId,p.sourceDay);}catch{}});});
     document.querySelectorAll('#dispatchScreen .dispatch-bench').forEach(cell=>{cell.addEventListener('dragover',e=>{e.preventDefault();cell.classList.add('drop-hover');});cell.addEventListener('dragleave',()=>cell.classList.remove('drop-hover'));cell.addEventListener('drop',e=>{e.preventDefault();cell.classList.remove('drop-hover');try{const p=JSON.parse(e.dataTransfer.getData('text/plain'));benchDispatchDriver(p.driverId,Number(cell.dataset.day),p.sourceRunId,p.sourceDay);}catch{}});});
   }
-  function dispatchSubsetForActiveLocation(){const runs=dispatchRuns(),ids=new Set(runs.map(r=>r.id)),assignments=(state.dispatch.assignments||[]).filter(a=>ids.has(a.runId)),driverIds=new Set(assignments.map(a=>a.driverId).filter(Boolean)),tractorIds=new Set(runs.map(r=>r.primaryTractorId).filter(Boolean)),drivers=(state.dispatch.drivers||[]).filter(d=>dispatchDriverLocationId(d)===dispatchActiveLocationId()||driverIds.has(d.id)),tractors=(state.dispatch.tractors||[]).filter(t=>dispatchTractorLocationId(t)===dispatchActiveLocationId()||tractorIds.has(t.id));return {version:9,locationName:dispatchActiveLocationName(),location:dispatchActiveLocationName(),locationId:dispatchActiveLocationId(),locations:dispatchLocations(),runs,drivers,tractors,assignments,updatedAt:state.dispatch.updatedAt};}
+  function dispatchSubsetForActiveLocation(){const runs=dispatchRuns(),ids=new Set(runs.map(r=>r.id)),assignments=(state.dispatch.assignments||[]).filter(a=>ids.has(a.runId)&&dispatchDriverIsActive(dispatchDriver(a.driverId))),driverIds=new Set(assignments.map(a=>a.driverId).filter(Boolean)),tractorIds=new Set(runs.map(r=>r.primaryTractorId).filter(Boolean)),drivers=(state.dispatch.drivers||[]).filter(d=>dispatchDriverIsActive(d)&&(dispatchDriverLocationId(d)===dispatchActiveLocationId()||driverIds.has(d.id))),tractors=(state.dispatch.tractors||[]).filter(t=>dispatchTractorLocationId(t)===dispatchActiveLocationId()||tractorIds.has(t.id));return {version:9,locationName:dispatchActiveLocationName(),location:dispatchActiveLocationName(),locationId:dispatchActiveLocationId(),locations:dispatchLocations(),runs,drivers,tractors,assignments,updatedAt:state.dispatch.updatedAt};}
   function renderDispatch(){
-    if(!$('dispatchScreen'))return;syncDispatchTractorMetadataFromMotive();const loc=dispatchActiveLocation(),activeRuns=dispatchRuns(),st=dispatchCoverageStats(),econ=dispatchEconomics(),optimized=buildOptimizedDispatchAssignments(),best=dispatchCoverageStats(optimized);
+    if(!$('dispatchScreen'))return;clearInactiveLiveDispatchAssignments();syncDispatchTractorMetadataFromMotive();const loc=dispatchActiveLocation(),activeRuns=dispatchRuns(),st=dispatchCoverageStats(),econ=dispatchEconomics(),optimized=buildOptimizedDispatchAssignments(),best=dispatchCoverageStats(optimized);
     $('dispatchLocationEyebrow').textContent=`${loc?.name||'Dispatch'} Operations`;
     $('dispatchLocationTabs').innerHTML=dispatchLocations().map(l=>`<button type="button" class="dispatch-location-tab ${l.id===dispatchActiveLocationId()?'active':''}" data-dispatch-location-tab="${escapeHtml(l.id)}"><strong>${escapeHtml(l.name)}</strong><span>${dispatchRuns(l.id).length} run${dispatchRuns(l.id).length===1?'':'s'} • ${dispatchDriversForLocation(l.id).length} driver${dispatchDriversForLocation(l.id).length===1?'':'s'} • ${dispatchTractorsForLocation(l.id).length} tractor${dispatchTractorsForLocation(l.id).length===1?'':'s'}</span></button>`).join('');
     $('deleteDispatchLocationBtn').disabled=dispatchLocations().length<=1;
@@ -4153,17 +4207,23 @@
     if(/nashville|lebanon|clarksville|murfreesboro|huntingburg/.test(text))return 'Nashville';
     return location||'Other';
   }
-  function dailyDispatchDefaultRows(){
-    return (state.dispatch.runs||[]).map(run=>{const assigned=run.type==='assigned';return {routeId:run.id,routeName:run.name||'Unnamed Route',origin:run.origin||'',hub:dailyDispatchHub(run),callStatus:assigned?'received':'not_received',dispatchStatus:assigned?'accepted':'',driverId:assigned?(run.primaryDriverId||''):'',refusals:[],declineReason:'',declineDriverId:'',declineDriverName:'',declineTractorId:'',declineTractorNumber:'',declineOther:''};});
+  function dailyDispatchRunScheduled(run,date){
+    // Planner days use Sunday=0. Parse the selected calendar date locally;
+    // UTC date-only parsing can shift it to the previous day in US time zones.
+    const selected=dateAtNoon(date);
+    return !!selected&&Array.isArray(run?.days)&&run.days.map(Number).includes(selected.getDay());
+  }
+  function dailyDispatchDefaultRows(date){
+    return (state.dispatch.runs||[]).map(run=>{const assigned=run.type==='assigned'&&dailyDispatchRunScheduled(run,date)&&dispatchDriverIsActive(dispatchDriver(run.primaryDriverId));return {routeId:run.id,routeName:run.name||'Unnamed Route',origin:run.origin||'',hub:dailyDispatchHub(run),callStatus:assigned?'received':'not_received',dispatchStatus:assigned?'accepted':'',driverId:assigned?(run.primaryDriverId||''):'',refusals:[],declineReason:'',declineDriverId:'',declineDriverName:'',declineTractorId:'',declineTractorNumber:'',declineOther:''};});
   }
   function dailyDispatchRows(date){
-    const saved=state.dispatch.dailyBoards?.[date],rows=saved&&Array.isArray(saved.rows)?saved.rows:dailyDispatchDefaultRows();
-    return rows.map(r=>({...r,refusals:Array.isArray(r.refusals)?r.refusals:[],declineReason:r.declineReason||'',declineDriverId:r.declineDriverId||'',declineDriverName:r.declineDriverName||'',declineTractorId:r.declineTractorId||'',declineTractorNumber:r.declineTractorNumber||'',declineOther:r.declineOther||''}));
+    const saved=state.dispatch.dailyBoards?.[date],rows=saved&&Array.isArray(saved.rows)?saved.rows:dailyDispatchDefaultRows(date);
+    return rows.map(r=>{const run=(state.dispatch.runs||[]).find(x=>x.id===r.routeId);return {...r,notScheduled:run?.type==='assigned'&&!dailyDispatchRunScheduled(run,date),refusals:Array.isArray(r.refusals)?r.refusals:[],declineReason:r.declineReason||'',declineDriverId:r.declineDriverId||'',declineDriverName:r.declineDriverName||'',declineTractorId:r.declineTractorId||'',declineTractorNumber:r.declineTractorNumber||'',declineOther:r.declineOther||''};});
   }
   function dailyDispatchDriverOptions(selected=''){
     const drivers=(state.dispatch.drivers||[]).filter(dispatchDriverIsActive).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
     let html='<option value="">Select driver…</option>'+drivers.map(d=>`<option value="${escapeHtml(d.id)}" ${d.id===selected?'selected':''}>${escapeHtml(d.name)}${d.fedexId?` • ${escapeHtml(d.fedexId)}`:''}</option>`).join('');
-    if(selected&&!drivers.some(d=>d.id===selected)){const prior=dispatchDriver(selected);html+=`<option value="${escapeHtml(selected)}" selected>${escapeHtml(prior?.name||'Previously assigned driver')} • inactive</option>`;} return html;
+    if(selected&&!drivers.some(d=>d.id===selected)){const prior=dispatchDriver(selected);html+=`<option value="${escapeHtml(selected)}" selected disabled>${escapeHtml(prior?.name||'Previously assigned driver')} • inactive</option>`;} return html;
   }
   function dailyDispatchTractorOptions(selected=''){
     const tractors=dispatchTractors().slice().sort((a,b)=>String(a.tractorNumber||'').localeCompare(String(b.tractorNumber||''),undefined,{numeric:true}));
@@ -4187,14 +4247,14 @@
     if(!tr||tr.querySelector('[data-daily-call]')?.value!=='received')return;
     $('dailyRefusalRouteId').value=tr.dataset.routeId||'';$('dailyRefusalRouteName').textContent=tr.dataset.routeName||'Route';$('dailyRefusalDriverInput').innerHTML=dailyDispatchDriverOptions('');$('dailyRefusalNoteInput').value='';openModal('dailyRefusalModal');
   }
-  function saveDailyRefusalFromForm(e){
-    e.preventDefault();const routeId=$('dailyRefusalRouteId').value,driverId=$('dailyRefusalDriverInput').value,tr=[...document.querySelectorAll('#dailyDispatchTable [data-daily-route-row]')].find(x=>x.dataset.routeId===routeId);if(!tr||!driverId)return;const refusals=dailyDispatchRefusalsFromRow(tr),driver=dispatchDriver(driverId);if(refusals.some(r=>r.driverId===driverId)){showAlert(`${escapeHtml(driver?.name||'That driver')} is already recorded as refusing this route.`,'warning');return;}refusals.push({driverId,driverName:driver?.name||$('dailyRefusalDriverInput').selectedOptions[0]?.textContent||'Driver',note:$('dailyRefusalNoteInput').value.trim(),recordedAt:new Date().toISOString()});setDailyDispatchRefusals(tr,refusals);closeModal('dailyRefusalModal');
+  async function saveDailyRefusalFromForm(e){
+    e.preventDefault();if(!await verifyMotiveDriversForWork())return;const routeId=$('dailyRefusalRouteId').value,driverId=$('dailyRefusalDriverInput').value,tr=[...document.querySelectorAll('#dailyDispatchTable [data-daily-route-row]')].find(x=>x.dataset.routeId===routeId);if(!tr||!driverId)return;if(!dispatchDriverIsActive(dispatchDriver(driverId))){showAlert('Choose an active Motive driver.','warning');return;}const refusals=dailyDispatchRefusalsFromRow(tr),driver=dispatchDriver(driverId);if(refusals.some(r=>r.driverId===driverId)){showAlert(`${escapeHtml(driver?.name||'That driver')} is already recorded as refusing this route.`,'warning');return;}refusals.push({driverId,driverName:driver?.name||$('dailyRefusalDriverInput').selectedOptions[0]?.textContent||'Driver',note:$('dailyRefusalNoteInput').value.trim(),recordedAt:new Date().toISOString()});setDailyDispatchRefusals(tr,refusals);closeModal('dailyRefusalModal');
   }
   function updateDailyDispatchBoardControls(){
     let declines=0,received=0,accepted=0;const hubStats={};
     document.querySelectorAll('#dailyDispatchTable tbody tr[data-daily-route-row]').forEach(tr=>{
       const call=tr.querySelector('[data-daily-call]'),status=tr.querySelector('[data-daily-status]'),driver=tr.querySelector('[data-daily-driver]'),addRefusal=tr.querySelector('[data-daily-add-refusal]'),details=tr.querySelector('[data-daily-decline-details]'),reason=tr.querySelector('[data-daily-decline-reason]'); if(!call||!status||!driver)return;
-      const gotCall=call.value==='received'; status.disabled=!gotCall;if(addRefusal)addRefusal.disabled=!gotCall;if(!gotCall){status.value='';driver.value='';setDailyDispatchRefusals(tr,[]);}
+      const gotCall=call.value==='received',notScheduled=tr.dataset.dailyNotScheduled==='true'&&!gotCall;tr.classList.toggle('daily-not-scheduled',notScheduled);tr.querySelector('[data-daily-not-scheduled-label]')?.classList.toggle('hidden',!notScheduled);const emptyStatus=status.querySelector('option[value=""]');if(emptyStatus)emptyStatus.textContent=notScheduled?'Not Scheduled':'—'; status.disabled=!gotCall;if(addRefusal)addRefusal.disabled=!gotCall;if(!gotCall){status.value='';driver.value='';setDailyDispatchRefusals(tr,[]);}
       const declined=gotCall&&status.value==='declined',isAccepted=gotCall&&status.value==='accepted';driver.disabled=!isAccepted;if(!isAccepted)driver.value='';details?.classList.toggle('hidden',!declined);
       if(!declined&&reason){reason.value='';for(const el of tr.querySelectorAll('[data-daily-decline-driver],[data-daily-decline-tractor],[data-daily-decline-other]'))el.value='';}
       const declineReason=declined?(reason?.value||''):'';tr.querySelector('[data-daily-decline-driver-wrap]')?.classList.toggle('hidden',declineReason!=='driver_unavailable');tr.querySelector('[data-daily-decline-tractor-wrap]')?.classList.toggle('hidden',declineReason!=='truck_unavailable');tr.querySelector('[data-daily-decline-other-wrap]')?.classList.toggle('hidden',declineReason!=='other');
@@ -4211,12 +4271,13 @@
     $('dailyDispatchTableTitle').textContent=`Routes for ${fmtDate(date)}`;$('dailyDispatchSaveState').textContent=board?.savedAt?`Saved ${new Date(board.savedAt).toLocaleString()}`:'New date • not yet saved';
     table.querySelector('thead').innerHTML='<tr><th>Route</th><th>Call</th><th>Dispatched</th><th>Assignment / Outcome</th></tr>';
     const groups=new Map();for(const row of rows){const hub=row.hub||'Other';if(!groups.has(hub))groups.set(hub,[]);groups.get(hub).push(row);}const hubs=[...DAILY_DISPATCH_HUBS,...[...groups.keys()].filter(h=>!DAILY_DISPATCH_HUBS.includes(h))];const body=[];
-    let visibleHubIndex=0;for(const hub of hubs){const list=groups.get(hub)||[];if(!list.length)continue;const stateKey=`${date}|${hub}`,isOpen=state.dailyDispatchHubOpen[stateKey]??visibleHubIndex===0;state.dailyDispatchHubOpen[stateKey]=isOpen;visibleHubIndex++;body.push(`<tr class="daily-dispatch-hub-row"><td colspan="4"><button type="button" class="daily-dispatch-hub-toggle" data-daily-hub-toggle="${escapeHtml(hub)}" data-daily-hub-key="${escapeHtml(stateKey)}" aria-expanded="${isOpen?'true':'false'}"><span><strong>${escapeHtml(hub)} Hub</strong><small data-daily-hub-summary>${list.length} route${list.length===1?'':'s'}</small></span><em aria-hidden="true">${isOpen?'−':'+'}</em></button></td></tr>`);for(const row of list){body.push(`<tr class="${isOpen?'':'daily-hub-collapsed'}" data-daily-hub-route="${escapeHtml(hub)}" data-daily-route-row data-route-id="${escapeHtml(row.routeId||'')}" data-route-name="${escapeHtml(row.routeName||'')}" data-route-origin="${escapeHtml(row.origin||'')}" data-route-hub="${escapeHtml(hub)}"><td class="daily-dispatch-route" data-label="Route"><strong>${escapeHtml(row.routeName||'Unnamed Route')}</strong><small>${escapeHtml(row.origin||'—')}</small></td><td data-label="Call"><select data-daily-call><option value="not_received" ${row.callStatus!=='received'?'selected':''}>Not Received</option><option value="received" ${row.callStatus==='received'?'selected':''}>Received</option></select></td><td data-label="Dispatched"><select data-daily-status><option value="" ${!row.dispatchStatus?'selected':''}>—</option><option value="accepted" ${row.dispatchStatus==='accepted'?'selected':''}>Accepted</option><option value="declined" ${row.dispatchStatus==='declined'?'selected':''}>Declined</option></select></td><td data-label="Assignment / Outcome">${dailyDispatchOutcomeHtml(row)}</td></tr>`);}}
+    let visibleHubIndex=0;for(const hub of hubs){const list=groups.get(hub)||[];if(!list.length)continue;const stateKey=`${date}|${hub}`,isOpen=state.dailyDispatchHubOpen[stateKey]??visibleHubIndex===0;state.dailyDispatchHubOpen[stateKey]=isOpen;visibleHubIndex++;body.push(`<tr class="daily-dispatch-hub-row"><td colspan="4"><button type="button" class="daily-dispatch-hub-toggle" data-daily-hub-toggle="${escapeHtml(hub)}" data-daily-hub-key="${escapeHtml(stateKey)}" aria-expanded="${isOpen?'true':'false'}"><span><strong>${escapeHtml(hub)} Hub</strong><small data-daily-hub-summary>${list.length} route${list.length===1?'':'s'}</small></span><em aria-hidden="true">${isOpen?'−':'+'}</em></button></td></tr>`);for(const row of list){body.push(`<tr class="${isOpen?'':'daily-hub-collapsed'}" data-daily-hub-route="${escapeHtml(hub)}" data-daily-route-row data-daily-not-scheduled="${row.notScheduled?'true':'false'}" data-route-id="${escapeHtml(row.routeId||'')}" data-route-name="${escapeHtml(row.routeName||'')}" data-route-origin="${escapeHtml(row.origin||'')}" data-route-hub="${escapeHtml(hub)}"><td class="daily-dispatch-route" data-label="Route"><strong>${escapeHtml(row.routeName||'Unnamed Route')}</strong><small>${escapeHtml(row.origin||'—')}</small><small class="daily-not-scheduled-label hidden" data-daily-not-scheduled-label>Not Scheduled</small></td><td data-label="Call"><select data-daily-call><option value="not_received" ${row.callStatus!=='received'?'selected':''}>Not Received</option><option value="received" ${row.callStatus==='received'?'selected':''}>Received</option></select></td><td data-label="Dispatched"><select data-daily-status><option value="" ${!row.dispatchStatus?'selected':''}>—</option><option value="accepted" ${row.dispatchStatus==='accepted'?'selected':''}>Accepted</option><option value="declined" ${row.dispatchStatus==='declined'?'selected':''}>Declined</option></select></td><td data-label="Assignment / Outcome">${dailyDispatchOutcomeHtml(row)}</td></tr>`);}}
     table.querySelector('tbody').innerHTML=body.join('')||'<tr class="daily-dispatch-empty"><td colspan="4">No routes are available. Add routes in the Weekly Dispatch Planner first.</td></tr>';table.querySelector('tfoot').innerHTML='<tr class="daily-dispatch-decline-row"><td colspan="3">Decline Counter</td><td><span id="dailyDispatchDeclineCount">0</span></td></tr>';
     table.querySelectorAll('select').forEach(el=>el.addEventListener('change',updateDailyDispatchBoardControls));updateDailyDispatchBoardControls();
   }
   async function saveDailyDispatchBoard(){
     const date=$('dailyDispatchDateInput')?.value;if(!date){showAlert('Select a dispatch date.','warning');return;}const rows=[...document.querySelectorAll('#dailyDispatchTable tbody tr[data-daily-route-row]')].map(tr=>{const driverId=tr.querySelector('[data-daily-driver]').value,declineDriverId=tr.querySelector('[data-daily-decline-driver]')?.value||'',declineTractorId=tr.querySelector('[data-daily-decline-tractor]')?.value||'';return {routeId:tr.dataset.routeId,routeName:tr.dataset.routeName,origin:tr.dataset.routeOrigin,hub:tr.dataset.routeHub,callStatus:tr.querySelector('[data-daily-call]').value,dispatchStatus:tr.querySelector('[data-daily-status]').value,driverId,driverName:dispatchDriver(driverId)?.name||'',refusals:dailyDispatchRefusalsFromRow(tr),declineReason:tr.querySelector('[data-daily-decline-reason]')?.value||'',declineDriverId,declineDriverName:dispatchDriver(declineDriverId)?.name||'',declineTractorId,declineTractorNumber:dispatchTractor(declineTractorId)?.tractorNumber||'',declineOther:tr.querySelector('[data-daily-decline-other]')?.value.trim()||''};});
+    if(!await verifyMotiveDriversForWork())return;const priorRows=state.dispatch.dailyBoards?.[date]?.rows||[];const inactive=rows.filter(r=>r.dispatchStatus==='accepted'&&!dispatchDriverIsActive(dispatchDriver(r.driverId))&&!priorRows.some(old=>old.routeId===r.routeId&&old.callStatus===r.callStatus&&old.dispatchStatus===r.dispatchStatus&&old.driverId===r.driverId));if(inactive.length){showAlert('An accepted route uses an inactive or unverified Motive driver. Choose an active driver before saving.','warning');return;}
     const missing=rows.filter(r=>r.dispatchStatus==='accepted'&&!r.driverId);if(missing.length){showAlert(`Assign a driver to every accepted route. ${missing.length} accepted route${missing.length===1?' is':'s are'} missing a driver.`,'warning');return;}
     const incomplete=rows.filter(r=>r.dispatchStatus==='declined'&&(!r.declineReason||(r.declineReason==='driver_unavailable'&&!r.declineDriverId)||(r.declineReason==='truck_unavailable'&&!r.declineTractorId)||(r.declineReason==='other'&&!r.declineOther)));if(incomplete.length){showAlert(`Complete the decline reason and required detail for ${incomplete.length} declined route${incomplete.length===1?'':'s'}.`,'warning');return;}
     const board={date,rows,savedAt:new Date().toISOString()};state.dispatch.dailyBoards={...(state.dispatch.dailyBoards||{}),[date]:board};let dedicatedSaved=false;
@@ -5959,7 +6020,7 @@
   }
   function safetyDriverPool(){
     const map=new Map(),add=(id,name,employeeId='')=>{id=String(id||'').trim();name=displayPersonName(name);if(!name)return;const key=id||`name:${dispatchPersonNameKey(name)}`;if(!map.has(key))map.set(key,{id:key,name,employeeId:String(employeeId||'')});};
-    for(const row of state.safety.scorecards||[]){const d=row.driver||{};add(safetyDriverId(d),safetyDriverName(d),d.driver_company_id);}
+    for(const row of state.safety.scorecards||[]){const d=row.driver||{};if(!driverIsEligibleForWork(d))continue;add(safetyDriverId(d),safetyDriverName(d),d.driver_company_id);}
     for(const d of state.motive.drivers||[])if(motiveDriverIsActive(d))add(safetyDriverId(d),safetyDriverName(d),motiveDriverEmployeeId(d));
     for(const d of state.dispatch.drivers||[])if(dispatchDriverIsActive(d))add(d.motiveDriverId||d.id,d.name,d.fedexId);
     return [...map.values()].sort((a,b)=>a.name.localeCompare(b.name));
@@ -6017,6 +6078,7 @@
     finally{state.safety.loading=false;renderSafety();if(state.currentScreen==='safety')setScreen('safety');}
   }
   async function saveSafetyAssignment(key){
+    if(!await verifyMotiveDriversForWork())return;
     const select=document.querySelector(`[data-safety-assignment="${CSS.escape(key)}"]`),driverId=select?.value||'',driver=safetyDriverPool().find(d=>d.id===driverId);
     if(!driver){showAlert('Select a driver first.','warning');return;}
     const item=safetyAllEvents().find(x=>safetyEventId(x.event,x.source)===key),incident=item?safetyIncidentRecord(item):null;if(incident)incident.assignmentSource='FleetCommand';
@@ -6080,7 +6142,7 @@
     $('safetyCards').innerHTML=[['Drivers Scored',fmtNum(scored),''],['Active Events',fmtNum(activeEvents.length),''],['Speeding Events',fmtNum(speeding),speeding?'warning-card':''],['Unassigned Events',fmtNum(unassigned),unassigned?'warning-card':''],['Dismissed',fmtNum(dismissed),'']].map(x=>`<div class="summary-card ${x[2]}"><span>${x[0]}</span><strong>${x[1]}</strong></div>`).join('');
     $('refreshSafetyBtn').disabled=s.loading||!state.motive.configured;$('refreshSafetyBtn').textContent=s.loading?'Loading…':'Load Safety Data';
     const accessText=Object.entries(s.accessErrors||{}).map(([key,value])=>`${key.replaceAll('_',' ')}: ${value}`).join(' • ');$('safetyNotice').innerHTML=s.error?`<strong>Safety data could not be loaded:</strong> ${escapeHtml(s.error)}`:(accessText?`<strong>Some Motive Safety data is unavailable.</strong> ${escapeHtml(accessText)}`:`Adjusted Scores include locally assigned, non-dismissed events using the configured behavior weights and each driver's mileage exposure.${s.loadedAt?` Last loaded ${escapeHtml(new Date(s.loadedAt).toLocaleString())}.`:''}`);
-    const sort=s.rankSort||{key:'adjusted',dir:'asc'},scorecards=(s.scorecards||[]).slice().sort((a,b)=>{const av=safetySortValue(a,sort.key,all),bv=safetySortValue(b,sort.key,all),cmp=typeof av==='string'?av.localeCompare(bv):((Number.isFinite(av)?av:Infinity)-(Number.isFinite(bv)?bv:Infinity));return (sort.dir==='desc'?-cmp:cmp)||safetyDriverName(a.driver).localeCompare(safetyDriverName(b.driver));});
+    const sort=s.rankSort||{key:'adjusted',dir:'asc'},scorecards=(s.scorecards||[]).filter(row=>driverIsEligibleForWork(row.driver)).slice().sort((a,b)=>{const av=safetySortValue(a,sort.key,all),bv=safetySortValue(b,sort.key,all),cmp=typeof av==='string'?av.localeCompare(bv):((Number.isFinite(av)?av:Infinity)-(Number.isFinite(bv)?bv:Infinity));return (sort.dir==='desc'?-cmp:cmp)||safetyDriverName(a.driver).localeCompare(safetyDriverName(b.driver));});
     $('safetyDriverCount').textContent=`${scorecards.length} driver${scorecards.length===1?'':'s'}`;
     const rankTable=$('safetyRankingsTable');rankTable.querySelector('thead').innerHTML=`<tr><th>Rank</th>${safetySortableHeading('Driver','driver',sort)}${safetySortableHeading('Motive Score','official',sort)}${safetySortableHeading('Adjusted Score','adjusted',sort)}<th>Rating</th>${safetySortableHeading('Miles','miles',sort)}<th>Hard Brakes</th><th>Hard Accels</th><th>Hard Corners</th><th>Coached</th>${safetySortableHeading('Events','events',sort)}<th>Record</th></tr>`;
     rankTable.querySelector('tbody').innerHTML=scorecards.length?scorecards.map((r,i)=>{const d=r.driver||{},id=safetyDriverId(d),driverEvents=all.filter(x=>safetyEventDriver(x.event,x.source)?.id===id),score=Number(r.score),adjusted=safetyAdjustedScore(r,all),band=safetyScoreBand(adjusted.score),bandClass=`safety-band-${band.toLowerCase().replaceAll(' ','-')}`;return `<tr><td><span class="safety-rank">${i+1}</span></td><td><strong>${escapeHtml(safetyDriverName(d)||'Unknown Driver')}</strong><small>${escapeHtml(d.driver_company_id||d.email||'')}</small></td><td><span class="safety-score official">${Number.isFinite(score)?score.toFixed(1):'—'}</span></td><td><span class="safety-score adjusted">${adjusted.score==null?'—':adjusted.score.toFixed(1)}</span>${adjusted.impact?`<small>−${adjusted.impact.toFixed(1)} estimated • ${adjusted.count} assigned</small>`:'<small>No local adjustment</small>'}</td><td><strong class="${bandClass}">${escapeHtml(band)}</strong></td><td>${safetyScorecardMiles(r)?fmtNum(safetyScorecardMiles(r)):'—'}</td><td>${fmtNum(r.num_hard_brakes)}</td><td>${fmtNum(r.num_hard_accels)}</td><td>${fmtNum(r.num_hard_corners)}</td><td>${fmtNum(r.num_coached_events)}</td><td><button class="button secondary" type="button" data-safety-driver-view="${escapeHtml(id)}">${fmtNum(driverEvents.length)} events</button></td><td><button class="button dark" type="button" data-safety-driver-export="${escapeHtml(id)}">Export PDF</button></td></tr>`;}).join(''):'<tr><td colspan="12" class="empty-table-cell">Load Safety data to display Motive driver rankings.</td></tr>';
@@ -6105,7 +6167,7 @@
   async function loadMotiveStatus(){
     try{
       const data=await localApi('/api/motive/status');
-      state.motive.backendAvailable=true; state.motive.configured=!!data.configured; state.motive.keyHint=data.key_hint||''; state.motive.storage=data.storage||'';
+      state.motive.backendAvailable=true; state.motive.configured=!!data.configured; state.motive.keyHint=data.key_hint||''; state.motive.storage=data.storage||'';if(state.motive.configured){await refreshMotiveDriverDirectory();renderDispatch();renderDailyDispatch();renderSafety();}
     }catch(err){
       state.motive.backendAvailable=false; state.motive.configured=false; state.motive.keyHint=''; state.motive.storage='';
     }
@@ -6125,7 +6187,7 @@
     if(!state.motive.backendAvailable) return;
     try{
       await localApi('/api/motive/disconnect',{method:'POST',body:'{}'});
-      state.motive.configured=false; state.motive.keyHint=''; state.motive.vehicles=[]; state.motive.drivers=[]; state.motive.lastSync=null; state.motive.test=null;
+      state.motive.configured=false; state.motive.keyHint=''; state.motive.vehicles=[]; state.motive.drivers=[];state.motive.driversLoaded=false;state.motive.driversLastSync=null; state.motive.lastSync=null; state.motive.test=null;
       renderMotive(); showAlert('Motive disconnected on this computer.','success');
     }catch(err){ showAlert(`Could not disconnect Motive: ${escapeHtml(err.message)}`,'error'); }
   }
@@ -6148,7 +6210,8 @@
         localApi('/api/motive/drivers').then(data=>({data,error:null})).catch(error=>({data:null,error}))
       ]);
       state.motive.vehicles=Array.isArray(vehicleData.vehicles)?vehicleData.vehicles:[];
-      if(driverResult.data) state.motive.drivers=Array.isArray(driverResult.data.drivers)?driverResult.data.drivers:[];
+      if(driverResult.data) {if(!driverResult.data.ok||!Array.isArray(driverResult.data.drivers))throw new Error('Motive returned an incomplete driver directory.');state.motive.drivers=driverResult.data.drivers;state.motive.driversLoaded=true;state.motive.driversLastSync=new Date().toISOString();state.motive.driversError='';}
+      if(driverResult.error)state.motive.driversError=driverResult.error.message||String(driverResult.error);
       state.motive.lastSync=new Date().toISOString();
       if(state.dispatchLoaded){
         syncDispatchTractorMetadataFromMotive();
@@ -6495,7 +6558,7 @@
     const dispatchScheduleEdit=e.target.closest('[data-edit-dispatch-driver]'); if(dispatchScheduleEdit){ openDispatchScheduleModal(dispatchScheduleEdit.dataset.editDispatchDriver); return; }
     const dispatchDriverDelete=e.target.closest('[data-delete-dispatch-driver]'); if(dispatchDriverDelete){ deleteDispatchDriver(dispatchDriverDelete.dataset.deleteDispatchDriver); return; }
     const dispatchTractorDelete=e.target.closest('[data-delete-dispatch-tractor]'); if(dispatchTractorDelete){ deleteDispatchTractor(dispatchTractorDelete.dataset.deleteDispatchTractor); return; }
-    const dispatchDriverPick=e.target.closest('[data-dispatch-select-driver]'); if(dispatchDriverPick && !e.target.closest('.dispatch-remove') && !e.target.closest('[data-edit-dispatch-driver]')){ state.dispatchSelectedDriverId=state.dispatchSelectedDriverId===dispatchDriverPick.dataset.dispatchSelectDriver?null:dispatchDriverPick.dataset.dispatchSelectDriver; renderDispatch(); return; }
+    const dispatchDriverPick=e.target.closest('[data-dispatch-select-driver]'); if(dispatchDriverPick && dispatchDriverIsActive(dispatchDriver(dispatchDriverPick.dataset.dispatchSelectDriver)) && !e.target.closest('.dispatch-remove') && !e.target.closest('[data-edit-dispatch-driver]')){ state.dispatchSelectedDriverId=state.dispatchSelectedDriverId===dispatchDriverPick.dataset.dispatchSelectDriver?null:dispatchDriverPick.dataset.dispatchSelectDriver; renderDispatch(); return; }
     const dispatchCell=e.target.closest('.dispatch-cell.active'); if(dispatchCell && state.dispatchSelectedDriverId){ assignDispatchDriver(state.dispatchSelectedDriverId,dispatchCell.dataset.runId,Number(dispatchCell.dataset.day)); return; }
     const ivmrPdf=e.target.closest('[data-ivmr-pdf]'); if(ivmrPdf) generateIvmrPdf([ivmrPdf.dataset.ivmrPdf]);
     const ivmrEdit=e.target.closest('[data-ivmr-edit-tractor]'); if(ivmrEdit) openTractorModal(ivmrEdit.dataset.ivmrEditTractor);

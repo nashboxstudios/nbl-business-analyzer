@@ -522,41 +522,40 @@ def fetch_motive_vehicles():
 
 
 def fetch_motive_drivers():
-    """Fetch the Motive driver directory used to reconcile FleetCommand rosters."""
-    out, page, per_page = [], 1, 100
-    while page <= 50:
-        payload, _ = motive_request('/v1/driver_locations', {'per_page': per_page, 'page_no': page})
-        raw_items = extract_list(payload, 'driver_locations') or extract_list(payload, 'drivers') or extract_list(payload, 'users')
-        for raw in raw_items:
-            row = unwrap_item(raw, 'driver_location')
-            user = row.get('user') if isinstance(row.get('user'), dict) else row
-            if isinstance(user.get('driver'), dict):
-                user = user['driver']
-            role = str(user.get('role') or 'driver').strip().lower()
-            if role and role != 'driver':
-                continue
-            first = str(user.get('first_name') or '').strip()
-            last = str(user.get('last_name') or '').strip()
-            employee_id = str(user.get('driver_company_id') or row.get('driver_company_id') or user.get('company_id') or user.get('employee_id') or '').strip()
-            out.append({
-                'id': user.get('id'),
-                'employee_id': employee_id,
-                'driver_company_id': employee_id,
-                'first_name': first,
-                'last_name': last,
-                'name': ' '.join(x for x in (first, last) if x).strip() or str(user.get('username') or '').strip(),
-                'email': str(user.get('email') or '').strip(),
-                'username': str(user.get('username') or '').strip(),
-                'status': str(user.get('status') or row.get('status') or '').strip(),
+    """Return a complete account-status directory, including deactivated drivers."""
+    drivers = {}
+    for requested_status in ('active', 'deactivated'):
+        for page in range(1, 51):
+            payload, _ = motive_request('/v1/users', {
+                'role': 'driver', 'status': requested_status,
+                'per_page': 100, 'page_no': page,
             })
-        total = payload.get('total') if isinstance(payload, dict) else None
-        if total is None and isinstance(payload, dict) and isinstance(payload.get('pagination'), dict):
-            total = payload['pagination'].get('total')
-        if not raw_items or len(raw_items) < per_page or (isinstance(total, (int, float)) and len(out) >= int(total)):
-            break
-        page += 1
-    out.sort(key=lambda d: (str(d.get('last_name') or '').lower(), str(d.get('first_name') or '').lower(), str(d.get('id') or '')))
-    return out
+            if not isinstance(payload, dict) or not isinstance(payload.get('users'), list):
+                raise RuntimeError('Motive returned an incomplete driver directory.')
+            raw_items = payload['users']
+            for raw in raw_items:
+                user = unwrap_item(raw, 'user')
+                if not isinstance(user, dict) or user.get('id') is None:
+                    raise RuntimeError('Motive returned a driver without an account ID.')
+                if str(user.get('role') or 'driver').strip().lower() != 'driver':
+                    continue
+                first, last = str(user.get('first_name') or '').strip(), str(user.get('last_name') or '').strip()
+                employee_id = str(user.get('driver_company_id') or user.get('employee_id') or '').strip()
+                driver = {
+                    'id': user['id'], 'employee_id': employee_id, 'driver_company_id': employee_id,
+                    'first_name': first, 'last_name': last,
+                    'name': ' '.join(x for x in (first, last) if x) or str(user.get('username') or '').strip(),
+                    'email': str(user.get('email') or '').strip(), 'username': str(user.get('username') or '').strip(),
+                    'status': str(user.get('status') or requested_status).strip().lower(),
+                }
+                drivers[str(driver['id'])] = driver
+            pagination = payload.get('pagination') or {}
+            total = payload.get('total', pagination.get('total'))
+            if not raw_items or len(raw_items) < 100 or (isinstance(total, (int, float)) and page * 100 >= total):
+                break
+        else:
+            raise RuntimeError('Motive driver directory exceeded the pagination limit; refresh was not applied.')
+    return sorted(drivers.values(), key=lambda d: (d['last_name'].lower(), d['first_name'].lower(), str(d['id'])))
 
 
 def fetch_motive_fault_codes(tractor_number, start_date, end_date, status=''):
@@ -3437,13 +3436,13 @@ def main():
     # that is still running from hijacking a newer build's browser window.
     server = ThreadingHTTPServer((HOST, REQUESTED_PORT), NBLHandler)
     actual_port = int(server.server_address[1])
-    url = f'http://localhost:{actual_port}/index.html?v=138'
+    url = f'http://localhost:{actual_port}/index.html?v=139'
     if PORT_FILE:
         try:
             Path(PORT_FILE).write_text(url, encoding='utf-8')
         except Exception:
             pass
-    print('NBL FleetCommand v138 is running.')
+    print('NBL FleetCommand v139 is running.')
     print(f'Open: {url}')
     print('Motive API credentials use MOTIVE_API_KEY when provided; local builds fall back to the protected local key file.')
     print('Keep this process running while using the app.')

@@ -735,3 +735,7 @@ body .sidebar{position:fixed;top:0;bottom:0;left:0;z-index:1002;width:min(86vw,3
 .hiring-report dd.doubles-status.pending{background:#fff3cd;color:#8a5d12}
 .hiring-report dd.doubles-status.issue{background:#fce8e6;color:#a12e2e}
 @media(max-width:600px){#recruitmentCandidateForm .hr-candidate-section>summary{font-size:17px;padding:12px}#recruitmentCandidateForm .hr-candidate-section-content{padding:12px}}
+
+
+/* Off-day dedicated runs remain visible for exceptional calls. */
+.daily-dispatch-table tr.daily-not-scheduled td{background:#f4f4f5;color:#77717c}.daily-dispatch-table tr.daily-not-scheduled .daily-dispatch-route strong{color:#77717c}.daily-dispatch-table .daily-not-scheduled-label{font-weight:800;color:#77717c}
