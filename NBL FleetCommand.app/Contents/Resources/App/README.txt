@@ -1,3 +1,29 @@
+NBL FleetCommand — Version 94
+
+Version 94 - Shared Active Driver Roster
+-----------------------------------------
+- Makes active drivers available automatically in Weekly and Daily Dispatch without a separate Driver Master screen.
+- Matches Recruitment FedEx ID to Motive Employee ID as the primary identity rule.
+- Uses first and last name as a fallback while ignoring middle names, initials, punctuation, and suffixes.
+- Adds active Motive drivers, hired Recruitment drivers, and settlement drivers to the shared Dispatch roster.
+- Treats Motive as the authority for active status; deactivated Motive drivers are removed from all new-assignment selectors.
+- Preserves inactive drivers on historical dispatch boards and existing assignments.
+- Refreshing Motive now loads both vehicles and drivers and saves the reconciled roster to Dispatch.
+
+
+NBL FleetCommand — Version 93
+
+Version 93 - Operations Dashboard
+---------------------------------
+- Added a nonfinancial Dashboard as the default landing page for every user.
+- Shows Last Week, Month-to-Date, and Year-to-Date miles with linehaul and spot detail.
+- Added a selectable 4/8/12/26 completed-week mileage trend chart.
+- Summarizes accepted dispatches and declines by hub for Yesterday, Week-to-Date, Last Week, Month-to-Date, and Year-to-Date.
+- Added Current, Due Soon, Overdue, and Out-of-Service maintenance indicators plus a Needs Attention list.
+- Dashboard sections can be shown or hidden per user on each device.
+- Stores dashboard mileage in a separate nonfinancial cloud snapshot.
+
+
 NBL FleetCommand — Version 92
 
 Version 92 - Bulk Settlement Upload + Duplicate Protection
