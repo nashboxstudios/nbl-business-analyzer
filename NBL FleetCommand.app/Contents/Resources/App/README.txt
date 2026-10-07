@@ -1,4 +1,16 @@
-NBL FleetCommand — Version 107
+NBL FleetCommand — Version 109
+
+Version 109 - Structured Core Module Storage
+
+- Adds record-level Supabase storage for Fleet Maintenance, Recruitment, Driver Pay, Settlements, Audit, and Meetings.
+- Stores tractors and service records, candidates, payroll profiles and periods, settlement statements, audits and findings, inspections, and management items as separate records.
+- Finance data is database-restricted to Owner accounts. Operations Manager and Lead Driver access remains limited to their authorized operational modules.
+- Full Social Security numbers remain excluded from cloud storage; only the existing masked last-four value is retained.
+- Preserves V108 structured Safety and Daily Dispatch storage.
+- If not already completed, run SUPABASE_v108_SAFETY_DAILY_DISPATCH.sql once.
+- Run SUPABASE_v109_CORE_MODULE_STORAGE.sql once in the Supabase SQL Editor before deploying v109.
+- The V109 tables use the `nbl_fc_` prefix so they do not conflict with pre-existing FleetCommand tables.
+- V109 automatically migrates existing cloud snapshots for Fleet Maintenance, Recruitment, Driver Pay, Settlements, Audit, and Meetings into record-level storage.
 
 Version 107 - Persistent Safety Assignments
 
