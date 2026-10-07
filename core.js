@@ -312,7 +312,7 @@
       const totals=result.drivers.reduce((t,d)=>{t.days+=Number(d.daysWorked)||0;t.lm+=Number(d.linehaulMiles)||0;t.sm+=Number(d.spotMiles)||0;t.tm+=Number(d.totalMiles)||0;t.dhe+=Number(d.dhEventCount)||0;t.dhp+=Number(d.dhPay)||0;t.base+=Number(d.basePay)||0;t.min+=Number(d.minimumTopUp)||0;t.bonus+=Number(d.adjustmentBuckets?.bonus)||0;t.holiday+=Number(d.adjustmentBuckets?.holiday)||0;t.vacation+=Number(d.adjustmentBuckets?.vacation)||0;t.training+=Number(d.adjustmentBuckets?.training)||0;t.other+=Number(d.adjustmentBuckets?.other)||0;t.total+=Number(d.totalPay)||0;return t;},{days:0,lm:0,sm:0,tm:0,dhe:0,dhp:0,base:0,min:0,bonus:0,holiday:0,vacation:0,training:0,other:0,total:0});
       const header=['Driver','FedEx ID','Pay Method',...week.map(payrollDateColumnLabel),'Days Worked','Linehaul Miles','Spot Miles','Total Miles','D&H Breakdown','D&H Pay','Base Pay','Minimum Top-Up','Bonus','Holiday','Vacation','Training','Other Adjustment','Total Pay'];
       driverRows=[
-        {values:['NBL Business Analyzer — Driver Pay'],styles:[7]},
+        {values:['NBL FleetCommand — Driver Pay'],styles:[7]},
         {values:[`Source: ${result.fileName}`,`Activity: ${result.summary.periodStart || '—'} to ${result.summary.periodEnd || '—'}`]},
         {values:[`Pay Date: ${result.summary.payDate || '—'}`,`Settlement Date: ${result.summary.settlementDate || '—'}`]},
         {values:['Driver-specific pay profiles • Worked days can be checked for every driver • D&H payout is mapped from the actual D&H values detected in each settlement.']},
@@ -332,7 +332,7 @@
     }else{
       const totals=result.drivers.reduce((t,d)=>({lm:t.lm+d.linehaulMiles,sm:t.sm+d.spotMiles,tm:t.tm+d.totalMiles,s:t.s+d.singles,db:t.db+d.doubles,mp:t.mp+d.milesPay,sp:t.sp+d.singlesPay,dp:t.dp+d.doublesPay,tp:t.tp+d.totalPay}),{lm:0,sm:0,tm:0,s:0,db:0,mp:0,sp:0,dp:0,tp:0});
       driverRows=[
-        {values:['NBL Business Analyzer — Driver Pay'],styles:[7]},
+        {values:['NBL FleetCommand — Driver Pay'],styles:[7]},
         {values:[`Source: ${result.fileName}`,`Activity: ${result.summary.periodStart || '—'} to ${result.summary.periodEnd || '—'}`]},
         {values:[`Pay Date: ${result.summary.payDate || '—'}`,`Settlement Date: ${result.summary.settlementDate || '—'}`]},
         {values:[`Mileage Rate: $${Number(rates.mileage).toFixed(2)}`,`Single D&H Pay: $${Number(rates.singleDH).toFixed(2)}`,`Double D&H Pay: $${Number(rates.doubleDH).toFixed(2)}`]},
@@ -346,7 +346,7 @@
 
     const s=result.summary;
     const summaryRows=[
-      {values:['NBL Business Analyzer — Settlement Summary'],styles:[7]},
+      {values:['NBL FleetCommand — Settlement Summary'],styles:[7]},
       {values:[`Source: ${result.fileName}`,`Activity: ${s.periodStart || '—'} to ${s.periodEnd || '—'}`]},
       {values:[`Settlement Date: ${s.settlementDate || '—'}`,`Pay Date: ${s.payDate || '—'}`]},
       {values:['Metric','Value'],styles:[1,1]},
@@ -388,7 +388,7 @@
     const today=`${generated.getFullYear()}-${String(generated.getMonth()+1).padStart(2,'0')}-${String(generated.getDate()).padStart(2,'0')}`;
 
     const inspectionRows=[
-      {values:['NBL Business Analyzer — Truck Inspection Reports'],styles:[2]},
+      {values:['NBL FleetCommand — Truck Inspection Reports'],styles:[2]},
       {values:[generatedText]},
       {values:['']},
       {values:['Date','Tractor #','Driver Name','Issue','Priority','Addressed'],styles:Array(6).fill(1)}
@@ -408,7 +408,7 @@
     if(!inspections.length) inspectionRows.push({values:['No truck inspection reports recorded.'],styles:[3]});
 
     const managementRows=[
-      {values:['NBL Business Analyzer — Management Meeting Items'],styles:[2]},
+      {values:['NBL FleetCommand — Management Meeting Items'],styles:[2]},
       {values:[generatedText]},
       {values:['']},
       {values:['Date','Topic','Notes','Responsible','Due Date','Closed'],styles:Array(6).fill(1)}
@@ -446,7 +446,7 @@
     const dataRows=Array.isArray(options.rows)?options.rows:[];
     const widths=Array.isArray(options.widths)?options.widths:headers.map(()=>18);
     const freezeColumns=Math.max(0,Math.min(Number(options.freezeColumns)||0,headers.length));
-    const title=String(options.title||'NBL Business Analyzer — Recruitment Pipeline');
+    const title=String(options.title||'NBL FleetCommand — Recruitment Pipeline');
     const generated=new Date();
     const generatedText=`Generated: ${generated.toLocaleDateString()} ${generated.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`;
     const rows=[
@@ -507,7 +507,7 @@
 
     const scheduleHeaderStyles=[1,1,1,1,1,1,...daySummary.map(d=>d.covered===d.required?12:13),1];
     const scheduleRows=[
-      {values:[`NBL Business Analyzer — ${locationName} Team Run Coverage`],styles:[8]},
+      {values:[`NBL FleetCommand — ${locationName} Team Run Coverage`],styles:[8]},
       {values:[generatedText]},
       {values:['PRIMARY','MANUAL','WARNING / OVERRIDE','OPEN','NOT SCHEDULED'],styles:[6,4,9,5,7]},
       {values:['Run','Origin','Type','Tractor','Schedule','Miles / Run',...daySummary.map(d=>`${d.name}\n${d.covered}/${d.required} covered`),'Covered Days'],styles:scheduleHeaderStyles}
@@ -533,7 +533,7 @@
     }
 
     const driverRows=[
-      {values:[`NBL Business Analyzer — ${locationName} Driver Availability`],styles:[8]},
+      {values:[`NBL FleetCommand — ${locationName} Driver Availability`],styles:[8]},
       {values:[generatedText]},
       {values:['']},
       {values:['Driver','FedEx ID','Dispatch Location','Role','Regular Schedule','Assigned Days'],styles:Array(6).fill(1)}
@@ -544,7 +544,7 @@
     }
 
     const tractorRows=[
-      {values:[`NBL Business Analyzer — ${locationName} Tractor Roster`],styles:[8]},
+      {values:[`NBL FleetCommand — ${locationName} Tractor Roster`],styles:[8]},
       {values:[generatedText]},
       {values:['']},
       {values:['Tractor #','Assigned Run(s)','VIN','Make / Model','Dispatch Location','Motive Odometer','Motive Status'],styles:Array(7).fill(1)}

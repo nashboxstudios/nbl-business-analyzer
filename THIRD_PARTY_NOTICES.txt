@@ -1,4 +1,4 @@
-NBL Business Analyzer includes pypdf 5.9.0 for local PDF text extraction.
+NBL FleetCommand includes pypdf 5.9.0 for local PDF text extraction.
 pypdf is distributed under the BSD-3-Clause license.
 
 Copyright (c) 2006-2008, Mathieu Fenniak
@@ -31,7 +31,7 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 
-NBL Business Analyzer also includes typing_extensions 4.16.0 for compatibility with older Python runtimes.
+NBL FleetCommand also includes typing_extensions 4.16.0 for compatibility with older Python runtimes.
 typing_extensions is distributed under the Python Software Foundation License Version 2.
 The full license text is included in TYPING_EXTENSIONS_LICENSE.txt.
 

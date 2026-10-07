@@ -1,3 +1,12 @@
+NBL FleetCommand — Version 86
+
+- Renamed the application from NBL Business Analyzer to NBL FleetCommand.
+- Reorganized the sidebar into Operations, People, Finance, and Compliance.
+- Placed Daily Dispatch Board first within Dispatch for faster daily use.
+- Consolidated Cloud Sync, data-folder controls, and Finance Security into Settings.
+- Added a compact user and cloud-status area at the bottom of the sidebar.
+- Preserved all existing module functionality and data formats.
+
 Version 85 - Daily Dispatch Board
 
 - Added Daily Dispatch Board as a second Dispatch submodule.
