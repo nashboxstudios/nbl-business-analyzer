@@ -3,17 +3,34 @@ const E=require('../recruitment-test.js');
 const seed=()=>E.normalize({id:'test_a',name:'Alex',recruitmentStatus:'In Progress',testPipeline:{stage:'Screening',stageReviewed:true}});
 const c=seed(),p=c.testPipeline;
 assert(E.validate(c).length>5,'Incomplete screening cannot advance');
-Object.assign(p.screening,{interviewer:'Reviewer',date:'2026-10-04',experience:'5 years',availability:'Days, Mon-Fri',payExpectation:'$30/hr',peak:'Yes',doublesNotes:'Will obtain endorsement',safety:'No',criminal:'Yes',consent:'Yes',documents:'Yes',decision:'Proceed',processExplained:true,shiftsExplained:true});
+Object.assign(p.screening,{interviewer:'Reviewer',date:'2026-10-04',experience:'5 years',availability:'Days, Mon-Fri',payExpectation:'$30/hr',peak:'Yes',doublesNotes:'Will obtain endorsement',safety:'No',criminal:'Yes',consent:'Yes',documents:'Yes',decision:'Proceed',processExplained:true,shiftsExplained:true,doublesTrainingWilling:'Yes',possibleShifts:'Day and night shifts',shiftAvailabilityAccepted:'Yes'});
 assert.deepEqual(E.validate(c),[],'Criminal answer recorded without automatic disqualification');
 p.stage='Background & Drug Screen';Object.assign(p.background,{applicationSent:'2026-10-04',drugStatus:'Pending',readyForOps:true,fadvStatus:'In Progress'});
 assert.deepEqual(E.validate(c),[],'Manager may advance before FADV or drug result complete');
-p.stage='Ops Interview';Object.assign(p.ops,{interviewer:'Ops',date:'2026-10-05',agreedDays:'Mon-Fri',shiftStart:'06:00',shiftEnd:'16:00',dispatchTime:'06:00',doublesRequired:'May be required',scheduleAccepted:'Yes',doublesAccepted:'Yes',decision:'Proceed'});p.ops.confirmedSchedule=E.scheduleKey(c);
+p.stage='Ops Interview';Object.assign(p.ops,{agreedDays:'Mon-Fri',dispatchAgreement:'6 AM dispatch; 6 AM–4 PM shift explained and accepted',doublesAgreement:'Pulling and assembling doubles explained and accepted'});E.recordOpsAgreements(c,'Ops');
 assert.deepEqual(E.validate(c),[]);
-const previous=E.normalize(c);p.ops.dispatchTime='08:00';E.reconcile(previous,c);assert.equal(p.ops.scheduleAccepted,'');assert(E.validate(c).length>0);
-p.onHold=true;assert(E.validate(c).includes('Resume this candidate from Hold'));p.onHold=false;Object.assign(p.ops,{scheduleAccepted:'Yes',doublesAccepted:'Yes',confirmedSchedule:E.scheduleKey(c)});
+const previous=E.normalize(c);p.ops.dispatchAgreement='8 AM dispatch accepted';E.reconcile(previous,c);assert.equal(p.ops.confirmedSchedule,undefined);assert(E.validate(c).length>0);
+p.onHold=true;assert(E.validate(c).includes('Resume this candidate from Hold'));p.onHold=false;E.recordOpsAgreements(c,'Ops');
 p.stage='Road Test';c.roadTest='Pass';Object.assign(c.roadTestForm,{date:'2026-10-06',testAdminName:'Road Reviewer'});assert.deepEqual(E.validate(c),[]);
 p.stage='Offer & Onboarding';c.offerLetter='Accepted';c.startDate='2026-10-10';Object.assign(p.onboarding,{adp:'Sent',sf:'Complete',motive:'Sent'});assert.deepEqual(E.validate(c),[]);
 p.stage='Training';Object.assign(p.training,{trainer:'Trainer',completedDate:'2026-10-12',result:'Complete'});assert(E.validate(c).includes('FADV: Complete'));p.background.fadvStatus='Complete';p.background.drugStatus='Pass';assert.deepEqual(E.validate(c),[]);
+// The updated questionnaire is distinct from legacy willingness / shift checkboxes.
+const oldScreening=E.normalize({id:'test_old_screening',testPipeline:{stage:'Screening',stageReviewed:true,screening:{...p.screening,doublesTrainingWilling:undefined,possibleShifts:undefined,shiftAvailabilityAccepted:undefined,doublesWilling:'Yes'}}});
+assert(E.validate(oldScreening).includes('Doubles endorsement and training willingness'));
+const legacyOps={agreedDays:'Mon-Fri',shiftStart:'06:00',shiftEnd:'16:00',dispatchTime:'06:00',doublesRequired:'May be required',scheduleAccepted:'Yes',doublesAccepted:'Yes',notes:'Keep prior notes'};
+legacyOps.confirmedSchedule=JSON.stringify(['Mon-Fri','06:00','16:00','06:00','May be required']);
+const migrated=E.normalize({id:'test_legacy',testPipeline:{stage:'Road Test',ops:legacyOps}});
+assert(migrated.testPipeline.ops.dispatchAgreement.includes('06:00'));
+assert(migrated.testPipeline.ops.doublesAgreement.includes('assembly'));
+assert.equal(migrated.testPipeline.ops.notes,'Keep prior notes');assert.equal(migrated.testPipeline.ops.confirmedSchedule,E.scheduleKey(migrated));
+const unconfirmed=E.normalize({id:'test_unconfirmed',testPipeline:{ops:{...legacyOps,scheduleAccepted:'No'}}});assert.equal(unconfirmed.testPipeline.ops.dispatchAgreement,'');
+const escaped=E.summaryHtml({...c,name:'<script>unsafe</script>',ssnFull:'SECRET_SSN',medicalCardExpiry:'SECRET_MEDICAL',offerLetter:'SECRET_OFFER',testPipeline:{...p,screening:{...p.screening,notes:'<img src=x onerror=alert(1)>'}}});
+assert(escaped.includes('&lt;script&gt;unsafe&lt;/script&gt;'));assert(!escaped.includes('<script>unsafe'));
+for(const heading of ['Candidate Details','Driver Qualifications','Background &amp; Drug Screen','Screening Interview'])assert(escaped.includes('<h2>'+heading+'</h2>'));
+for(const text of ['SECRET_SSN','SECRET_MEDICAL','SECRET_OFFER','Ops Interview','Position &amp; Offer'])assert(!escaped.includes(text));
+assert(escaped.includes('FADV status'));
+assert(escaped.includes('&lt;img src=x onerror=alert(1)&gt;'));
+
 // Exercise real cloud wrapper with simulated REST, including stale token and failure.
 let fail=false;const rows=new Map([['test_a',{record_type:'candidate',record_key:'test_a',payload:seed(),updated_at:'2026-10-04T01:00:00.123456+00:00'}]]),requests=[];
 const session={access_token:'test-token',user:{id:'test-user'},expires_at:4102444800};
@@ -25,4 +42,4 @@ const sandbox={window:{},localStorage:{getItem:()=>JSON.stringify(session)},URLS
  else if(opts.method==='POST'){const x=JSON.parse(opts.body);assert.equal(x.organization_id,'org');assert(!rows.has(x.record_key));rows.set(x.record_key,x);data=[x];}
  else throw Error('Unexpected method');return {ok:true,text:async()=>JSON.stringify(data)};
 }};vm.runInNewContext(fs.readFileSync(require.resolve('../cloud.js'),'utf8'),sandbox);
-(async()=>{const api=sandbox.window.NBLCloud,initial=await api.getRecruitmentTestData('org');assert.equal(initial.candidates.length,1);const a=initial.candidates[0];a.name='Updated';a.ssnFull='sensitive';a.roadTestForm={ssnFull:'sensitive'};const result=await api.saveRecruitmentTestCandidate('org',a,a._cloudUpdatedAt);assert.equal(result.name,'Updated');assert(!result.ssnFull);assert(!result.roadTestForm.ssnFull);await assert.rejects(api.saveRecruitmentTestCandidate('org',a,a._cloudUpdatedAt),/changed/);assert.equal(rows.get('test_a').payload.name,'Updated');fail=true;await assert.rejects(api.saveRecruitmentTestCandidate('org',result,result._cloudUpdatedAt),/Intentional/);assert.equal(rows.size,1);fail=false;await api.saveRecruitmentTestCandidate('org',{id:'test_b',name:'Blair'});assert.equal(rows.size,2);await assert.rejects(api.saveRecruitmentTestCandidate('org',{id:'production_a'}),/test candidate ID/);assert(!requests.includes('DELETE'));console.log('PASS stage gates, early Ops, hold, schedule invalidation, final checks, test-only persistence, conflict/failure, SSN stripping, additive insert');})().catch(e=>{console.error(e);process.exit(1)});
+(async()=>{const api=sandbox.window.NBLCloud,initial=await api.getRecruitmentTestData('org');assert.equal(initial.candidates.length,1);const a=initial.candidates[0];a.name='Updated';a.ssnFull='sensitive';a.roadTestForm={ssnFull:'sensitive'};const result=await api.saveRecruitmentTestCandidate('org',a,a._cloudUpdatedAt);assert.equal(result.name,'Updated');assert(!result.ssnFull);assert(!result.roadTestForm.ssnFull);await assert.rejects(api.saveRecruitmentTestCandidate('org',a,a._cloudUpdatedAt),/changed/);assert.equal(rows.get('test_a').payload.name,'Updated');fail=true;await assert.rejects(api.saveRecruitmentTestCandidate('org',result,result._cloudUpdatedAt),/Intentional/);assert.equal(rows.size,1);fail=false;await api.saveRecruitmentTestCandidate('org',{id:'test_b',name:'Blair'});assert.equal(rows.size,2);await assert.rejects(api.saveRecruitmentTestCandidate('org',{id:'production_a'}),/test candidate ID/);assert(!requests.includes('DELETE'));console.log('PASS stage gates, early Ops, hold, Ops text agreements, legacy conversion, summary escaping/content, final checks, test-only persistence, conflict/failure, SSN stripping, additive insert');})().catch(e=>{console.error(e);process.exit(1)});

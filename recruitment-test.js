@@ -3,7 +3,31 @@
 'use strict';
 const STAGES=['Screening','Background & Drug Screen','Ops Interview','Road Test','Offer & Onboarding','Training','Regular Employee'];
 const clone=x=>JSON.parse(JSON.stringify(x));
-const scheduleKey=c=>JSON.stringify(['agreedDays','shiftStart','shiftEnd','dispatchTime','doublesRequired'].map(k=>c.testPipeline?.ops?.[k]||''));
+const OPS_FIELDS=['agreedDays','dispatchAgreement','doublesAgreement'];
+const scheduleKey=c=>JSON.stringify(OPS_FIELDS.map(k=>c.testPipeline?.ops?.[k]||''));
+const legacyScheduleKey=c=>JSON.stringify(['agreedDays','shiftStart','shiftEnd','dispatchTime','doublesRequired'].map(k=>c.testPipeline?.ops?.[k]||''));
+const SCREENING_QUESTIONS={
+ experience:'FedEx requires 1 year of tractor-trailer experience in the last 3 years, or 5 in the last 10. Can you tell me more about your work experience?',
+ availability:'Do you prefer a day or night shift? And what days are your available?',
+ payExpectation:'What are your expectations in terms of pay?',
+ peak:'During the peak season, generally from mid-Nov to early January, will you be available to work upto 6 days/week?',
+ doublesNotes:'Do you have experience pulling doubles? If yes, how much experience, and when was the last time you regularly drove doubles?',
+ doublesTrainingWilling:'If No, Are you willing to get a doubles endorsement and be trained to pull doubles?',
+ shifts:'Following are the possible shifts (Mention The Shifts). However, your shift will be determined by the operations manager and it will be communicated during the interview with them. Are you ok with this?',
+ safety:'Do you have any records on your CDL, such as at fault accidents, failed or refused drug screening, license suspensions etc.?',
+ criminal:'Have you ever been convicted of, pled guilty or no contest to a felony or misdemeanor?',
+ consent:'Are you willing to undergo a background check and DOT drug screen?',
+ documents:'Do you have valid CDL and Medical card?'
+};
+const APPLICATION_PROCESS='We will send you an email with the background check application.\nIn the application you have to enter your information. It also asks about your work experience. Put in only your tractor trailer work ex, along with a relevant contact who can verify it. Example: your dispatch manager, HR manager etc.\nAfter you complete the application, you’ll get another email for your drug screen. The link is valid for 5 days, after which it expires and you’ll have to do the paperwork again. So please get it done within 5 days.';
+const escapeHtml=x=>String(x??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+const opsComplete=c=>OPS_FIELDS.every(k=>String(c.testPipeline?.ops?.[k]||'').trim());
+function recordOpsAgreements(c,by){
+ const o=c.testPipeline.ops;
+ if(!opsComplete(c)){delete o.confirmedSchedule;return c;}
+ if(o.confirmedSchedule!==scheduleKey(c)){o.confirmedSchedule=scheduleKey(c);o.confirmedAt=new Date().toISOString();o.confirmedBy=by;}
+ return c;
+}
 function normalize(c){
  c=clone(c);const p=c.testPipeline=c.testPipeline||{};
  p.stage=STAGES.includes(p.stage)?p.stage:'Screening';p.history=p.history||[];
@@ -15,25 +39,28 @@ function normalize(c){
  for(const [key,legacy] of [['adp','adp'],['sf','safetyForward'],['motive','motiveOnboarding'],['handbook','employeeHandbook'],['connectTeams','connectTeams'],['eVerify','eVerify']])if(p.onboarding[key]===undefined)p.onboarding[key]=c[legacy]||'';
  if(!['No','Yes No Experience','Yes With Experience',''].includes(c.doubles||'')){c.legacyDoubles=c.doubles;c.doubles='';}
 
+ const o=p.ops,legacyConfirmed=o.confirmedSchedule===legacyScheduleKey(c);
+ const migrating=o.dispatchAgreement===undefined||o.doublesAgreement===undefined;
+ if(o.dispatchAgreement===undefined)o.dispatchAgreement=legacyConfirmed&&o.scheduleAccepted==='Yes'?`Shift ${o.shiftStart||'—'} to ${o.shiftEnd||'—'}; approximate dispatch ${o.dispatchTime||'—'}. Explained and agreed upon.`:'';
+ if(o.doublesAgreement===undefined)o.doublesAgreement=legacyConfirmed&&o.doublesAccepted==='Yes'?(o.doublesRequired==='Not required'?'Doubles are not required for this assignment. Explained and agreed upon.':`${o.doublesRequired||'Doubles may be required'}, including assembly of two trailers and a dolly. Explained and agreed upon.`):'';
+ if(migrating&&legacyConfirmed&&opsComplete(c))o.confirmedSchedule=scheduleKey(c);
  if(p.background.fadvStatus===undefined)p.background.fadvStatus=c.fadvStatus||'';
  if(p.background.drugStatus===undefined)p.background.drugStatus=c.drugTest||c.drugScreen||'';
  return c;
 }
 function reconcile(previous,c){
- if(previous&&scheduleKey(previous)!==scheduleKey(c)){
-  c.testPipeline.ops.scheduleAccepted='';c.testPipeline.ops.doublesAccepted='';delete c.testPipeline.ops.confirmedSchedule;
- }
+ if(previous&&scheduleKey(previous)!==scheduleKey(c))delete c.testPipeline.ops.confirmedSchedule;
  return c;
 }
 function validate(c){
  const p=c.testPipeline,s=p.screening,o=p.ops,b=p.background,r=c.roadTestForm,errors=[];
  const need=(value,label)=>{if(!String(value||'').trim())errors.push(label);};
- if(STAGES.indexOf(p.stage)>STAGES.indexOf('Ops Interview')&&p.stage!=='Regular Employee'&&(o.scheduleAccepted!=='Yes'||o.doublesAccepted!=='Yes'||o.confirmedSchedule!==scheduleKey(c)))errors.push('Confirm the current Ops schedule and doubles requirement');
+ if(STAGES.indexOf(p.stage)>STAGES.indexOf('Ops Interview')&&p.stage!=='Regular Employee'&&(!opsComplete(c)||o.confirmedSchedule!==scheduleKey(c)))errors.push('Confirm the current Ops schedule and doubles requirement');
  if(p.onHold)errors.push('Resume this candidate from Hold');
  if(c.recruitmentStatus==='Rejected'||c.recruitmentStatus==='Terminated')errors.push('Candidate must be In Progress');
  if(!p.stageReviewed)errors.push('Review and confirm the suggested current stage');
  if(p.stage==='Screening'){
-  for(const [k,l] of [['interviewer','Screening interviewer'],['date','Screening date'],['experience','Tractor-trailer experience'],['availability','Shift and day availability'],['payExpectation','Expected pay'],['peak','Peak availability'],['doublesNotes','Doubles experience / endorsement plans'],['safety','Safety record answer'],['criminal','Felony / misdemeanor answer'],['consent','Background and drug-screen consent answer'],['documents','Valid CDL and medical card answer']])need(s[k],l);
+  for(const [k,l] of [['interviewer','Screening interviewer'],['date','Screening date'],['experience','Tractor-trailer experience'],['availability','Shift and day availability'],['payExpectation','Expected pay'],['peak','Peak availability'],['doublesNotes','Doubles experience and last regularly driven'],['doublesTrainingWilling','Doubles endorsement and training willingness'],['possibleShifts','Possible shifts discussed'],['shiftAvailabilityAccepted','Possible shift acceptance'],['safety','Safety record answer'],['criminal','Felony / misdemeanor answer'],['consent','Background and drug-screen consent answer'],['documents','Valid CDL and medical card answer']])need(s[k],l);
   if(s.decision!=='Proceed')errors.push('Screening decision: Proceed');
   if(!s.processExplained)errors.push('Confirm application process explained');
   if(!s.shiftsExplained)errors.push('Confirm available shifts explained');
@@ -41,11 +68,8 @@ function validate(c){
   need(b.applicationSent,'Application sent date');need(b.drugStatus,'Drug screen status');
   if(!b.readyForOps)errors.push('Manager confirmation: ready for Ops');
  }else if(p.stage==='Ops Interview'){
-  for(const [k,l] of [['interviewer','Ops interviewer'],['date','Ops interview date'],['agreedDays','Agreed working days'],['shiftStart','Shift start'],['shiftEnd','Shift end'],['dispatchTime','Dispatch time'],['doublesRequired','Doubles requirement']])need(o[k],l);
-  if(o.decision!=='Proceed')errors.push('Ops decision: Proceed');
-  if(o.scheduleAccepted!=='Yes')errors.push('Candidate schedule acceptance');
-  if(o.doublesAccepted!=='Yes')errors.push('Candidate doubles duty acknowledgment');
-  if(o.confirmedSchedule!==scheduleKey(c))errors.push('Reconfirm the current schedule and doubles requirement');
+  for(const [k,l] of [['agreedDays','Work days agreed upon'],['dispatchAgreement','Dispatch schedule times explained and agreed upon'],['doublesAgreement','Doubles requirement explained and agreed upon']])need(o[k],l);
+  if(o.confirmedSchedule!==scheduleKey(c))errors.push('Save the recorded Ops agreements');
  }else if(p.stage==='Road Test'){
   if(c.roadTest!=='Pass')errors.push('Road test: Pass');need(r.date,'Road test date');need(r.testAdminName,'Road test administrator');
  }else if(p.stage==='Offer & Onboarding'){
@@ -58,7 +82,40 @@ function validate(c){
  }else errors.push('Already a regular employee');
  return errors;
 }
-const engine={STAGES,normalize,reconcile,validate,scheduleKey};
+function summaryHtml(candidate){
+ const c=normalize(candidate),p=c.testPipeline,s=p.screening,b=p.background,e=escapeHtml;
+ const shown=v=>v===undefined||v===null||String(v).trim()===''?'Not recorded':String(v);
+ const date=v=>{if(!v)return 'Not recorded';const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(v);return m?`${m[2]}/${m[3]}/${m[1]}`:v;};
+ const value=v=>e(shown(v));
+ const fact=(label,v)=>`<div class="fact"><dt>${e(label)}</dt><dd>${value(v)}</dd></div>`;
+ const facts=rows=>`<dl class="facts">${rows.map(x=>fact(...x)).join('')}</dl>`;
+ const question=(title,prompt,answer,details)=>`<article class="question"><h3>${e(title)}</h3>${prompt?`<p class="prompt">${e(prompt)}</p>`:''}<p class="answer">${value(answer)}</p>${details?`<p class="detail">${e(details)}</p>`:''}</article>`;
+ const yesNo=v=>v?'Yes':'Not recorded';
+ const doublesColor=c.doubles==='No'?'#a92323':c.doubles==='Yes With Experience'?'#157344':'#946800';
+ return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ops Manager Hiring Summary - ${e(c.name)}</title><style>
+ *{box-sizing:border-box}body{margin:0;background:#eef1f6;color:#203044;font:14px/1.5 Arial,sans-serif}.toolbar{max-width:900px;margin:22px auto 12px;display:flex;align-items:center;gap:14px;padding:0 12px}.toolbar button{padding:11px 18px;border:0;border-radius:6px;background:#35164e;color:#fff;font:inherit;cursor:pointer}.toolbar span{font-size:12px;color:#52647a}.report{max-width:900px;margin:0 auto 30px;padding:36px 42px;background:#fff;box-shadow:0 3px 18px #182d4012}.brand{font-size:12px;letter-spacing:.12em;font-weight:bold;color:#35164e}.report-label{font-size:11px;color:#657285;margin:5px 0 16px}h1{font-size:27px;line-height:1.2;margin:0 0 10px;overflow-wrap:anywhere}.subtitle{color:#52647a;margin:0 0 24px}.report-section{margin-top:25px}h2{font-size:18px;color:#35164e;margin:0 0 14px;padding-bottom:8px;border-bottom:2px solid #e6dfeb;break-after:avoid}.facts{display:grid;grid-template-columns:1fr 1fr;gap:14px 24px;margin:0}.fact{min-width:0;break-inside:avoid}dt{font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:.03em;color:#627186}dd{margin:3px 0 0;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}.question{border-bottom:1px solid #e2e7ee;padding:0 0 14px;margin:0 0 16px}.question h3{font-size:14px;margin:0 0 5px;color:#23364c;break-after:avoid}.prompt{font-size:12px;color:#617083;margin:0 0 7px;break-after:avoid}.answer{margin:0;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}.detail{margin:8px 0 0;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}.status{font-weight:bold;color:${doublesColor}}.instructions{font-size:12px;line-height:1.5;white-space:pre-line;color:#617083}.interview-meta{margin-bottom:18px}.footnote{font-size:11px;color:#657285;border-top:1px solid #e2e7ee;padding-top:14px;margin-top:24px}@media(max-width:600px){.report{padding:24px 18px}.facts{grid-template-columns:1fr}h1{font-size:24px}.toolbar{flex-wrap:wrap}}@media print{@page{size:letter;margin:16mm}body{background:#fff;font-size:11pt}.toolbar{display:none}.report{max-width:none;box-shadow:none;padding:0;margin:0}.facts{grid-template-columns:1fr 1fr}h1{font-size:23pt}h2{font-size:14pt}.question h3{font-size:11pt}.answer,dd{font-size:11pt}.prompt{font-size:9pt}.report-section{margin-top:18px}h1,h2,h3{break-after:avoid}.fact{break-inside:avoid}}
+ </style></head><body><div class="toolbar"><button type="button" onclick="window.print()">Print / Save PDF</button><span>Share this summary with the Ops Manager.</span></div><main class="report"><header><div class="brand">NASHBOX LOGISTICS</div><p class="report-label">Recruitment – Test</p><h1>${value(c.name)}</h1><p class="subtitle">Hiring Summary for the Ops Manager · ${value(c.location)}</p></header>
+ <section class="report-section"><h2>Candidate Details</h2>${facts([['Name',c.name],['Location',c.location],['Email',c.email],['Phone',c.phone],['Current address',c.address],['FedEx ID',c.fedexId]])}</section>
+ <section class="report-section"><h2>Driver Qualifications</h2>${facts([['Date of birth',date(c.dob)],['CDL number',c.cdlNumber],['CDL state',c.cdlIssuingState],['CDL expiry',date(c.cdlExpiry)]])}</section>
+ <section class="report-section"><h2>Background &amp; Drug Screen</h2>${facts([['FADV status',b.fadvStatus],['Application sent',date(b.applicationSent)],['Drug screen status',b.drugStatus],['Drug screen email sent',date(b.drugSent)],['Manager ready for Ops',yesNo(b.readyForOps)]])}${b.notes?question('Background / drug-screen notes','',b.notes):''}</section>
+ <section class="report-section"><h2>Screening Interview</h2><div class="interview-meta">${facts([['Interview date',date(s.date)],['Interviewer',s.interviewer],['Screening decision',s.decision]])}</div>
+ ${question('CDL & Experience',SCREENING_QUESTIONS.experience,s.experience)}
+ ${question('Expectations — Work Timing',SCREENING_QUESTIONS.availability,s.availability)}
+ ${question('Expectations — Pay',SCREENING_QUESTIONS.payExpectation,s.payExpectation)}
+ ${question('Peak Schedule',SCREENING_QUESTIONS.peak,s.peak)}
+ ${question('Doubles Experience',SCREENING_QUESTIONS.doublesNotes,s.doublesNotes)}
+ <article class="question"><h3>Doubles Endorsement &amp; Experience</h3><p class="answer status">${value(c.doubles)}</p></article>
+ ${question('Doubles Endorsement & Training',SCREENING_QUESTIONS.doublesTrainingWilling,s.doublesTrainingWilling)}
+ ${question('Shift Availability',SCREENING_QUESTIONS.shifts,s.possibleShifts,`Candidate OK with shifts / final assignment: ${shown(s.shiftAvailabilityAccepted)}. Shifts explained: ${yesNo(s.shiftsExplained)}.`)}
+ ${question('Safety Record',SCREENING_QUESTIONS.safety,s.safety,s.safetyNotes)}
+ ${question('Felony or Misdemeanor',SCREENING_QUESTIONS.criminal,s.criminal,s.criminalNotes)}
+ ${question('Background Check',SCREENING_QUESTIONS.consent,s.consent)}
+ ${question('Valid Documents',SCREENING_QUESTIONS.documents,s.documents)}
+ ${question('Application Process Explained','',yesNo(s.processExplained))}<p class="instructions">${e(APPLICATION_PROCESS)}</p>
+ ${question('Screening Interview Notes','',s.notes)}</section><p class="footnote">Prepared ${e(new Date().toLocaleDateString('en-US'))} · Missing answers are shown as “Not recorded”.</p></main></body></html>`;
+}
+
+const engine={STAGES,normalize,reconcile,validate,scheduleKey,recordOpsAgreements,SCREENING_QUESTIONS,APPLICATION_PROCESS,summaryHtml};
 if(typeof module!=='undefined'&&module.exports)module.exports=engine;
 if(!root.document)return;
 const esc=x=>String(x??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
@@ -104,19 +161,38 @@ function edit(id){
 }
 function profile(){
  const p=draft.testPipeline;
- const summary=`<p class="rt-wide">Create a legible manager summary from the interview and offer information.</p><button type="button" class="button secondary" id="rtSummary">Print / Save PDF</button>`;
+ const summary=`<p class="rt-wide">A summary for the Ops Manager combining Candidate Details, Driver Qualifications, Background &amp; Drug Screen, and Screening Interview.</p><button type="button" class="button secondary" id="rtSummary">Print / Save PDF</button>`;
  const histories=p.history.slice().reverse().map(h=>`<li>${esc(new Date(h.at).toLocaleString())} — ${esc(h.action)}${h.by?' · '+esc(h.by):''}</li>`).join('');
  const docs=Object.entries(draft.documents).filter(([,d])=>d?.path).map(([k,d])=>`<div class="rt-doc"><span>${esc(d.label||d.fileName||k)}</span><button type="button" data-rt-view="${esc(k)}">View</button><button type="button" data-rt-remove="${esc(k)}">Remove from test copy</button></div>`).join('');
  return `<form id="rtForm"><div class="rt-modal-header"><div><small>Recruitment – Test</small><h2>${esc(draft.name||'New Test Candidate')}</h2></div><button type="button" class="button secondary" id="rtClose" aria-label="Close candidate">Close</button></div><div id="rtMessage" aria-live="polite"></div>
  ${section('Candidate Details',f('name','Name')+f('email','Email','email')+f('phone','Phone','tel')+f('location','Location')+f('address','Current address')+f('fedexId','FedEx ID'),true)}
  ${section('Current Stage & Next Action',`<p class="rt-wide"><strong>Current Stage: ${esc(p.stage)}</strong>${p.onHold?' · On Hold':''}. ${p.stageReviewed?'':'Suggested from existing records; review before advancing.'}</p>`+(!p.stageReviewed?f('testPipeline.stage','Confirm starting stage','text',STAGES)+f('testPipeline.stageReviewed','I reviewed this starting stage','checkbox'):'')+f('testPipeline.nextAction','Next action')+f('testPipeline.dueDate','Due date','date')+f('testPipeline.assignedTo','Assigned to')+f('testPipeline.onHold','On Hold','checkbox')+f('testPipeline.holdReason','Hold reason','textarea')+f('recruitmentStatus','Candidate group','text',['In Progress','Rejected','Terminated',...(p.stage==='Regular Employee'?['Hired']:[])])+`<div class="rt-wide"><h3>Stage history</h3><ol class="rt-history">${histories||'<li>No stage changes yet.</li>'}</ol></div>`,true)}
- ${section('Driver Qualifications',f('dob','Date of birth','date')+f('medicalCardExpiry','Medical card expiry','date')+f('cdlNumber','CDL number')+f('cdlIssuingState','CDL state')+f('cdlExpiry','CDL expiry','date')+f('doubles','Doubles endorsement & experience','text',['No','Yes No Experience','Yes With Experience'])+(draft.legacyDoubles?`<p class="rt-wide rt-help">Previous doubles value: ${esc(draft.legacyDoubles)}. Select the confirmed endorsement and experience above.</p>`:'')+pf('screening','doublesWilling','Willing to pull and assemble doubles','text',yes))}
- ${section('Screening Interview',pf('screening','date','Interview date','date')+pf('screening','interviewer','Interviewer')+pf('screening','experience','Tractor-trailer experience: 1 year in the last 3 or 5 in the last 10 (describe)','textarea')+pf('screening','availability','Preferred day/night shift and available days','textarea')+pf('screening','payExpectation','Expected pay')+pf('screening','peak','Available up to 6 days/week during mid-November–early January peak','text',yes)+pf('screening','doublesNotes','Doubles experience, last driven, or endorsement plans','textarea')+pf('screening','shiftsExplained','Possible shifts explained; Ops will communicate the assigned shift','checkbox')+pf('screening','safety','Any at-fault accidents, failed/refused drug screens or license suspensions?','text',yes)+pf('screening','safetyNotes','Safety record details','textarea')+pf('screening','criminal','Ever convicted of, or pled guilty/no contest to, a felony or misdemeanor?','text',yes)+pf('screening','criminalNotes','Candidate explanation / review notes','textarea')+pf('screening','consent','Willing to undergo background check and DOT drug screen?','text',yes)+pf('screening','documents','Valid CDL and medical card?','text',yes)+`<p class="rt-wide rt-help">Explain: application arrives by email; include tractor-trailer employment and verification contacts. The drug-screen email link is valid for 5 days; complete it within that window.</p>`+pf('screening','processExplained','Application and drug-screen process explained','checkbox')+pf('screening','decision','Decision','text',decisions)+pf('screening','notes','Interview notes','textarea'),p.stage==='Screening')}
+ ${section('Driver Qualifications',f('dob','Date of birth','date')+f('medicalCardExpiry','Medical card expiry','date')+f('cdlNumber','CDL number')+f('cdlIssuingState','CDL state')+f('cdlExpiry','CDL expiry','date'))}
+ ${section('Screening Interview',
+  pf('screening','date','Interview date','date')+pf('screening','interviewer','Interviewer')+
+  pf('screening','experience',SCREENING_QUESTIONS.experience,'textarea')+
+  pf('screening','availability',SCREENING_QUESTIONS.availability,'textarea')+
+  pf('screening','payExpectation',SCREENING_QUESTIONS.payExpectation)+
+  pf('screening','peak',SCREENING_QUESTIONS.peak,'text',yes)+
+  pf('screening','doublesNotes',SCREENING_QUESTIONS.doublesNotes,'textarea')+
+  f('doubles','Doubles endorsement & experience','text',['No','Yes No Experience','Yes With Experience'])+
+  pf('screening','doublesTrainingWilling',SCREENING_QUESTIONS.doublesTrainingWilling,'text',['Yes','No','Not Applicable'])+
+  `<p class="rt-wide rt-help" data-rt-question="shifts">${esc(SCREENING_QUESTIONS.shifts)}</p>`+
+  pf('screening','possibleShifts','Possible shifts discussed','textarea')+
+  pf('screening','shiftAvailabilityAccepted','Is the candidate OK with the possible shifts and Ops assigning the final shift?','text',yes)+
+  pf('screening','shiftsExplained','Possible shifts and final shift assignment explained','checkbox')+
+  pf('screening','safety',SCREENING_QUESTIONS.safety,'text',yes)+pf('screening','safetyNotes','Safety record details','textarea')+
+  pf('screening','criminal',SCREENING_QUESTIONS.criminal,'text',yes)+pf('screening','criminalNotes','Candidate explanation / review notes','textarea')+
+  pf('screening','consent',SCREENING_QUESTIONS.consent,'text',yes)+pf('screening','documents',SCREENING_QUESTIONS.documents,'text',yes)+
+  `<div class="rt-wide rt-instructions"><h3>Explain the Application Process</h3><p>${esc(APPLICATION_PROCESS)}</p></div>`+
+  pf('screening','processExplained','Application and drug-screen process explained','checkbox')+
+  pf('screening','decision','Decision','text',decisions)+pf('screening','notes','Interview notes','textarea'),p.stage==='Screening')}
  ${section('Background & Drug Screen',pf('background','applicationSent','FADV application sent','date')+pf('background','fadvStatus','FADV status','text',['Not Sent','Sent','In Progress','Stuck','Complete'])+pf('background','drugStatus','Drug screen status','text',['Not Sent','Sent','Scheduled','Pending','Pass','Fail'])+pf('background','drugSent','Drug screen email sent','date')+pf('background','readyForOps','Manager: application has progressed enough to schedule Ops','checkbox')+pf('background','notes','Background / drug-screen notes','textarea')+'<p class="rt-wide rt-help">FADV and drug screen continue independently when the candidate moves to Ops.</p>',p.stage==='Background & Drug Screen')}
- ${section('Ops Interview',pf('ops','date','Interview date','date')+pf('ops','interviewer','Interviewer')+pf('ops','agreedDays','Agreed working days')+pf('ops','shiftStart','Shift start','time')+pf('ops','shiftEnd','Shift end','time')+pf('ops','dispatchTime','Approximate dispatch time','time')+pf('ops','doublesRequired','Doubles requirement','text',['May be required','Required','Not required'])+`<p class="rt-wide rt-help">Confirm the exact days and shift above with the candidate. Dispatch time may vary based on when FedEx has trailers ready. Doubles duties include assembling two trailers and a dolly with the tractor. Changing the agreed schedule or doubles requirement clears both acknowledgments.</p>`+pf('ops','scheduleAccepted','Candidate understands and accepts the current schedule','text',yes)+pf('ops','doublesAccepted','Candidate understands and accepts the doubles requirement above','text',yes)+pf('ops','decision','Decision','text',decisions)+pf('ops','notes','Interview notes','textarea'),p.stage==='Ops Interview')}
+ ${section('Hiring Summary',summary)}
+ ${section('Ops Interview',pf('ops','agreedDays','Work Days Agreed Upon')+pf('ops','dispatchAgreement','Dispatch Schedule Times Explained And Agreed Upon')+pf('ops','doublesAgreement','Doubles Requirement Explained And Agreed Upon')+`<p class="rt-wide rt-help">Record the candidate’s agreement in each text field. Include the working days, shift and approximate dispatch times, and whether pulling and assembling doubles is required.</p>`+(p.ops.shiftStart||p.ops.dispatchTime||p.ops.doublesRequired?`<p class="rt-wide rt-help">Previous Ops details: shift ${esc(p.ops.shiftStart||'—')} to ${esc(p.ops.shiftEnd||'—')}; dispatch ${esc(p.ops.dispatchTime||'—')}; doubles ${esc(p.ops.doublesRequired||'—')}. Schedule acceptance: ${esc(p.ops.scheduleAccepted||'Not recorded')}; doubles acceptance: ${esc(p.ops.doublesAccepted||'Not recorded')}.</p>`:''),p.stage==='Ops Interview')}
  ${section('Road Test',f('roadTest','Road test status','text',['Not Scheduled','Scheduled','Pass','Fail'])+f('roadTestForm.date','Test date','date')+f('roadTestForm.testAdminName','Administrator')+f('roadTestForm.testAdminFedexId','Administrator FedEx ID')+f('roadTestForm.certificateNumber','Certificate number')+f('roadTestForm.tractorNumber','Tractor number')+f('roadTestForm.trailerNumber','Trailer number')+pf('training','roadNotes','Road test notes','textarea')+`<button type="button" class="button secondary" id="rtRoadPdf">Export Road Test PDF</button>`,p.stage==='Road Test')}
  ${section('Position & Offer',f('type','Part / Full Time','text',['Full Time','Part Time'])+f('position','Position')+f('shift','Shift preference','text',['Day','Night','Flexible'])+f('hiringSummary.proposedPay','Proposed pay')+f('offerLetter','Offer letter status','text',['Not Sent','Sent','Accepted','Declined'])+f('startDate','Proposed start date','date')+f('hiringSummary.notes','Hiring manager notes','textarea'),p.stage==='Offer & Onboarding')}
- ${section('Hiring Summary',summary)}
+
  ${section('Training',pf('training','startDate','Training start date','date')+pf('training','trainer','Trainer')+pf('training','result','Training result','text',['Not Started','In Progress','Complete'])+pf('training','completedDate','Completed date','date')+pf('training','notes','Training notes','textarea'),p.stage==='Training')}
  ${section('Onboarding Tasks',['adp','sf','motive','handbook','connectTeams','eVerify'].map(k=>pf('onboarding',k,k==='handbook'?'Handbook':k==='connectTeams'?'Connect Teams':k==='eVerify'?'E-Verify':k.toUpperCase()+' access','text',['Not Sent','Sent','Complete',...(k==='handbook'?['Signed']:[])])).join('')+pf('onboarding','notes','Onboarding notes','textarea'),p.stage==='Offer & Onboarding')}
  ${section('Document Upload',`<div class="rt-wide" id="rtDocuments">${docs||'<p>No documents.</p>'}</div><p class="rt-wide rt-help">Removing a document here only removes the test reference. Uploads are stored under this test candidate. Do not upload SSN documents.</p><label class="rt-field"><span>Document label</span><input id="rtDocLabel"></label><label class="rt-field"><span>Document expiry (optional)</span><input type="date" id="rtDocExpiry"></label><label class="rt-field"><span>Upload document</span><input type="file" id="rtDocFile" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.doc,.docx"></label><button type="button" class="button secondary" id="rtUpload">Upload & Save</button><label class="rt-field rt-wide"><span>Import driver data from application PDF</span><input type="file" id="rtImportFile" accept=".pdf,application/pdf"></label><button type="button" class="button secondary" id="rtImport">Read Application PDF</button>`)}
@@ -127,11 +203,9 @@ function bindProfile(){
  el('rtClose').onclick=close;el('rtForm').onsubmit=e=>{e.preventDefault();save(false);};el('rtAdvance').onclick=()=>save(true);
  el('rtForm').querySelectorAll('[data-rt-field]').forEach(x=>x.addEventListener('change',()=>{
   const path=x.dataset.rtField;put(draft,path,x.type==='checkbox'?x.checked:x.value);
-  if(['agreedDays','shiftStart','shiftEnd','dispatchTime','doublesRequired'].some(k=>path==='testPipeline.ops.'+k)){
-   draft.testPipeline.ops.scheduleAccepted='';draft.testPipeline.ops.doublesAccepted='';delete draft.testPipeline.ops.confirmedSchedule;
-   ['scheduleAccepted','doublesAccepted'].forEach(k=>el('rt_testPipeline_ops_'+k).value='');message('Schedule changed. Ask the candidate to confirm both acknowledgments again.');
-  }else if(['scheduleAccepted','doublesAccepted'].some(k=>path==='testPipeline.ops.'+k)){
-   collect();if(draft.testPipeline.ops.scheduleAccepted==='Yes'&&draft.testPipeline.ops.doublesAccepted==='Yes'){draft.testPipeline.ops.confirmedSchedule=scheduleKey(draft);draft.testPipeline.ops.confirmedAt=new Date().toISOString();draft.testPipeline.ops.confirmedBy=ctx().userName;}
+  if(OPS_FIELDS.some(k=>path==='testPipeline.ops.'+k)){
+   delete draft.testPipeline.ops.confirmedSchedule;
+   message('Agreement notes changed. Record the candidate’s current agreement, then Save Draft or Move to Next Stage.');
   }
  }));
  el('rtSummary').onclick=()=>summary(collect());el('rtRoadPdf').onclick=roadPdf;el('rtUpload').onclick=upload;el('rtImport').onclick=importPdf;
@@ -147,11 +221,12 @@ async function persist(candidate){
 async function save(advance){
  if(busy)return;collect();if(!draft.name.trim()){message('Enter the candidate name.',true);return;}
  const c=clone(draft),p=c.testPipeline,prior=records.find(x=>x.id===c.id);
- const activeDecision=p.stage==='Screening'?p.screening.decision:p.stage==='Ops Interview'?p.ops.decision:'';
+ const activeDecision=p.stage==='Screening'?p.screening.decision:'';
  if(activeDecision==='Hold')p.onHold=true;
  if(activeDecision==='Do Not Proceed')c.recruitmentStatus='Rejected';
  if(p.stageReviewed&&p.stage==='Regular Employee')c.recruitmentStatus='Hired';
  c.domicile=c.location;
+ recordOpsAgreements(c,ctx().userName);
 
  if(p.onHold&&!String(p.holdReason||'').trim()){message('Enter a reason for Hold.',true);return;}
  if(advance){const errors=validate(c);if(errors.length){message('Complete before advancing: '+errors.join('; ')+'.',true);return;}
@@ -191,11 +266,8 @@ async function roadPdf(){
  lock(true);try{const res=await fetch('/api/hr/road-test',{method:'POST',headers:await authHeaders(),body:JSON.stringify({candidate:{name:c.name,fedex_id:c.fedexId||'',cdl_number:c.cdlNumber||'',cdl_issuing_state:c.cdlIssuingState||''},road_test:{date:r.date,test_admin_name:r.testAdminName,test_admin_fedex_id:r.testAdminFedexId,certificate_number:r.certificateNumber,tractor_number:r.tractorNumber,trailer_number:r.trailerNumber}})});if(!res.ok){const data=await res.json();throw new Error(data.error||'Road test export failed.');}const url=URL.createObjectURL(await res.blob()),a=document.createElement('a');a.href=url;a.download='TEST_Road_Test_'+c.name.replace(/[^a-z0-9]/gi,'_')+'.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);message('Test road form exported. Save Draft to keep edited form fields.');}catch(e){message(e.message,true);}finally{lock(false);}
 }
 function summary(c){
- const p=c.testPipeline,s=p.screening,o=p.ops;const tab=root.open('about:blank','_blank');if(!tab){message('Allow popups to print the summary.',true);return;}
- const row=(label,value)=>`<tr><th>${esc(label)}</th><td>${esc(value||'—').replaceAll('\n','<br>')}</td></tr>`;
- const block=(title,rows)=>`<h2>${title}</h2><table>${rows.map(x=>row(...x)).join('')}</table>`;
- const doublesColor=c.doubles==='No'?'#a92323':c.doubles==='Yes With Experience'?'#157344':'#946800';
- tab.opener=null;tab.document.write(`<!doctype html><html><head><title>TEST Hiring Summary - ${esc(c.name)}</title><style>body{font:13px Arial,sans-serif;max-width:850px;margin:30px auto;color:#172b40}h1{font-size:24px}h2{font-size:17px;margin-top:24px}table{border-collapse:collapse;width:100%;break-inside:avoid}th,td{border-bottom:1px solid #ddd;padding:9px;text-align:left;vertical-align:top;white-space:pre-wrap;overflow-wrap:anywhere}th{width:32%;background:#f3f6fa}button{padding:10px}@media print{button{display:none}body{margin:0}@page{margin:16mm}h2{break-after:avoid}}</style></head><body><button onclick="window.print()">Print / Save PDF</button><p>RECRUITMENT – TEST</p><h1>Hiring Summary: ${esc(c.name)}</h1>${block('Candidate',[['Name',c.name],['Location',c.location],['Email',c.email],['Phone',c.phone],['Current Stage',p.stage]])}${block('Position & Offer',[['Position',c.position],['Part / Full Time',c.type],['Expected pay',s.payExpectation],['Proposed pay',c.hiringSummary.proposedPay],['Offer',c.offerLetter]])}<h2>Qualifications</h2><table>${row('CDL state',c.cdlIssuingState)}${row('CDL expiry',c.cdlExpiry)}${row('Drug screen status',p.background.drugStatus)}${row('Tractor-trailer experience',s.experience)}<tr><th>Doubles</th><td style="color:${doublesColor};font-weight:bold">${esc(c.doubles||'—')}</td></tr>${row('Willing to pull / assemble doubles',s.doublesWilling)}${row('Doubles details',s.doublesNotes)}</table>${block('Agreed Schedule & Acknowledgments',[['Preferred shift / availability',s.availability],['Peak availability',s.peak],['Agreed working days',o.agreedDays],['Shift',o.shiftStart&&o.shiftEnd?o.shiftStart+' – '+o.shiftEnd:''],['Approximate dispatch time',o.dispatchTime],['Doubles requirement',o.doublesRequired],['Schedule accepted',o.confirmedSchedule===scheduleKey(c)?o.scheduleAccepted:'Needs confirmation'],['Doubles duties acknowledged',o.confirmedSchedule===scheduleKey(c)?o.doublesAccepted:'Needs confirmation']])}${block('Interview Notes',[['Screening date / interviewer',[s.date,s.interviewer].filter(Boolean).join(' / ')],['Screening decision',s.decision],['Screening notes',s.notes],['Ops date / interviewer',[o.date,o.interviewer].filter(Boolean).join(' / ')],['Ops decision',o.decision],['Ops notes',o.notes],['Manager notes',c.hiringSummary.notes]])}</body></html>`);tab.document.close();
+ const tab=root.open('about:blank','_blank');if(!tab){message('Allow popups to print the summary.',true);return;}
+ tab.opener=null;tab.document.write(summaryHtml(c));tab.document.close();
 }
 function reset(){generation++;workspace='';records=[];loaded=false;draft=null;busy=false;search='';filter='In Progress';stageFilter='';el('rtModal')?.close();el('rtModal')?.remove();if(el('recruitmentTestScreen'))el('recruitmentTestScreen').innerHTML='';}
 root.NBLRecruitmentTest={init:b=>{bridge=b;},open,reset,engine};

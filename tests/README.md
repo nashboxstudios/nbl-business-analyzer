@@ -1,11 +1,11 @@
 Recruitment Test verification
 
-- `node tests/recruitment-test.cjs`: stage prerequisites, early Ops, schedule changes,
+- `node tests/recruitment-test.cjs`: stage prerequisites, early Ops, three Ops agreement fields and legacy conversion,
   Hold, final clearance, test-only REST writes, conflicts, save failure, SSN stripping.
 - `node tests/recruitment-test-dom.cjs` with jsdom available: full app navigation,
   copied field mapping, save/reopen, staged advancement through hire, Hold/rejection,
   PDF import mismatch handling, document removal/upload isolation, failed upload
-  metadata recovery, manager summary exclusions, and account reset.
+  metadata recovery, four-section Ops Manager summary, source-question coverage and exclusions, and account reset.
 - `node tests/recruitment-test-browser.cjs` with Playwright and Chromium available:
   browser interaction and desktop/mobile layout checks against a local server.
   `NBL_TEST_BROWSER` selects an alternate Chromium executable; `NBL_TEST_URL`

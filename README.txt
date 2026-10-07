@@ -1,4 +1,23 @@
-NBL FleetCommand — Version 130
+NBL FleetCommand — Version 131
+
+Version 131 - Ops Manager Interview Review
+- Driver Qualifications no longer contains doubles fields; doubles information is
+  captured with the Screening Interview questions.
+- Screening includes all questions and application-process instructions in the
+  supplied Screening Interview tab, including doubles endorsement / training,
+  actual shifts discussed, and the candidate's acceptance of shift assignment.
+- Ops Interview has exactly three text fields: Work Days Agreed Upon; Dispatch
+  Schedule Times Explained And Agreed Upon; Doubles Requirement Explained And Agreed Upon.
+- Hiring Summary is immediately above Ops Interview. Print / Save PDF produces a
+  formatted Ops Manager summary of Candidate Details, Driver Qualifications,
+  Background & Drug Screen, and Screening Interview, with clear unanswered fields.
+- FADV is included in the summary as part of the requested Background & Drug Screen
+  section. Medical-card expiry, road-test status, proposed start date and equipment
+  familiarity remain excluded from the summary.
+- Existing saved data and prior Ops fields are retained. Confirmed prior schedule /
+  doubles acknowledgments prefill the new text fields. Unconfirmed agreements need
+  review and entry before moving stages. Existing candidates are not recopied.
+- One Onboarding Tasks section remains immediately before Document Upload.
 
 Version 130 - Recruitment Test
 - People > Recruitment – Test contains separate copies of the current cloud candidates.
