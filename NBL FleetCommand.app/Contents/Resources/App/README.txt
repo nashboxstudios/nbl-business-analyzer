@@ -1,13 +1,13 @@
-NBL FleetCommand — Version 102
+NBL FleetCommand — Version 103
 
-Version 102 - Safety Coaching Records and Trends
+Version 103 - Safety Report Refinements
 
-- Updated the Adjusted Score scale: 96–100 Excellent (green), 85–95 Needs Improvement (yellow), and 0–84 Critical (red).
-- Added an At-Risk Drivers panel that prioritizes Critical and declining drivers.
-- Added driver score and incident trend charts backed by saved historical safety snapshots.
-- Added individual driver Safety & Coaching Record PDFs for the selected date range, including the rating scale, incidents, dismissal status, coaching talking points, and concise corrective-action language.
-- Added permanent driver safety records containing scores, mileage, ratings, incident details, dismissal/assignment status, snapshots, and export history.
-- Rankings remain sortable and default to the lowest Estimated Adjusted Score first.
+- Unassigned incident assignments now retain a saved incident snapshot with the driver assignment.
+- The attention panel shows exactly the four lowest non-zero Adjusted Scores.
+- Driver PDFs now display one Safety Score (the Adjusted Score), use larger type, wrap Needs Improvement cleanly, and remove signature fields and the scoring-method footer.
+- Active incidents are listed before dismissed incidents; dismissed incidents show only Dismissed.
+- Coaching records now tell drivers that assigned Safety Forward videos must be completed within five days.
+- Corrective-action details and consequences remain in the emailed PDF record.
 
 NBL FleetCommand — Version 99
 
