@@ -169,10 +169,12 @@
     if(FINANCE_MODULE_KEYS.has(key)) return role==='owner';
     if(role==='owner') return true;
     if(key==='dashboard') return true;
+    if(key==='hr'&&role==='lead_driver') return !writeAccess;
     if(['operations','lead_driver'].includes(role) && ['safety','maintenance','meetings','dispatch','audit','ivmr','motive','hr'].includes(key)) return true;
     return false;
   }
   function canAccessScreen(screen){
+    if(screen==='hr'&&cloudConnected()&&currentRole()==='lead_driver') return false;
     if(screen==='users') return cloudConnected() && isOwnerAccount();
     const moduleKey=SCREEN_MODULE_MAP[screen];
     return moduleKey ? canAccessModuleKey(moduleKey,false) : true;
@@ -536,7 +538,7 @@
     const jobs=[];
     if(!requested||requested.has('safety'))jobs.push((async()=>{try{const safety=await window.NBLCloud.getSafetyData(orgId);state.cloud.structured.safety=true;if(safety.actionCount||safety.recordCount){state.safety.assignments=cloneJson(safety.assignments||{});state.safety.dismissals=cloneJson(safety.dismissals||{});state.safety.driverRecords=cloneJson(safety.driverRecords||{});}else if(Object.keys(legacySafety.assignments).length||Object.keys(legacySafety.dismissals).length||Object.keys(legacySafety.driverRecords).length)await window.NBLCloud.saveSafetyData(orgId,legacySafety);cloudStructuredLoaded.add('safety');loaded=true;}catch(err){state.cloud.structured.safety=false;console.warn('Dedicated Safety storage is not ready',err);if(!silent)showAlert(`Dedicated Safety storage is unavailable: ${escapeHtml(err.message||String(err))}`,'warning');}})());
     if(!requested||requested.has('dailyDispatch'))jobs.push((async()=>{try{const boards=await window.NBLCloud.getDailyDispatchBoards(orgId);state.cloud.structured.dailyDispatch=true;if(Object.keys(boards||{}).length)state.dispatch.dailyBoards=boards;else for(const board of Object.values(legacyBoards))if(board?.date&&Array.isArray(board.rows))await window.NBLCloud.saveDailyDispatchBoard(orgId,board);cloudStructuredLoaded.add('dailyDispatch');loaded=true;}catch(err){state.cloud.structured.dailyDispatch=false;console.warn('Dedicated Daily Dispatch storage is not ready',err);if(!silent)showAlert(`Dedicated Daily Dispatch storage is unavailable: ${escapeHtml(err.message||String(err))}`,'warning');}})());
-    structuredLoads.filter(([flag])=>!requested||requested.has(flag)).forEach(([flag,getter,saver,legacy,hydrate])=>jobs.push((async()=>{try{const data=await window.NBLCloud[getter](orgId);state.cloud.structured[flag]=true;if(data.recordCount)hydrate(data);else await window.NBLCloud[saver](orgId,legacy(),flag==='recruitment'?{full:true}:{});cloudStructuredLoaded.add(flag);loaded=true;}catch(err){state.cloud.structured[flag]=false;console.warn(`Dedicated ${flag} storage is not ready`,err);if(!silent)showAlert(`Dedicated ${escapeHtml(flag)} storage is unavailable: ${escapeHtml(err.message||String(err))}`,'warning');}})()));
+    structuredLoads.filter(([flag])=>!requested||requested.has(flag)).forEach(([flag,getter,saver,legacy,hydrate])=>jobs.push((async()=>{try{const data=await window.NBLCloud[getter](orgId);state.cloud.structured[flag]=true;if(data.recordCount||data.readOnly)hydrate(data);else await window.NBLCloud[saver](orgId,legacy(),flag==='recruitment'?{full:true}:{});cloudStructuredLoaded.add(flag);loaded=true;}catch(err){state.cloud.structured[flag]=false;console.warn(`Dedicated ${flag} storage is not ready`,err);if(!silent)showAlert(`Dedicated ${escapeHtml(flag)} storage is unavailable: ${escapeHtml(err.message||String(err))}`,'warning');}})()));
     if(isOwnerAccount()&&(!requested||requested.has('finance')))jobs.push((async()=>{try{const finance=await window.NBLCloud.getFinanceData(orgId);state.cloud.structured.finance=true;if(finance.recordCount){state.payroll={version:2,profiles:{},periods:{},dhMappings:{},...cloneJson(finance.payroll||{})};state.payrollLoaded=true;const ss=cloneJson(finance.settlement||{});state.catalog=normalizeCloudSettlementCatalog(ss);state.currentStatementId=ss.currentStatementId||state.catalog[0]?.id||null;state.settlement.analysisStatementId=ss.analysisStatementId||state.catalog[0]?.id||null;}else{await Promise.all([window.NBLCloud.saveDriverPayData(orgId,cloneJson(state.payroll)),window.NBLCloud.saveSettlementData(orgId,settlementSnapshot())]);}cloudStructuredLoaded.add('finance');loaded=true;}catch(err){state.cloud.structured.finance=false;console.warn('Dedicated finance storage is not ready',err);if(!silent)showAlert(`Dedicated Finance storage is unavailable: ${escapeHtml(err.message||String(err))}`,'warning');}})());
     await Promise.all(jobs);
     syncSharedDriverRoster();populateDateSelectors();const target=state.currentStatementId&&state.catalog.find(x=>x.id===state.currentStatementId)?state.currentStatementId:state.catalog[0]?.id;if(target)selectStatement(target,false);
@@ -3749,11 +3751,10 @@
 
   const DISPATCH_DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   function defaultDispatchData(){
+    // Workspace rosters and run assignments are business data, never public defaults.
     const locations=[{id:'nashville',name:'Nashville'}];
-    const runs=[];
-    const drivers=[];
+    const runs=[],drivers=[];
     const assignments=[];
-    for(const run of runs){ if(run.primaryDriverId) for(const day of run.days) assignments.push({runId:run.id,day,driverId:run.primaryDriverId,source:'primary',override:false}); }
     return {version:9,locations,activeLocationId:'nashville',runs,drivers,tractors:[],assignments,savedPlans:[],activePlanByLocation:{},dailyBoards:{},updatedAt:null};
   }
   function dispatchLocations(){ return Array.isArray(state.dispatch?.locations)&&state.dispatch.locations.length?state.dispatch.locations:[{id:'nashville',name:'Nashville'}]; }
@@ -6582,6 +6583,6 @@
     await restoreFolder();
     updateCloudUI();
   }
-  window.NBLRecruitmentTest?.init({getContext:()=>({orgId:state.cloud.organization?.id,connected:cloudConnected(),allowed:canAccessModuleKey('hr',true),userName:state.cloud.profile?.full_name||state.cloud.user?.email||'NBL User'})});
+  window.NBLRecruitmentTest?.init({getContext:()=>({orgId:state.cloud.organization?.id,connected:cloudConnected(),allowed:canAccessModuleKey('hr',false),canWrite:canAccessModuleKey('hr',true),userName:state.cloud.profile?.full_name||state.cloud.user?.email||'NBL User'})});
   initApp();
 })();

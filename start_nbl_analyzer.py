@@ -131,7 +131,7 @@ def api_role_allowed(user, path, method='GET'):
     if role == 'owner':
         return True
     if path.startswith('/api/hr/'):
-        return role in ('operations', 'lead_driver')
+        return role == 'operations'
     if path.startswith('/api/motive/'):
         if path in ('/api/motive/config', '/api/motive/disconnect'):
             return False
@@ -2686,9 +2686,8 @@ def parse_hr_application_pdf(pdf_bytes):
     """Extract supported candidate fields from both known FedEx / First Advantage PDF formats.
 
     The parser is intentionally conservative: it does not infer operational fields such as
-    domicile, shift, employment type, or recruitment status. When a full SSN is explicitly
-    present in the application, it is returned so the HR profile can protect it behind the
-    same Finance Access Code used by Driver Pay and Settlement.
+    domicile, shift, employment type, or recruitment status. SSNs are minimized on the
+    server: only the last four digits may leave this function, never the full number.
     """
     try:
         from pypdf import PdfReader
@@ -2712,7 +2711,7 @@ def parse_hr_application_pdf(pdf_bytes):
             except Exception:
                 pages.append('')
     except Exception as exc:
-        raise RuntimeError(f'Could not read this PDF: {exc}') from exc
+        raise RuntimeError('Could not read this PDF. Use a valid text-based application PDF.') from exc
     raw_text = '\n'.join(pages)
     if not raw_text.strip():
         raise RuntimeError('This PDF does not contain readable text. Scanned-image applications are not supported yet.')
@@ -2805,13 +2804,11 @@ def parse_hr_application_pdf(pdf_bytes):
 
     cdl_expiry = first_date_after(r'Expiration Date')
 
-    ssn_full = ''
     ssn_last4 = ''
     # Full SSNs appear on COV/Qualifications pages in both known FADV layouts.
     for ssn_match in re.finditer(r'Social Security Number\s*:?\s*([0-9][0-9\- ]{7,20}[0-9])', compact, re.I | re.M):
         digits = re.sub(r'\D', '', ssn_match.group(1))
         if len(digits) == 9:
-            ssn_full = digits
             ssn_last4 = digits[-4:]
             break
     if not ssn_last4:
@@ -2835,7 +2832,6 @@ def parse_hr_application_pdf(pdf_bytes):
         'cdlNumber': cdl_number,
         'cdlIssuingState': cdl_issuing_state,
         'cdlExpiry': cdl_expiry,
-        'ssnFull': ssn_full,
         'ssnLast4': ssn_last4,
     }
     fields = {k: v for k, v in fields.items() if str(v or '').strip()}
@@ -2845,9 +2841,7 @@ def parse_hr_application_pdf(pdf_bytes):
     }
     detected_keys = ('name', 'email', 'phone', 'address', 'fedexId', 'dob', 'cdlNumber', 'cdlIssuingState', 'cdlExpiry')
     detected = [labels[k] for k in detected_keys if k in fields]
-    if 'ssnFull' in fields:
-        detected.append('SSN')
-    elif 'ssnLast4' in fields:
+    if 'ssnLast4' in fields:
         detected.append('SSN (last 4)')
     return {
         'fields': fields,
@@ -3129,7 +3123,7 @@ class NBLHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == '/health':
-            return self.send_json({'ok': True, 'app': 'NBL FleetCommand', 'version': 110})
+            return self.send_json({'ok': True, 'app': 'NBL FleetCommand', 'version': 140})
         if parsed.path.startswith('/api/') and not require_nbl_api_access(self, parsed.path, 'GET'):
             return
         if parsed.path == '/api/admin/users':
@@ -3436,13 +3430,13 @@ def main():
     # that is still running from hijacking a newer build's browser window.
     server = ThreadingHTTPServer((HOST, REQUESTED_PORT), NBLHandler)
     actual_port = int(server.server_address[1])
-    url = f'http://localhost:{actual_port}/index.html?v=139'
+    url = f'http://localhost:{actual_port}/index.html?v=140'
     if PORT_FILE:
         try:
             Path(PORT_FILE).write_text(url, encoding='utf-8')
         except Exception:
             pass
-    print('NBL FleetCommand v139 is running.')
+    print('NBL FleetCommand v140 is running.')
     print(f'Open: {url}')
     print('Motive API credentials use MOTIVE_API_KEY when provided; local builds fall back to the protected local key file.')
     print('Keep this process running while using the app.')

@@ -1,3 +1,33 @@
+NBL FleetCommand — Version 140
+
+Version 140 - Recruitment Sensitive Information Protection
+- PDF extraction returns SSN last-four only; full SSNs never leave the parser.
+- Candidate JSON writes strip full SSN fields recursively at the database boundary.
+- Owner and Operations retain full hiring access. Lead Drivers receive a read-only
+  database projection of operational fields, without DOB, CDL numbers, contact/address,
+  screening/background answers, pay, notes, history or sensitive document references.
+- Raw Recruitment, Archive, older HR tables and HR snapshots reject Lead Driver access.
+- Hiring PDF tools require Owner or Operations access on the server.
+- All existing uploads remain Sensitive; no files or candidates were moved or removed.
+- New uploads default to Sensitive. General documents use a separate private bucket,
+  require a content-review acknowledgment, and may be viewed by Lead Drivers.
+- General classification is a staff review, not automatic PDF content redaction.
+- Both document stores are private. View links expire after two minutes.
+- Removes hardcoded driver names, FedEx IDs, routes and assignments from public
+  defaults. Saved dispatch workspace data is loaded after authentication.
+- Apply SUPABASE_v140_RECRUITMENT_PRIVACY.sql before using this release. The live
+  Nashbox project migration was applied and verified with rolled-back synthetic fixtures.
+- This release does not configure MFA, password protection, retention or backups.
+
+Validation:
+node tests/recruitment-test.cjs
+node tests/recruitment-table.cjs
+node tests/recruitment-test-dom.cjs
+node tests/recruitment-privacy.cjs
+python3 tests/recruitment-privacy.py
+python3 tests/road-test-pdf.py
+tests/recruitment-privacy-rls.sql (transaction rollback; requires Owner/Ops/Lead fixture roles)
+
 NBL FleetCommand — Version 139
 
 Version 139 - Motive Driver Eligibility and Scheduled Dispatch
@@ -798,12 +828,7 @@ v26 HYBRID IVMR ROUTE BUILDER
 DISPATCH PLANNER (v28)
 ----------------------
 - Added a Nashville Dispatch module with a weekly Sun-Sat coverage chart.
-- Starting assigned runs:
-- Starting unassigned recurring runs:
-  * URR1: Nashville, Tue-Sat.
-  * URR2: Lebanon, Sun-Thu.
-  * URR3: Lebanon, Tue-Sat.
-- URR driver availability:
+- Runs, assigned drivers and availability are configured in the authenticated workspace.
 - Drag driver cards between active run cells to test coverage scenarios. Drivers cannot be double-booked on the same day.
 - Click a driver and then an active run cell as an alternative to drag-and-drop.
 - Optimize Coverage builds a suggested plan that preserves the primary assigned runs and maximizes coverage with the listed URR drivers.
@@ -1052,6 +1077,7 @@ Version 65: Existing Candidate First Advantage Updates
 
 VERSION 66 - MOTIVE HISTORY DIAGNOSTIC
 - Added IVMR > Motive Tractor History Test.
+- Choose a tractor and date window for the diagnostic test.
 - Diagnostic prefers Motive v3 historical vehicle locations and falls back to v2 if needed.
 - Shows point counts, daily first/last readings, odometer delta, approximate GPS distance, raw Motive descriptions and a spread sample of raw history points.
 - Diagnostic JSON can be downloaded for troubleshooting without changing IVMR data.
@@ -1062,6 +1088,7 @@ VERSION 67 - MOTIVE HISTORY ID / REQUEST DIAGNOSTIC
 
 VERSION 68 - IVMR ROUTE RECONSTRUCTION
 - Rebuilt Highway / Route Traveled around the dense Motive tractor history proven by the v66/v67 diagnostic.
+- IVMR route building uses the validated v3-first historical-location request strategy.
 - Route reconstruction fetches a one-day buffer on each side of the IFTA service date, then isolates each IFTA row primarily by start/end odometer.
 - Endpoint matching is constrained to the service date when odometer data is unavailable, preventing repeated assigned routes from matching the wrong day's terminal visit.
 - Highway reconstruction first map-matches the sampled full Motive trace; only difficult/long traces fall back to segmented map matching.

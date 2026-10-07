@@ -1,4 +1,15 @@
-Recruitment Test verification (v138)
+Recruitment verification (v140)
+
+V140 adds `recruitment-privacy.py` for synthetic SSN extraction and server role
+checks, `recruitment-privacy.cjs` for Lead read-only rendering and bucket-aware
+document uploads/links, and `recruitment-privacy-rls.sql` for live permission checks.
+The SQL test discovers account IDs locally, uses synthetic candidate/object metadata,
+checks Owner/Ops access, Lead redaction and write denial, cross-organization denial,
+and recursive SSN stripping, then rolls back all fixture rows. No real candidate
+payload or stored file is changed. Membership-role and storage access checks are
+enforced by the database; the UI does not provide the security boundary.
+General document content classification is explicitly a staff review; automated
+content scanning and MFA are outside this release.
 
 - `node tests/recruitment-table.cjs` with jsdom: all seven ascending/descending sorts,
   blank values last, numeric day counts, calendar-day/DST checks, screening-date-only

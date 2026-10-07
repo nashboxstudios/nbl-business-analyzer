@@ -6,8 +6,8 @@
   <title>NBL FleetCommand</title>
   <meta name="theme-color" content="#35164E" />
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=139" />
-  <link rel="stylesheet" href="recruitment-test.css?v=139">
+  <link rel="stylesheet" href="styles.css?v=140" />
+  <link rel="stylesheet" href="recruitment-test.css?v=140">
 </head>
 <body>
 
@@ -33,7 +33,7 @@
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
         <div class="app-name">NBL FleetCommand</div>
         <div class="app-tagline">Operations Intelligence</div>
-        <div class="app-version">Version 139</div>
+        <div class="app-version">Version 140</div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-standalone nav-main-modules">
@@ -504,7 +504,7 @@
             <div class="panel-heading"><div><h2>Create User Profile</h2><p>Set a temporary password and give it to the user directly. They can change it after signing in under My Profile.</p></div></div>
             <form id="userAccessCreateForm">
               <div class="form-grid two">
-                <div class="form-field"><label>Full Name</label><input id="newNblUserName" type="text" required placeholder="Full name"></div>
+                <div class="form-field"><label>Full Name</label><input id="newNblUserName" type="text" required placeholder="Enter the user's name"></div>
                 <div class="form-field"><label>Email</label><input id="newNblUserEmail" type="email" required placeholder="name@nashboxlogistics.com"></div>
               </div>
               <div class="form-grid two">
@@ -811,12 +811,12 @@
               <div>
                 <span class="eyebrow">Diagnostic</span>
                 <h2>Motive Tractor History Test</h2>
-                <p>Inspect vehicle history before rebuilding Highway / Route Traveled.</p>
+                <p>Choose a tractor and date window to inspect its Motive history before rebuilding Highway / Route Traveled.</p>
               </div>
               <div class="history-count" id="ivmrHistoryTestStatus">Not run</div>
             </div>
             <div class="ivmr-history-test-controls">
-              <div class="form-field"><label>Tractor Number</label><input id="ivmrHistoryTractor" type="text" value=""></div>
+              <div class="form-field"><label>Tractor Number</label><input id="ivmrHistoryTractor" type="text" placeholder="Enter tractor number"></div>
               <div class="form-field"><label>History Start Date</label><input id="ivmrHistoryStart" type="date" value="2026-09-01"></div>
               <div class="form-field"><label>History End Date</label><input id="ivmrHistoryEnd" type="date" value="2026-09-11"></div>
               <div class="ivmr-history-test-actions">
@@ -1074,7 +1074,7 @@
         <input type="hidden" id="dispatchScheduleDriverId">
         <div class="form-field"><label>Driver</label><input id="dispatchScheduleDriverName" type="text" readonly></div>
         <div class="form-grid two">
-          <div class="form-field"><label>FedEx ID <span class="optional-label">Optional</span></label><input id="dispatchDriverFedexIdInput" type="text" inputmode="numeric" placeholder="Optional driver ID"></div>
+          <div class="form-field"><label>FedEx ID <span class="optional-label">Optional</span></label><input id="dispatchDriverFedexIdInput" type="text" inputmode="numeric" placeholder="Enter FedEx ID"></div>
           <div class="form-field"><label>Dispatch Location</label><select id="dispatchDriverLocationInput" required></select></div>
         </div>
         <div class="form-field"><label>Available Workdays</label>
@@ -1612,8 +1612,8 @@
   </div>
 
   <script src="core.js?v=117"></script>
-  <script src="cloud.js?v=139"></script>
-  <script src="recruitment-test.js?v=139"></script>
-  <script src="app.js?v=139"></script>
+  <script src="cloud.js?v=140"></script>
+  <script src="recruitment-test.js?v=140"></script>
+  <script src="app.js?v=140"></script>
 </body>
 </html>

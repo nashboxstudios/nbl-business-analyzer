@@ -263,7 +263,15 @@
   async function saveMaintenanceData(organizationId,data){const records=[{recordType:'settings',recordKey:'main',payload:{version:3}},...(data?.tractors||[]).map((x,i)=>({recordType:'tractor',recordKey:String(x.id||x.tractorNumber||`tractor_${i}`),payload:x})),...(data?.records||[]).map((x,i)=>({recordType:'service',recordKey:String(x.id||`service_${i}`),payload:x})),...(data?.tasks||[]).map((x,i)=>({recordType:'task',recordKey:String(x.id||`task_${i}`),payload:x}))];return replaceRecordDomain('nbl_fc_maintenance_records',organizationId,records,['settings','tractor','service','task']);}
   async function saveMaintenanceFaults(organizationId,faults){const session=await getSession(),userId=session?.user?.id||null,now=new Date().toISOString(),rows=(faults||[]).filter(x=>x?.id!=null).map(x=>({organization_id:organizationId,record_type:'fault',record_key:String(x.id),payload:x,updated_at:now,updated_by:userId}));if(rows.length)await authFetch('/rest/v1/nbl_fc_maintenance_records?on_conflict=organization_id,record_type,record_key',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(rows)});return {savedAt:now,count:rows.length};}
 
-  async function getRecruitmentData(organizationId){const rows=await getRecordDomain('nbl_fc_recruitment_records',organizationId);return {version:11,...oneRow(rows,'settings'),candidates:rowsByType(rows,'candidate'),recordCount:rows.length};}
+  async function recruitmentIsReadOnly(){
+    const membership=await getMembership();
+    return membership?.role==='operations'&&membership?.module_permissions?.access_role==='lead_driver';
+  }
+  async function getRecruitmentOperationalData(organizationId,source){
+    const rows=await authFetch('/rest/v1/rpc/get_recruitment_operational',{method:'POST',body:JSON.stringify({target_org:organizationId,source_name:source})});
+    return {version:11,candidates:Array.isArray(rows)?rows:[],recordCount:Array.isArray(rows)?rows.length:0,readOnly:true};
+  }
+  async function getRecruitmentData(organizationId){if(await recruitmentIsReadOnly())return getRecruitmentOperationalData(organizationId,'archive');const rows=await getRecordDomain('nbl_fc_recruitment_records',organizationId);return {version:11,...oneRow(rows,'settings'),candidates:rowsByType(rows,'candidate'),recordCount:rows.length};}
   async function saveRecruitmentData(organizationId,data,options={}){
     const settings={version:11,recruitmentLayout:data?.recruitmentLayout||{},updatedAt:data?.updatedAt||null,cloudPrivacy:data?.cloudPrivacy||{fullSsnStored:false}};
     const ids=new Set((options.candidateIds||[]).map(String));
@@ -286,6 +294,7 @@
   }
 
   async function getRecruitmentTestData(organizationId){
+    if(await recruitmentIsReadOnly())return getRecruitmentOperationalData(organizationId,'active');
     const rows=await getRecordDomain('nbl_fc_recruitment_test_records',organizationId);
     if(!rows.some(r=>r.record_type==='settings'))throw new Error('Recruitment Test has not been initialized for this organization.');
     return {candidates:rows.filter(r=>r.record_type==='candidate'&&!r.payload?.deletedAt).map(r=>({...r.payload,_cloudUpdatedAt:r.updated_at}))};
@@ -359,20 +368,29 @@
     const send=async active=>{const response=await fetch(`${SUPABASE_URL}${path}`,{...options,headers:{apikey:SUPABASE_PUBLISHABLE_KEY,Authorization:`Bearer ${active.access_token}`,...(options.headers||{})}});const text=await response.text();let data=null;if(text){try{data=JSON.parse(text);}catch(_){data=text;}}if(!response.ok){const message=data&&typeof data==='object'?(data.message||data.error||data.msg):data;const err=new Error(String(message||`Storage request failed (${response.status})`));err.status=response.status;throw err;}return data;};
     try{return await send(session);}catch(err){if(err.status!==401)throw err;session=await refreshSession(session);return send(session);}
   }
-  async function uploadRecruitmentDocument(organizationId,candidateId,documentType,file){
+  const RECRUITMENT_BUCKETS=new Set(['nbl-recruitment-documents','nbl-recruitment-general-documents']);
+  function recruitmentDocumentBucket(document){
+    const bucket=typeof document==='object'?document.bucket||'nbl-recruitment-documents':'nbl-recruitment-documents';
+    if(!RECRUITMENT_BUCKETS.has(bucket))throw new Error('Unknown recruitment document location.');
+    return bucket;
+  }
+  async function uploadRecruitmentDocument(organizationId,candidateId,documentType,file,classification='sensitive'){
     if(!file)throw new Error('Choose a document to upload.');
     const extension=(String(file.name||'').toLowerCase().match(/\.[a-z0-9]+$/)||[''])[0];
     const mimeByExtension={'.pdf':'application/pdf','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.heic':'image/heic','.heif':'image/heif','.doc':'application/msword','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document'};
     const allowedExtensions=new Set(Object.keys(mimeByExtension));
     if(!allowedExtensions.has(extension))throw new Error('Use a PDF, JPEG, PNG, HEIC, DOC, or DOCX file.');
     const mimeType=mimeByExtension[extension];
+    if(!['sensitive','general'].includes(classification))throw new Error('Choose Sensitive or General document access.');
+    const bucket=classification==='general'?'nbl-recruitment-general-documents':'nbl-recruitment-documents';
     if(Number(file.size)>10*1024*1024)throw new Error('The document must be 10 MB or smaller.');
     const type=String(documentType||'document').replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,40)||'document',safeName=String(file.name||`${type}${extension}`).replace(/[^a-zA-Z0-9._-]+/g,'_').slice(-120),path=`${organizationId}/${candidateId}/${type}/${Date.now()}_${safeName}`;
-    await storageRequest(`/storage/v1/object/nbl-recruitment-documents/${encodeStoragePath(path)}`,{method:'POST',headers:{'Content-Type':mimeType,'cache-control':'3600','x-upsert':'false'},body:file});
-    return {path,fileName:file.name||safeName,mimeType,size:Number(file.size)||0,uploadedAt:new Date().toISOString()};
+    await storageRequest(`/storage/v1/object/${bucket}/${encodeStoragePath(path)}`,{method:'POST',headers:{'Content-Type':mimeType,'cache-control':'0','x-upsert':'false'},body:file});
+    return {bucket,classification,path,fileName:file.name||safeName,mimeType,size:Number(file.size)||0,uploadedAt:new Date().toISOString()};
   }
-  async function getRecruitmentDocumentUrl(path){
-    const data=await authFetch(`/storage/v1/object/sign/nbl-recruitment-documents/${encodeStoragePath(path)}`,{method:'POST',body:JSON.stringify({expiresIn:120})});
+  async function getRecruitmentDocumentUrl(document){
+    const path=typeof document==='object'?document.path:document,bucket=recruitmentDocumentBucket(document);
+    const data=await authFetch(`/storage/v1/object/sign/${bucket}/${encodeStoragePath(path)}`,{method:'POST',body:JSON.stringify({expiresIn:120})});
     const signed=data?.signedURL||data?.signedUrl;if(!signed)throw new Error('Could not create a secure document link.');
     return /^https?:\/\//i.test(signed)?signed:`${SUPABASE_URL}/storage/v1${signed.startsWith('/')?'':'/'}${signed}`;
   }
