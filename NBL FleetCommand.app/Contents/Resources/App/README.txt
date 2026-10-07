@@ -1,3 +1,11 @@
+NBL FleetCommand — Version 89
+
+- Changed Daily Dispatch route entry cards to a single-column phone layout.
+- Stacked Route, Call, Dispatched, and Driver Assigned vertically.
+- Constrained route cards, cells, and dropdowns to the available screen width.
+- Disabled horizontal overflow within the mobile Daily Dispatch module.
+- Preserved collapsible hubs and all tablet and desktop layouts.
+
 NBL FleetCommand — Version 88
 
 - Made Daily Dispatch entry cards more compact on phones.
