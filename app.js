@@ -163,12 +163,12 @@
         delete c.roadTestForm.ssnFull; delete c.roadTestForm.ssn; delete c.roadTestForm.socialSecurityNumber;
       }
     }
-    data.cloudPrivacy={fullSsnStored:false,note:'Full SSNs intentionally excluded from v77 cloud snapshots.'};
+    data.cloudPrivacy={fullSsnStored:false,note:'Full SSNs intentionally excluded from v78 cloud snapshots.'};
     return data;
   }
   function settlementSnapshot(){
     return {
-      version:77,
+      version:78,
       currentStatementId:state.currentStatementId||null,
       analysisStatementId:state.settlement?.analysisStatementId||null,
       catalog:(state.catalog||[]).map(x=>({
@@ -179,7 +179,7 @@
   }
   function ivmrCloudSnapshot(){
     return {
-      version:77,
+      version:78,
       locations:cloneJson(state.ivmrLocations||defaultIvmrLocationData()),
       current:{
         startDate:state.ivmr?.startDate||'',endDate:state.ivmr?.endDate||'',
@@ -245,8 +245,8 @@
   async function saveCloudModule(moduleKey,silent=true){
     if(!cloudConnected()||!window.NBLCloud||!state.cloud?.organization?.id) return false;
     try{
-      const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'77');
-      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'77',updated_at:new Date().toISOString()};
+      const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'78');
+      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'78',updated_at:new Date().toISOString()};
       state.cloud.hasSnapshotData=true; state.cloud.lastSync=new Date().toISOString(); updateCloudUI();
       return true;
     }catch(err){
