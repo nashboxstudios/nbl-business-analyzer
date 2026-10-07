@@ -1,0 +1,30 @@
+#!/bin/bash
+BASE="$(cd "$(dirname "$0")/../Resources/App" && pwd)"
+LOG="$HOME/Library/Logs/NBL Business Analyzer.log"
+PORTFILE="${TMPDIR:-/tmp}/nbl_business_analyzer_${$}.url"
+rm -f "$PORTFILE"
+NBL_NO_BROWSER=1 NBL_PORT_FILE="$PORTFILE" /usr/bin/python3 "$BASE/start_nbl_analyzer.py" >>"$LOG" 2>&1 &
+SERVER_PID=$!
+URL=""
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+  if [ -s "$PORTFILE" ]; then
+    URL="$(cat "$PORTFILE")"
+    break
+  fi
+  if ! kill -0 "$SERVER_PID" >/dev/null 2>&1; then
+    break
+  fi
+  /bin/sleep 0.2
+done
+if [ -z "$URL" ]; then
+  /usr/bin/osascript -e 'display alert "NBL Business Analyzer could not start" message "Check ~/Library/Logs/NBL Business Analyzer.log for details." as critical'
+  exit 1
+fi
+if [ -d "/Applications/Google Chrome.app" ]; then
+  /usr/bin/open -a "Google Chrome" "$URL"
+elif [ -d "/Applications/Microsoft Edge.app" ]; then
+  /usr/bin/open -a "Microsoft Edge" "$URL"
+else
+  /usr/bin/open "$URL"
+fi
+exit 0
