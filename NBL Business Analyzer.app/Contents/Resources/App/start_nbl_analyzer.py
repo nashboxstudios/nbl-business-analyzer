@@ -63,7 +63,7 @@ def validate_nbl_access_token(token):
         'apikey': SUPABASE_PUBLISHABLE_KEY,
         'Authorization': f'Bearer {token}',
         'Accept': 'application/json',
-        'User-Agent': 'NBL-Business-Analyzer/78'
+        'User-Agent': 'NBL-Business-Analyzer/79'
     }
     try:
         req = Request(SUPABASE_URL + '/auth/v1/user', headers=headers, method='GET')
@@ -161,7 +161,7 @@ def delete_motive_key():
 def motive_request(path, params=None, timeout=25, extra_headers=None):
     key = read_motive_key()
     if not key:
-        raise RuntimeError('Motive API key is not configured on this computer.')
+        raise RuntimeError('Motive API key is not configured on the NBL server.')
     endpoint = MOTIVE_BASE + path
     if params:
         endpoint += '?' + urlencode(params, doseq=True)
@@ -169,7 +169,7 @@ def motive_request(path, params=None, timeout=25, extra_headers=None):
         'X-API-Key': key,
         'Accept': 'application/json',
         'X-Metric-Units': 'false',
-        'User-Agent': 'NBL-Business-Analyzer/78'
+        'User-Agent': 'NBL-Business-Analyzer/79'
     }
     if extra_headers:
         headers.update(extra_headers)
@@ -2760,7 +2760,7 @@ class NBLHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == '/health':
-            return self.send_json({'ok': True, 'app': 'NBL Business Analyzer', 'version': 78})
+            return self.send_json({'ok': True, 'app': 'NBL Business Analyzer', 'version': 79})
         if parsed.path.startswith('/api/') and not require_nbl_api_access(self, parsed.path, 'GET'):
             return
         if not parsed.path.startswith('/api/motive/'):
@@ -2772,12 +2772,12 @@ class NBLHandler(SimpleHTTPRequestHandler):
                     'backend_available': True,
                     'configured': bool(key),
                     'key_hint': ('••••' + key[-4:]) if key and len(key) >= 4 else ('configured' if key else ''),
-                    'storage': str(MOTIVE_KEY_FILE)
+                    'storage': 'environment' if os.environ.get('MOTIVE_API_KEY', '').strip() else ('local_file' if key else '')
                 })
             if parsed.path == '/api/motive/test':
                 key = read_motive_key()
                 if not key:
-                    return self.send_json({'ok': False, 'configured': False, 'message': 'Enter and save a Motive API key first.'}, 400)
+                    return self.send_json({'ok': False, 'configured': False, 'message': 'Configure a Motive API key first.'}, 400)
                 vehicles_ok = ifta_ok = hos_logs_ok = gps_access_ok = gps_data_ok = False
                 vehicles_message = ifta_message = hos_logs_message = gps_message = ''
                 gps_result = {}
@@ -2931,13 +2931,17 @@ class NBLHandler(SimpleHTTPRequestHandler):
             except Exception as exc:
                 return self.send_json({'ok': False, 'error': str(exc)}, 502)
         if parsed.path == '/api/motive/config':
+            if os.environ.get('PORT'):
+                return self.send_json({'ok': False, 'error': 'For the online NBL app, configure MOTIVE_API_KEY under Railway → web → Variables so the key persists securely across deployments.'}, 409)
             data = self.read_json()
             key = str(data.get('api_key', '')).strip()
             if len(key) < 12:
                 return self.send_json({'ok': False, 'error': 'Enter a valid Motive API key.'}, 400)
             save_motive_key(key)
-            return self.send_json({'ok': True, 'configured': True, 'key_hint': '••••' + key[-4:]})
+            return self.send_json({'ok': True, 'configured': True, 'key_hint': '••••' + key[-4:], 'storage': 'local_file'})
         if parsed.path == '/api/motive/disconnect':
+            if os.environ.get('MOTIVE_API_KEY', '').strip():
+                return self.send_json({'ok': False, 'error': 'Motive is configured through Railway Variables. Remove MOTIVE_API_KEY in Railway to disconnect the online app.'}, 409)
             delete_motive_key()
             return self.send_json({'ok': True, 'configured': False})
         return self.send_json({'error': 'Unknown endpoint.'}, 404)
@@ -2948,13 +2952,13 @@ def main():
     # that is still running from hijacking a newer build's browser window.
     server = ThreadingHTTPServer((HOST, REQUESTED_PORT), NBLHandler)
     actual_port = int(server.server_address[1])
-    url = f'http://localhost:{actual_port}/index.html?v=78'
+    url = f'http://localhost:{actual_port}/index.html?v=79'
     if PORT_FILE:
         try:
             Path(PORT_FILE).write_text(url, encoding='utf-8')
         except Exception:
             pass
-    print('NBL Business Analyzer v78 is running.')
+    print('NBL Business Analyzer v79 is running.')
     print(f'Open: {url}')
     print('Motive API credentials use MOTIVE_API_KEY when provided; local builds fall back to the protected local key file.')
     print('Keep this process running while using the app.')
