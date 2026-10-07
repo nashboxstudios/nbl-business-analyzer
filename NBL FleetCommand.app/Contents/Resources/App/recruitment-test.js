@@ -128,9 +128,8 @@ function summaryHtml(candidate,logoUrl='assets/nashbox-logistics-logo.png',forma
  .phone-report .report{max-width:408px;padding:20px 16px}.phone-report .facts{grid-template-columns:1fr}.phone-report .report-header{gap:12px}.phone-report .report-header img{width:48px;height:48px}.phone-report h1{font-size:24px}.phone-report .answer,.phone-report dd{font-size:16px}.phone-report .prompt{font-size:14px}.phone-report .toolbar{max-width:408px;flex-wrap:wrap}
  @media print{@page phone{size:108mm 192mm;margin:8mm}.phone-report{page:phone}.phone-report .report{max-width:none;padding:0}.phone-report .facts{grid-template-columns:1fr;gap:8px}.phone-report h1{font-size:20pt}.phone-report h2{font-size:15pt;padding:8px 10px}.phone-report .question h3{font-size:12pt}.phone-report .answer,.phone-report dd{font-size:12pt}.phone-report .prompt,.phone-report .detail{font-size:10.5pt}.phone-report .instructions{font-size:10pt}.phone-report .report-header{margin-bottom:16px;padding-bottom:12px}.phone-report .brand{font-size:9pt}.phone-report .subtitle{font-size:10.5pt}.phone-report dt{font-size:9pt}}
  </style></head><body${phone?' class="phone-report"':''}><div class="toolbar"><button type="button" onclick="window.print()">${phone?'Print / Save Phone PDF':'Print / Save PDF'}</button><span>${phone?'Phone format · Single column · ':''}Share this summary with the Ops Manager.</span></div><main class="report"><header class="report-header"><img src="${e(logoUrl)}" alt="Nashbox Logistics"><div class="header-copy"><div class="brand">NASHBOX LOGISTICS</div><p class="report-label">Recruitment – Test${phone?' · Prepared '+e(new Date().toLocaleDateString('en-US')):''}</p><h1>${value(c.name)}</h1><p class="subtitle">Hiring Summary for the Ops Manager · ${value(c.location)}</p></div></header>
- <section class="report-section"><h2>Candidate Details</h2>${facts([['Name',c.name],['Location',c.location],['Email',c.email],['Phone',c.phone],['Current address',c.address],['FedEx ID',c.fedexId]])}</section>
- <section class="report-section"><h2>Driver Qualifications</h2>${facts([['Date of birth',date(c.dob)],['CDL number',c.cdlNumber],['CDL state',c.cdlIssuingState],['CDL expiry',date(c.cdlExpiry)]])}</section>
- <section class="report-section"><h2>Background &amp; Drug Screen</h2>${facts([['FADV status',b.fadvStatus],['Application sent',date(b.applicationSent)],['Drug screen status',b.drugStatus],['Drug screen email sent',date(b.drugSent)],['Manager ready for Ops',yesNo(b.readyForOps)]])}${b.notes?question('Background / drug-screen notes','',b.notes):''}</section>
+ <section class="report-section"><h2>Candidate Details</h2>${facts([['Name',c.name],['Location',c.location],['Phone',c.phone],['FedEx ID',c.fedexId]])}</section>
+ <section class="report-section"><h2>Background &amp; Drug Screen</h2>${facts([['FADV status',b.fadvStatus],['Drug screen status',b.drugStatus],['Manager ready for Ops',yesNo(b.readyForOps)]])}${b.notes?question('Background / drug-screen notes','',b.notes):''}</section>
  <section class="report-section"><h2>Screening Interview</h2><div class="interview-meta">${facts([['Interview date',date(s.date)],['Interviewer',s.interviewer],['Screening decision',s.decision]])}</div>
  ${question('CDL & Experience',SCREENING_QUESTIONS.experience,s.experience)}
  ${question('Expectations — Work Timing',SCREENING_QUESTIONS.availability,s.availability)}
@@ -144,7 +143,7 @@ function summaryHtml(candidate,logoUrl='assets/nashbox-logistics-logo.png',forma
  ${question('Felony or Misdemeanor',SCREENING_QUESTIONS.criminal,s.criminal,s.criminalNotes)}
  ${question('Background Check',SCREENING_QUESTIONS.consent,s.consent)}
  ${question('Valid Documents',SCREENING_QUESTIONS.documents,s.documents)}
- ${question('Application Process Explained','',yesNo(s.processExplained))}<p class="instructions">${e(APPLICATION_PROCESS)}</p>
+ ${question('Application Process Explained','',yesNo(s.processExplained))}
  ${question('Screening Interview Notes','',s.notes)}</section>${phone?'':`<p class="footnote">Prepared ${e(new Date().toLocaleDateString('en-US'))} · Missing answers are shown as “Not recorded”.</p>`}</main></body></html>`;
 }
 
@@ -195,7 +194,7 @@ function edit(id){
 }
 function profile(){
  const p=draft.testPipeline;
- const summary=`<p class="rt-wide">A summary for the Ops Manager combining Candidate Details, Driver Qualifications, Background &amp; Drug Screen, and Screening Interview.</p><button type="button" class="button secondary" id="rtSummary">Print / Save PDF</button><button type="button" class="button secondary" id="rtSummaryPhone">Phone PDF</button>`;
+ const summary=`<p class="rt-wide">A summary for the Ops Manager combining Candidate Details, Background &amp; Drug Screen, and Screening Interview.</p><button type="button" class="button secondary" id="rtSummary">Print / Save PDF</button><button type="button" class="button secondary" id="rtSummaryPhone">Phone PDF</button>`;
  const importer=`<div class="rt-wide rt-import-box"><h3>Import First Advantage Application</h3><p>Choose the driver’s First Advantage PDF to fill detected name, contact, current address, DOB, FedEx ID, and CDL details. Review the imported values, then Save Draft.</p><label class="rt-field" for="rtImportFile"><span>First Advantage PDF (up to 15 MB)</span><input type="file" id="rtImportFile" accept=".pdf,application/pdf"></label><button type="button" class="button secondary" id="rtImport">Read First Advantage PDF</button></div>`;
  const histories=p.history.slice().reverse().map(h=>`<li>${esc(new Date(h.at).toLocaleString())} — ${esc(h.action)}${h.by?' · '+esc(h.by):''}</li>`).join('');
  const docs=Object.entries(draft.documents).filter(([,d])=>d?.path).map(([k,d])=>`<div class="rt-doc"><span>${esc(d.label||d.fileName||k)}</span><button type="button" data-rt-view="${esc(k)}">View</button><button type="button" data-rt-remove="${esc(k)}">Remove from test copy</button></div>`).join('');

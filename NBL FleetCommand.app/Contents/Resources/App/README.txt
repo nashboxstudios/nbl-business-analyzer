@@ -1,4 +1,8 @@
-NBL FleetCommand — Version 134
+NBL FleetCommand — Version 135
+
+Version 135 - Shorter Hiring Summary
+- Standard and Phone PDF summaries omit email, current address, the Driver Qualifications section, background dates, and the application-process instruction paragraph.
+- Candidate Details, background statuses, and Screening Interview remain in the summary. Candidate profile data and interview instructions are retained.
 
 Version 134 - First Advantage Import and Mobile Summary
 - First Advantage PDF import is at the top of Candidate Details and starts when a file is selected. Review detected values and Save Draft.

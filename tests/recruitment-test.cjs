@@ -25,10 +25,10 @@ assert(migrated.testPipeline.ops.dispatchAgreement.includes('06:00'));
 assert(migrated.testPipeline.ops.doublesAgreement.includes('assembly'));
 assert.equal(migrated.testPipeline.ops.notes,'Keep prior notes');assert.equal(migrated.testPipeline.ops.confirmedSchedule,E.scheduleKey(migrated));
 const unconfirmed=E.normalize({id:'test_unconfirmed',testPipeline:{ops:{...legacyOps,scheduleAccepted:'No'}}});assert.equal(unconfirmed.testPipeline.ops.dispatchAgreement,'');
-const escaped=E.summaryHtml({...c,name:'<script>unsafe</script>',ssnFull:'SECRET_SSN',medicalCardExpiry:'SECRET_MEDICAL',offerLetter:'SECRET_OFFER',testPipeline:{...p,screening:{...p.screening,notes:'<img src=x onerror=alert(1)>'}}});
+const escaped=E.summaryHtml({...c,name:'<script>unsafe</script>',ssnFull:'SECRET_SSN',medicalCardExpiry:'SECRET_MEDICAL',email:'EXCLUDED_EMAIL',address:'EXCLUDED_ADDRESS',dob:'EXCLUDED_DOB',cdlNumber:'EXCLUDED_CDL',cdlIssuingState:'EXCLUDED_CDL_STATE',cdlExpiry:'EXCLUDED_CDL_EXPIRY',offerLetter:'SECRET_OFFER',testPipeline:{...p,screening:{...p.screening,notes:'<img src=x onerror=alert(1)>'}}});
 assert(escaped.includes('&lt;script&gt;unsafe&lt;/script&gt;'));assert(!escaped.includes('<script>unsafe'));
-for(const heading of ['Candidate Details','Driver Qualifications','Background &amp; Drug Screen','Screening Interview'])assert(escaped.includes('<h2>'+heading+'</h2>'));
-for(const text of ['SECRET_SSN','SECRET_MEDICAL','SECRET_OFFER','Ops Interview','Position &amp; Offer'])assert(!escaped.includes(text));
+for(const heading of ['Candidate Details','Background &amp; Drug Screen','Screening Interview'])assert(escaped.includes('<h2>'+heading+'</h2>'));
+for(const text of ['SECRET_SSN','SECRET_MEDICAL','SECRET_OFFER','Ops Interview','Position &amp; Offer','EXCLUDED_EMAIL','EXCLUDED_ADDRESS','EXCLUDED_DOB','EXCLUDED_CDL','Driver Qualifications','Application sent','Drug screen email sent',E.APPLICATION_PROCESS.split('\n')[0]])assert(!escaped.includes(text));
 assert(escaped.includes('FADV status'));
 assert(escaped.includes('&lt;img src=x onerror=alert(1)&gt;'));
 

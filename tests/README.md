@@ -1,4 +1,4 @@
-Recruitment Test verification (v134)
+Recruitment Test verification (v135)
 
 - `node tests/recruitment-table.cjs` with jsdom: all seven ascending/descending sorts,
   blank values last, numeric day counts, calendar-day/DST checks, screening-date-only
@@ -8,7 +8,7 @@ Recruitment Test verification (v134)
 - `node tests/recruitment-test-dom.cjs` with jsdom available: full app navigation,
   copied field mapping, save/reopen, staged advancement through hire, Hold/rejection,
   PDF import mismatch handling, document removal/upload isolation, failed upload
-  metadata recovery, road-test time save/reload and signature export payload, four-section Ops Manager summary, source-question coverage and exclusions, and account reset.
+  metadata recovery, road-test time save/reload and signature export payload, three-section Ops Manager summary, source-question coverage and exclusions, and account reset.
 - `python3 tests/road-test-pdf.py`: PDF time values and appearances, all seven signature stamps,
   template content preservation, malformed/incomplete time rejection, and legacy exports without times.
 - `node tests/recruitment-test-browser.cjs` with Playwright and Chromium available:
@@ -39,3 +39,7 @@ data using WeasyPrint; phone page dimensions and full content were checked.
 The browser suite includes 320/390/430 px layout checks and phone PDF rendering.
 Native Chromium verification was unavailable here because its download returned
 a truncated archive. Physical iOS/Android print behavior was not tested.
+
+V135 verifies summary exclusions in both letter and phone formats, while profile
+fields and screening instructions remain available. Both print layouts were
+rendered and visually reviewed with synthetic candidate data.
