@@ -592,3 +592,15 @@ body.hr-global-column-resize,body.hr-global-column-resize *{cursor:col-resize!im
 .cloud-module-pill.synced{background:#e8f7ef;color:#257149}
 .cloud-module-pill.local{background:#eef3fb;color:#365c85}
 @media(max-width:720px){.cloud-sync-grid{grid-template-columns:1fr}.cloud-login-card{padding:26px 22px}}
+
+/* v80 online user access */
+#usersScreen .panel{margin-bottom:18px}
+#userAccessServiceStatus.user-access-ready{border-color:#c9e9da;background:#eaf7f1;color:#2d674f}
+#userAccessServiceStatus.user-access-needs-key{border-color:#ecd9a5;background:#fff9ea;color:#5f4a16}
+#userAccessTable{min-width:980px}
+#userAccessTable th,#userAccessTable td{text-align:left;vertical-align:middle}
+#userAccessTable input,#userAccessTable select{width:100%;min-width:130px;border:1px solid #d9cedf;border-radius:8px;padding:8px 9px;background:#fff;color:var(--text)}
+#userAccessTable td:nth-child(2){min-width:220px}
+#userAccessTable td:last-child{width:140px}
+#userAccessTable .muted{color:var(--muted);font-size:11px}
+#userAccessCreateForm{padding:18px 22px 20px}

@@ -79,6 +79,38 @@
     return membership;
   }
 
+
+  async function getProfile(){
+    const session=await getSession();
+    const user=session?.user;
+    if(!user?.id) return null;
+    const qs=new URLSearchParams({user_id:`eq.${user.id}`,select:'user_id,full_name,created_at,updated_at',limit:'1'});
+    const rows=await authFetch(`/rest/v1/profiles?${qs}`);
+    return Array.isArray(rows)&&rows.length?rows[0]:null;
+  }
+
+  async function saveProfile(fullName){
+    const session=await getSession();
+    const user=session?.user;
+    if(!user?.id) throw new Error('Sign in before updating your profile.');
+    const body=[{user_id:user.id,full_name:String(fullName||'').trim()||null,updated_at:new Date().toISOString()}];
+    const rows=await authFetch('/rest/v1/profiles?on_conflict=user_id',{
+      method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=representation'},body:JSON.stringify(body)
+    });
+    return Array.isArray(rows)&&rows.length?rows[0]:body[0];
+  }
+
+  async function updatePassword(password){
+    const value=String(password||'');
+    if(value.length<10) throw new Error('Use a password with at least 10 characters.');
+    const session=await getSession();
+    if(!session?.access_token) throw new Error('Sign in before changing your password.');
+    const user=await request('/auth/v1/user',{method:'PUT',accessToken:session.access_token,body:JSON.stringify({password:value})});
+    const current=loadSession();
+    if(current) saveSession({...current,user});
+    return user;
+  }
+
   async function getSnapshots(organizationId){
     const qs=new URLSearchParams({organization_id:`eq.${organizationId}`,select:'module_key,data,source_version,updated_at',order:'module_key.asc'});
     const rows=await authFetch(`/rest/v1/module_snapshots?${qs}`);
@@ -87,13 +119,13 @@
     return out;
   }
 
-  async function saveSnapshot(organizationId,moduleKey,data,sourceVersion='79'){
+  async function saveSnapshot(organizationId,moduleKey,data,sourceVersion='80'){
     const session=await getSession();
     const body=[{
       organization_id:organizationId,
       module_key:moduleKey,
       data:data==null?{}:data,
-      source_version:String(sourceVersion||'79'),
+      source_version:String(sourceVersion||'80'),
       updated_by:session?.user?.id||null,
       updated_at:new Date().toISOString()
     }];
@@ -117,6 +149,6 @@
   window.NBLCloud={
     url:SUPABASE_URL,
     publishableKey:SUPABASE_PUBLISHABLE_KEY,
-    signIn,signOut,getSession,getMembership,getSnapshots,saveSnapshot,clearSession
+    signIn,signOut,getSession,getMembership,getProfile,saveProfile,updatePassword,getSnapshots,saveSnapshot,clearSession
   };
 })();
