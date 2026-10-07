@@ -1728,12 +1728,21 @@
     const name=displayPersonName(state.cloud?.profile?.full_name||state.cloud?.user?.email?.split('@')[0]||'');
     $('dashboardGreeting').textContent=name?`Welcome back, ${name}`:'Welcome to FleetCommand';
     const rows=dashboardMileageRows(), ranges=dashboardRanges(), last=ranges.find(x=>x.key==='last'), mtd=ranges.find(x=>x.key==='mtd'), ytd=ranges.find(x=>x.key==='ytd');
-    const mileCards=[['Last Week',last],['Month to Date',mtd],['Year to Date',ytd]].map(([label,r])=>[label,mileageInRange(rows,r.start,r.end)]);
-    $('dashboardMilesCards').innerHTML=mileCards.map(([label,m])=>`<div class="dashboard-mile-card"><span>${label}</span><strong>${fmtNum(m.total)}</strong><small><b>${fmtNum(m.linehaul)}</b> linehaul <i>•</i> <b>${fmtNum(m.spot)}</b> spot</small></div>`).join('');
-    const latest=rows.map(x=>x.date).filter(Boolean).sort().at(-1); $('dashboardMilesAsOf').textContent=latest?`Uploaded activity through ${fmtDate(latest)}. Current week is excluded from the trend.`:'Upload settlement statements to populate mileage.';
+    const latest=rows.map(x=>x.date).filter(Boolean).sort().at(-1), latestDate=latest?dateAtNoon(latest):null;
+    const mileCards=[['Last Week',last],['Month to Date',mtd],['Year to Date',ytd]].map(([label,r])=>{
+      const m=mileageInRange(rows,r.start,r.end), hasData=!!latestDate&&latestDate>=r.start;
+      return [label,m,hasData];
+    });
+    $('dashboardMilesCards').innerHTML=mileCards.map(([label,m,hasData])=>`<div class="dashboard-mile-card"><span>${label}</span><strong>${hasData?fmtNum(m.total):'—'}</strong><small>${hasData?`<b>${fmtNum(m.linehaul)}</b> linehaul <i>•</i> <b>${fmtNum(m.spot)}</b> spot`:'No uploaded data for this period'}</small></div>`).join('');
+    $('dashboardMilesAsOf').textContent=latest?`Uploaded activity through ${fmtDate(latest)}. Trend ends at the latest completed Saturday–Friday week in the uploaded data.`:'Upload settlement statements to populate mileage.';
     const selectedWeeks=Number($('dashboardMilesRange')?.value||prefs.milesWeeks||8); if($('dashboardMilesRange')) $('dashboardMilesRange').value=String(selectedWeeks);
-    const today=dateAtNoon(todayIso()), currentStart=saturdayStart(today), buckets=[];
-    for(let i=selectedWeeks;i>=1;i--){ const start=addDays(currentStart,-7*i),end=addDays(start,6),m=mileageInRange(rows,start,end);buckets.push({...m,start,end}); }
+    const buckets=[];
+    if(latestDate){
+      let latestCompletedStart=saturdayStart(latestDate);
+      const latestCompletedEnd=addDays(latestCompletedStart,6);
+      if(latestDate<latestCompletedEnd) latestCompletedStart=addDays(latestCompletedStart,-7);
+      for(let i=selectedWeeks-1;i>=0;i--){ const start=addDays(latestCompletedStart,-7*i),end=addDays(start,6),m=mileageInRange(rows,start,end);buckets.push({...m,start,end}); }
+    }
     $('dashboardMilesChart').innerHTML=dashboardMilesSvg(buckets);
 
     const boards=Object.values(state.dispatch.dailyBoards||{}).filter(x=>x&&x.savedAt&&Array.isArray(x.rows));
