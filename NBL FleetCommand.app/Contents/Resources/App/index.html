@@ -6,7 +6,7 @@
   <title>NBL FleetCommand</title>
   <meta name="theme-color" content="#35164E" />
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=115" />
+  <link rel="stylesheet" href="styles.css?v=116" />
 </head>
 <body>
 
@@ -32,7 +32,7 @@
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
         <div class="app-name">NBL FleetCommand</div>
         <div class="app-tagline">Operations Intelligence</div>
-        <div class="app-version">Version 115</div>
+        <div class="app-version">Version 116</div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-standalone nav-main-modules">
@@ -430,9 +430,9 @@
         </div>
 
         <div id="faultCodesScreen" class="screen hidden">
-          <div class="maintenance-toolbar"><div><span class="eyebrow">Maintenance Intelligence</span><h2>Motive Fault Codes</h2><p>Translate Motive diagnostic faults into prioritized, practical next actions.</p></div><div class="maintenance-actions"><select id="faultTractorFilter" aria-label="Filter fault codes by tractor"><option value="all">All tractors</option></select><select id="faultStatusFilter"><option value="all">All statuses</option><option value="open">Open</option><option value="closed">Closed</option></select><button class="button primary" id="refreshFaultCodesBtn">Refresh from Motive</button></div></div>
+          <div class="maintenance-toolbar"><div><span class="eyebrow">Maintenance Intelligence</span><h2>Motive Fault Codes</h2><p>Select a tractor and reporting period, then load its diagnostic faults from Motive.</p></div><div class="maintenance-actions fault-load-controls"><select id="faultTractorFilter" aria-label="Select tractor"><option value="">Select tractor</option></select><input id="faultStartDate" type="date" aria-label="Fault start date"><input id="faultEndDate" type="date" aria-label="Fault end date"><select id="faultStatusFilter"><option value="all">All statuses</option><option value="open">Open</option><option value="closed">Closed</option></select><button class="button primary" id="refreshFaultCodesBtn">Load Faults</button></div></div>
           <div class="summary-grid" id="faultCodeCards"></div>
-          <div class="panel"><div class="panel-heading"><div><h2>Diagnostic Faults</h2><p>Guidance is triage support only; a qualified technician should diagnose and approve repairs.</p></div></div><div class="table-wrap"><table id="faultCodesTable" class="maintenance-table"><thead></thead><tbody></tbody></table></div></div>
+          <div class="panel"><div class="panel-heading"><div><h2>Diagnostic Faults</h2><p>Guidance is triage support only; a qualified technician should diagnose and approve repairs.</p></div><span id="faultLastRefreshed" class="fault-last-refreshed">Not loaded</span></div><div class="table-wrap"><table id="faultCodesTable" class="maintenance-table"><thead></thead><tbody></tbody></table></div></div>
         </div>
 
         <div id="maintenanceTasksScreen" class="screen hidden">
@@ -1573,8 +1573,8 @@
     </div>
   </div>
 
-  <script src="core.js?v=115"></script>
-  <script src="cloud.js?v=115"></script>
-  <script src="app.js?v=115"></script>
+  <script src="core.js?v=116"></script>
+  <script src="cloud.js?v=116"></script>
+  <script src="app.js?v=116"></script>
 </body>
 </html>

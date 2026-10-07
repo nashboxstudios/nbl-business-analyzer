@@ -559,9 +559,16 @@ def fetch_motive_drivers():
     return out
 
 
-def fetch_motive_fault_codes():
+def fetch_motive_fault_codes(tractor_number, start_date, end_date, status=''):
     """Fetch and normalize Motive vehicle diagnostic fault codes."""
-    raw = fetch_all_with_params('/v1/fault_codes', 'fault_codes', 'fault_code', {'per_page': 100})
+    target = str(tractor_number or '').strip().lstrip('0')
+    vehicle = next((v for v in fetch_motive_vehicles() if str(v.get('number') or '').strip().lstrip('0') == target), None)
+    if not vehicle or vehicle.get('id') is None:
+        raise ValueError(f'Tractor {tractor_number} was not found in Motive.')
+    params = {'vehicle_ids[]': vehicle.get('id'), 'start_date': start_date, 'end_date': end_date}
+    if status in ('open', 'closed'):
+        params['status'] = status
+    raw = fetch_all_with_params('/v1/fault_codes', 'fault_codes', 'fault_code', params, per_page=100, max_pages=20)
     result = []
     for item in raw:
         vehicle = item.get('vehicle') if isinstance(item.get('vehicle'), dict) else {}
@@ -3226,8 +3233,20 @@ class NBLHandler(SimpleHTTPRequestHandler):
                 drivers = fetch_motive_drivers()
                 return self.send_json({'ok': True, 'drivers': drivers, 'count': len(drivers)})
             if parsed.path == '/api/motive/fault-codes':
-                fault_codes = fetch_motive_fault_codes()
-                return self.send_json({'ok': True, 'faultCodes': fault_codes, 'count': len(fault_codes)})
+                qs = parse_qs(parsed.query)
+                tractor_number = str((qs.get('tractor_number') or [''])[0]).strip()
+                start_date = str((qs.get('start_date') or [''])[0]).strip()
+                end_date = str((qs.get('end_date') or [''])[0]).strip()
+                status_filter = str((qs.get('status') or [''])[0]).strip().lower()
+                start_day, end_day = parse_iso_day(start_date), parse_iso_day(end_date)
+                if not tractor_number or not start_day or not end_day:
+                    return self.send_json({'ok': False, 'error': 'tractor_number, start_date and end_date are required.'}, 400)
+                if start_day > end_day:
+                    return self.send_json({'ok': False, 'error': 'Fault start date must be on or before end date.'}, 400)
+                if (end_day - start_day).days > 366:
+                    return self.send_json({'ok': False, 'error': 'Fault-code reports cannot exceed 367 days.'}, 400)
+                fault_codes = fetch_motive_fault_codes(tractor_number, start_day.isoformat(), end_day.isoformat(), status_filter)
+                return self.send_json({'ok': True, 'tractorNumber': tractor_number, 'startDate': start_date, 'endDate': end_date, 'faultCodes': fault_codes, 'count': len(fault_codes)})
             if parsed.path == '/api/motive/safety':
                 qs = parse_qs(parsed.query)
                 start_day = parse_iso_day((qs.get('start_date') or [''])[0])
@@ -3402,13 +3421,13 @@ def main():
     # that is still running from hijacking a newer build's browser window.
     server = ThreadingHTTPServer((HOST, REQUESTED_PORT), NBLHandler)
     actual_port = int(server.server_address[1])
-    url = f'http://localhost:{actual_port}/index.html?v=115'
+    url = f'http://localhost:{actual_port}/index.html?v=116'
     if PORT_FILE:
         try:
             Path(PORT_FILE).write_text(url, encoding='utf-8')
         except Exception:
             pass
-    print('NBL FleetCommand v115 is running.')
+    print('NBL FleetCommand v116 is running.')
     print(f'Open: {url}')
     print('Motive API credentials use MOTIVE_API_KEY when provided; local builds fall back to the protected local key file.')
     print('Keep this process running while using the app.')

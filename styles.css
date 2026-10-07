@@ -32,6 +32,8 @@
 
 /* v6: maintenance cost capture + tractor spreadsheet import */
 .maintenance-actions{flex-wrap:wrap;justify-content:flex-end}
+.fault-load-controls select,.fault-load-controls input{min-height:40px;box-sizing:border-box}.fault-last-refreshed{font-size:10px;font-weight:750;color:var(--muted);white-space:nowrap}
+@media(max-width:800px){.fault-load-controls{display:grid;grid-template-columns:1fr 1fr;width:100%}.fault-load-controls select,.fault-load-controls input,.fault-load-controls .button{width:100%;min-width:0}.fault-load-controls #faultTractorFilter,.fault-load-controls .button{grid-column:1/-1}.fault-last-refreshed{white-space:normal}}
 .optional-label{font-size:9px;font-weight:700;color:#8797a4;text-transform:none;letter-spacing:0;margin-left:4px}
 .optional-cost-group .input-prefix{width:100%;box-sizing:border-box}
 .optional-cost-group .input-prefix input{border:0!important;box-shadow:none!important;border-radius:0!important;padding:10px 9px!important}
