@@ -1,3 +1,13 @@
+NBL FleetCommand — Version 97
+
+Version 97 - Sidebar Ribbon Redesign
+
+- Enlarged and strengthened the Operations, People, Finance, and Compliance module titles so they are visually distinct from their submodules.
+- Placed Daily Dispatch Board, Weekly Dispatch Planner, Meetings, Fleet Maintenance, Audit, and Motive directly under Operations in the requested order.
+- Placed Driver Pay, Settlements, Financial Analysis, Settlement Reports, and Revenue Finder directly under Finance in the requested order.
+- Removed the extra Dispatch and Reports submenu levels for a cleaner ribbon.
+- Corrected the displayed owner name capitalization to Mayur.
+
 NBL FleetCommand — Version 96
 
 Version 96 - Daily Dispatch Outcomes and Driver Refusals

@@ -236,7 +236,7 @@
         }
       }
     }
-    return {version:96,mileage,updatedAt:new Date().toISOString()};
+    return {version:97,mileage,updatedAt:new Date().toISOString()};
   }
   function normalizeCloudSettlementCatalog(data){
     const ss=data&&typeof data==='object'?data:{};
@@ -330,7 +330,7 @@
     if(signOut) signOut.classList.toggle('hidden',!cloudConnected());
     const sidebarUser=$('sidebarUserSummary');
     if(sidebarUser){
-      const name=state.cloud?.profile?.full_name||state.cloud?.user?.email?.split('@')[0]||'NBL User';
+      const name=displayPersonName(state.cloud?.profile?.full_name||state.cloud?.user?.email?.split('@')[0]||'NBL User');
       const role=state.cloud?.membership?.role||'member';
       const strong=sidebarUser.querySelector('strong'), small=sidebarUser.querySelector('small'), avatar=sidebarUser.querySelector('.sidebar-user-avatar');
       if(strong) strong.textContent=name;
@@ -340,7 +340,7 @@
     const summary=$('cloudAccountSummary');
     if(summary){
       summary.innerHTML=cloudConnected()
-        ? `<strong>${escapeHtml(state.cloud.organization?.name||'Nashbox Logistics')}</strong><br>${escapeHtml(state.cloud.profile?.full_name||state.cloud.user?.email||'')} • ${escapeHtml(state.cloud.user?.email||'')} • Role: ${escapeHtml(state.cloud.membership?.role||'member')}${state.cloud.lastSync?`<br>Last cloud sync: ${escapeHtml(new Date(state.cloud.lastSync).toLocaleString())}`:''}`
+        ? `<strong>${escapeHtml(state.cloud.organization?.name||'Nashbox Logistics')}</strong><br>${escapeHtml(displayPersonName(state.cloud.profile?.full_name||state.cloud.user?.email||''))} • ${escapeHtml(state.cloud.user?.email||'')} • Role: ${escapeHtml(state.cloud.membership?.role||'member')}${state.cloud.lastSync?`<br>Last cloud sync: ${escapeHtml(new Date(state.cloud.lastSync).toLocaleString())}`:''}`
         : 'Not connected to NBL Cloud.';
     }
     const profileBtn=$('myProfileBtn'); if(profileBtn) profileBtn.classList.toggle('hidden',!cloudConnected());
@@ -350,12 +350,12 @@
   async function saveCloudModule(moduleKey,silent=true){
     if(!cloudConnected()||!window.NBLCloud||!state.cloud?.organization?.id) return false;
     try{
-      const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'96');
-      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'96',updated_at:new Date().toISOString()};
+      const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,moduleKey,cloudSnapshotForModule(moduleKey),'97');
+      state.cloud.snapshots[moduleKey]=row||{module_key:moduleKey,data:cloudSnapshotForModule(moduleKey),source_version:'97',updated_at:new Date().toISOString()};
       if(moduleKey==='settlement'){
         const dashboardData=dashboardMileageSnapshot();
-        const dashboardRow=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,'dashboard',dashboardData,'96');
-        state.cloud.snapshots.dashboard=dashboardRow||{module_key:'dashboard',data:dashboardData,source_version:'96',updated_at:new Date().toISOString()};
+        const dashboardRow=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,'dashboard',dashboardData,'97');
+        state.cloud.snapshots.dashboard=dashboardRow||{module_key:'dashboard',data:dashboardData,source_version:'97',updated_at:new Date().toISOString()};
         state.dashboard.mileage=dashboardData.mileage;
       }
       state.cloud.hasSnapshotData=true; state.cloud.lastSync=new Date().toISOString(); updateCloudUI();
@@ -521,6 +521,10 @@
   const USER_ACCESS_ROLES=[
     ['admin','Admin'],['operations','Operations'],['hr','HR']
   ];
+  function displayPersonName(value){
+    const name=String(value||'').trim();
+    return name.toLowerCase()==='mayur'?'Mayur':name;
+  }
   function userRoleLabel(role){
     if(String(role||'').toLowerCase()==='owner') return 'Owner';
     return USER_ACCESS_ROLES.find(x=>x[0]===String(role||'').toLowerCase())?.[1]||String(role||'member');
@@ -563,7 +567,7 @@
       const uid=escapeHtml(u.user_id||'');
       const last=u.last_sign_in_at?new Date(u.last_sign_in_at).toLocaleString():'—';
       return `<tr data-user-access-row="${uid}">
-        <td>${owner?`<strong>${escapeHtml(u.full_name||'Owner')}</strong>`:`<input class="user-access-name" value="${escapeHtml(u.full_name||'')}" placeholder="Full name">`}</td>
+        <td>${owner?`<strong>${escapeHtml(displayPersonName(u.full_name||'Owner'))}</strong>`:`<input class="user-access-name" value="${escapeHtml(displayPersonName(u.full_name||''))}" placeholder="Full name">`}</td>
         <td>${escapeHtml(u.email||'')}</td>
         <td>${owner?'<span class="status-pill yes">Owner</span>':`<select class="user-access-role">${userRoleOptions(String(u.role||'').toLowerCase())}</select>`}</td>
         <td>${owner?'<span class="status-pill yes">Active</span>':`<select class="user-access-status"><option value="active" ${u.status==='active'?'selected':''}>Active</option><option value="inactive" ${u.status==='inactive'?'selected':''}>Inactive</option></select>`}</td>
@@ -603,7 +607,7 @@
   }
   function openMyProfile(){
     if(!cloudConnected()) return;
-    $('myProfileName').value=state.cloud.profile?.full_name||'';
+    $('myProfileName').value=displayPersonName(state.cloud.profile?.full_name||'');
     $('myProfileEmail').value=state.cloud.user?.email||'';
     $('myProfileRole').value=userRoleLabel(currentRole());
     $('myProfileNewPassword').value=''; $('myProfileConfirmPassword').value='';
@@ -611,7 +615,7 @@
   }
   async function saveMyProfileFromForm(e){
     e.preventDefault();
-    const name=String($('myProfileName')?.value||'').trim();
+    const name=displayPersonName($('myProfileName')?.value||'');
     const password=String($('myProfileNewPassword')?.value||'');
     const confirm=String($('myProfileConfirmPassword')?.value||'');
     const err=$('myProfileError');
@@ -1562,7 +1566,7 @@
     const prefs=dashboardPreferences();
     $('dashboardMilesSection').classList.toggle('hidden',!prefs.showMiles); $('dashboardDispatchSection').classList.toggle('hidden',!prefs.showDispatch);
     $('dashboardMaintenanceSection').classList.toggle('hidden',!prefs.showMaintenance); $('dashboardAttentionSection').classList.toggle('hidden',!prefs.showAttention);
-    const name=state.cloud?.profile?.full_name||state.cloud?.user?.email?.split('@')[0]||'';
+    const name=displayPersonName(state.cloud?.profile?.full_name||state.cloud?.user?.email?.split('@')[0]||'');
     $('dashboardGreeting').textContent=name?`Welcome back, ${name}`:'Welcome to FleetCommand';
     const rows=dashboardMileageRows(), ranges=dashboardRanges(), last=ranges.find(x=>x.key==='last'), mtd=ranges.find(x=>x.key==='mtd'), ytd=ranges.find(x=>x.key==='ytd');
     const mileCards=[['Last Week',last],['Month to Date',mtd],['Year to Date',ytd]].map(([label,r])=>[label,mileageInRange(rows,r.start,r.end)]);
