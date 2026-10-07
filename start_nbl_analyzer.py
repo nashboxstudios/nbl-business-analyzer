@@ -2627,14 +2627,19 @@ def _normalize_cdl_issuing_state(value):
 
 
 def _extract_latest_application_address(text):
-    """Return the current (or most recently started) address from Address History."""
+    """Return the address explicitly marked Current Through Today.
+
+    PDF text can concatenate values and the next label (GALLATINTo: or
+    apt 2102From:), so colon-bearing labels must not require word boundaries.
+    Leave the address blank when no unambiguous current entry is available.
+    """
     match = re.search(
         r'Address History\s*(.*?)(?:Driver(?:\'s)? License|Employment Additional Details|Employment History|$)',
         str(text or ''), re.I | re.S
     )
     if not match:
         return ''
-    section = match.group(1)[:5000]
+    section = match.group(1)
     lines = [re.sub(r'\s+', ' ', x).strip() for x in section.splitlines() if x.strip()]
     starts = [i for i, line in enumerate(lines) if re.match(r'^Country\s*:?', line, re.I)]
     candidates = []
@@ -2643,40 +2648,33 @@ def _extract_latest_application_address(text):
         joined = '\n'.join(block)
         region_match = re.search(r'Region\s*:?\s*(.+?)(?=\n|Address\s*1|$)', joined, re.I)
         region = region_match.group(1).strip() if region_match else ''
-        street_match = re.search(r'Address\s*1\s*:?\s*(.+?)(?=\s*ZIP Code/Postal Code\s*:?|\n|$)', joined, re.I)
+        street_match = re.search(r'Address\s*1\s*:?[ \t]*(.*?)(?=\s*ZIP Code/Postal Code\s*:?|\n|$)', joined, re.I)
         zip_match = re.search(r'ZIP Code/Postal Code\s*:?\s*([A-Z0-9 -]{3,12})(?=\n|$)', joined, re.I)
-        city_match = re.search(r'City\s*:?\s*(.+?)(?=To:|\s+To(?:\s|:)|\n|$)', joined, re.I)
-        to_match = re.search(r'\bTo\s*:?\s*(.+?)(?=\n|$)', joined, re.I)
-        from_match = re.search(r'\bFrom\s*:?\s*(\d{1,2}/\d{4}|\d{1,2}/\d{1,2}/\d{2,4}|[A-Za-z]+\s+\d{1,2},\s+\d{4})', joined, re.I)
+        city_match = re.search(r'City\s*:?[ \t]*(.*?)(?=To\s*:|\s+To(?:\s|:)|\n|$)', joined, re.I)
+        to_match = re.search(r'(?:To\s*:|(?:^|\s)To(?=\s))\s*(.+?)(?=\n|$)', joined, re.I)
         address2_match = re.search(r'Address\s*2\s*:?\s*(.*?)(?=\s*From\s*:?|\n|$)', joined, re.I)
         street = street_match.group(1).strip(' ,') if street_match else ''
         city = city_match.group(1).strip(' ,') if city_match else ''
         postal = zip_match.group(1).strip(' ,') if zip_match else ''
         address2 = address2_match.group(1).strip(' ,') if address2_match else ''
         to_value = to_match.group(1).strip() if to_match else ''
-        from_value = from_match.group(1).strip() if from_match else ''
         if not street or not city:
             continue
         candidates.append({
             'street': street, 'address2': address2, 'city': city,
-            'region': region, 'postal': postal, 'to': to_value, 'from': from_value,
+            'region': region, 'postal': postal, 'to': to_value,
         })
     if not candidates:
         return ''
 
-    current = [c for c in candidates if re.search(r'Current\s+Through\s+Today|\bCurrent\b', c['to'], re.I)]
-    if current:
-        chosen = current[0]
-    else:
-        def start_key(candidate):
-            raw = candidate.get('from') or ''
-            for fmt in ('%m/%Y', '%m/%d/%Y', '%m/%d/%y', '%B %d, %Y', '%b %d, %Y'):
-                try:
-                    return datetime.strptime(raw, fmt)
-                except ValueError:
-                    pass
-            return datetime.min
-        chosen = max(candidates, key=start_key)
+    current = [c for c in candidates if re.fullmatch(r'Current\s*Through\s*Today[.\s]*', c['to'], re.I)]
+    if not current:
+        return ''
+    addresses = {(c['street'].casefold(), c['address2'].casefold(), c['city'].casefold(),
+                  c['region'].casefold(), c['postal'].casefold()) for c in current}
+    if len(addresses) != 1:
+        return ''
+    chosen = current[0]
 
     state = _normalize_cdl_issuing_state(chosen['region']) or chosen['region']
     locality = ', '.join(x for x in (chosen['city'], state) if x)
@@ -3427,13 +3425,13 @@ def main():
     # that is still running from hijacking a newer build's browser window.
     server = ThreadingHTTPServer((HOST, REQUESTED_PORT), NBLHandler)
     actual_port = int(server.server_address[1])
-    url = f'http://localhost:{actual_port}/index.html?v=128'
+    url = f'http://localhost:{actual_port}/index.html?v=129'
     if PORT_FILE:
         try:
             Path(PORT_FILE).write_text(url, encoding='utf-8')
         except Exception:
             pass
-    print('NBL FleetCommand v128 is running.')
+    print('NBL FleetCommand v129 is running.')
     print(f'Open: {url}')
     print('Motive API credentials use MOTIVE_API_KEY when provided; local builds fall back to the protected local key file.')
     print('Keep this process running while using the app.')

@@ -1,3 +1,15 @@
+NBL FleetCommand — Version 129
+
+Version 129 - Current Application Address
+
+- Latest Address uses only the address-history entry explicitly marked Current Through Today, regardless of its position in the PDF.
+- Handles extracted PDF text with concatenated labels, such as GALLATINTo:Current Through Today.
+- Keeps apartment/unit details and does not select addresses from employment history.
+- When the current marker is missing, conflicting, or incomplete, no address is imported; an existing Latest Address is left unchanged.
+- Tested using the supplied First Advantage application and shuffled address histories; other imported fields remain unchanged.
+- Preserves all v128 candidate save and explicit deletion protection, v127 import confirmation, and hiring report/profile changes.
+- Deploy this package and refresh open FleetCommand tabs. No additional SQL migration is required for v129.
+
 NBL FleetCommand — Version 128
 
 Version 128 - Recruitment Candidate Save Protection
