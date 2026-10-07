@@ -6,7 +6,7 @@
   <title>NBL FleetCommand</title>
   <meta name="theme-color" content="#35164E" />
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=86" />
+  <link rel="stylesheet" href="styles.css?v=87" />
 </head>
 <body>
 
@@ -25,13 +25,14 @@
       <small>Access is controlled by Nashbox Logistics. Your password is handled by Supabase Auth and is not stored in the NBL application.</small>
     </div>
   </div>
+  <div class="mobile-sidebar-backdrop" id="mobileSidebarBackdrop" aria-hidden="true"></div>
   <div class="app-shell">
-    <aside class="sidebar">
+    <aside class="sidebar" id="appSidebar">
       <div class="brand">
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
         <div class="app-name">NBL FleetCommand</div>
         <div class="app-tagline">Operations Intelligence</div>
-        <div class="app-version">Version 86</div>
+        <div class="app-version">Version 87</div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-group" data-nav-group="operations">
@@ -86,6 +87,7 @@
 
     <main>
       <header class="topbar">
+        <button class="mobile-menu-btn" id="mobileMenuBtn" type="button" aria-label="Open navigation" aria-controls="appSidebar" aria-expanded="false"><span></span><span></span><span></span></button>
         <div>
           <h1 id="pageTitle">Driver Pay</h1>
           <p id="fileMeta">Choose your NBL business data folder to begin.</p>
@@ -1361,8 +1363,8 @@
     </div>
   </div>
 
-  <script src="core.js?v=86"></script>
-  <script src="cloud.js?v=86"></script>
-  <script src="app.js?v=86"></script>
+  <script src="core.js?v=87"></script>
+  <script src="cloud.js?v=87"></script>
+  <script src="app.js?v=87"></script>
 </body>
 </html>
