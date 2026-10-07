@@ -6,7 +6,7 @@
   <title>NBL FleetCommand</title>
   <meta name="theme-color" content="#35164E" />
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=89" />
+  <link rel="stylesheet" href="styles.css?v=90" />
 </head>
 <body>
 
@@ -32,7 +32,7 @@
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
         <div class="app-name">NBL FleetCommand</div>
         <div class="app-tagline">Operations Intelligence</div>
-        <div class="app-version">Version 89</div>
+        <div class="app-version">Version 90</div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-group" data-nav-group="operations">
@@ -63,6 +63,7 @@
           <div class="nav-group-items">
             <button class="nav-btn nav-btn-child active protected-nav" data-icon="$" data-screen="drivers">Driver Pay <em class="nav-lock">Locked</em></button>
             <button class="nav-btn nav-btn-child protected-nav" data-icon="$" data-screen="summary">Settlements <em class="nav-lock">Locked</em></button>
+            <button class="nav-btn nav-btn-child protected-nav" data-icon="P" data-screen="financial-analysis">Financial Analysis <em class="nav-lock">Locked</em></button>
             <div class="nav-subgroup protected-nav" data-finance-nav="reports">
               <div class="nav-subgroup-label"><span class="nav-section-icon">R</span> Reports <em class="nav-lock">Locked</em></div>
               <button class="nav-btn nav-btn-grandchild protected-nav" data-icon="S" data-screen="settlement-reports">Settlement Reports</button>
@@ -241,6 +242,52 @@
             <div id="fuelEfficiencyBars" class="analysis-bars reports-bars"></div>
             <div class="table-wrap"><table id="fuelEfficiencyTable" class="reports-table fuel-efficiency-table"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
             <div class="reports-method-note">Fuel efficiency uses the Fuel Purchases section of the selected FedEx settlements. Tractors without fuel-purchase gallons in the range display MPG as unavailable.</div>
+          </div>
+        </div>
+
+        <div id="financialAnalysisScreen" class="screen hidden">
+          <div class="reports-toolbar financial-analysis-toolbar">
+            <div>
+              <span class="eyebrow">Finance / Financial Analysis</span>
+              <h2>P&amp;L Analysis</h2>
+              <p>Monitor profitability, core payroll, and employee-related costs across any selected reporting period.</p>
+            </div>
+            <label class="button primary file-button">Import P&amp;L Workbook<input id="financialPlInput" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label>
+          </div>
+
+          <div id="financialAnalysisEmpty" class="financial-analysis-empty">
+            <div class="upload-icon">↥</div><h3>Import a QuickBooks P&amp;L workbook</h3>
+            <p>Use the weekly Profit and Loss by Month workbook. The imported analysis is saved in this browser.</p>
+          </div>
+
+          <div id="financialAnalysisBody" class="hidden">
+            <div class="panel reports-filter-panel">
+              <div class="reports-filter-grid financial-filter-grid">
+                <div class="form-field"><label>Start Week</label><select id="financialStartPeriod"></select></div>
+                <div class="form-field"><label>End Week</label><select id="financialEndPeriod"></select></div>
+                <button class="button primary" id="refreshFinancialAnalysisBtn" type="button">Update Analysis</button>
+                <div class="reports-range-note" id="financialRangeNote"></div>
+              </div>
+            </div>
+
+            <div class="summary-grid financial-summary-grid" id="financialSummaryCards"></div>
+
+            <div class="financial-chart-grid">
+              <div class="panel financial-chart-panel">
+                <div class="panel-heading"><div><h2>Income &amp; Profit Trend</h2><p>Total income, gross profit, operating income, and net income by week.</p></div></div>
+                <div class="financial-chart" id="financialProfitChart"></div>
+              </div>
+              <div class="panel financial-chart-panel">
+                <div class="panel-heading"><div><h2>Cost Ratio Trend</h2><p>Key costs shown as a percentage of Total Income.</p></div></div>
+                <div class="financial-chart" id="financialCostChart"></div>
+              </div>
+            </div>
+
+            <div class="panel reports-panel">
+              <div class="panel-heading"><div><h2>Weekly P&amp;L Detail</h2><p>Core payroll includes salaries and payroll deductions only. Employee-related costs remain separate.</p></div><div class="history-count" id="financialPeriodCount"></div></div>
+              <div class="table-wrap"><table id="financialAnalysisTable" class="reports-table financial-analysis-table"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
+              <div class="reports-method-note">Employee-related costs include workers’ compensation, employee incentives, and health and accident insurance. Payroll Apps remain an operating expense and are not included in either measure.</div>
+            </div>
           </div>
         </div>
 
@@ -1363,8 +1410,8 @@
     </div>
   </div>
 
-  <script src="core.js?v=89"></script>
-  <script src="cloud.js?v=89"></script>
-  <script src="app.js?v=89"></script>
+  <script src="core.js?v=90"></script>
+  <script src="cloud.js?v=90"></script>
+  <script src="app.js?v=90"></script>
 </body>
 </html>
