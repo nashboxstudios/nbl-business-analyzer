@@ -1,4 +1,10 @@
-NBL FleetCommand — Version 131
+NBL FleetCommand — Version 132
+
+Version 132 - Road Test and Candidate Profile
+- Recruitment Test road test now records Time From / Time To and fills the PDF test-time fields.
+- Road test exports apply candidate and administrator signatures to all seven required lines, matching original Recruitment.
+- Position & Offer no longer shows Hiring Manager Notes. Onboarding Tasks appears before Training.
+- Existing notes and other candidate data are retained.
 
 Version 131 - Ops Manager Interview Review
 - Driver Qualifications no longer contains doubles fields; doubles information is

@@ -11,7 +11,8 @@ p.stage='Ops Interview';Object.assign(p.ops,{agreedDays:'Mon-Fri',dispatchAgreem
 assert.deepEqual(E.validate(c),[]);
 const previous=E.normalize(c);p.ops.dispatchAgreement='8 AM dispatch accepted';E.reconcile(previous,c);assert.equal(p.ops.confirmedSchedule,undefined);assert(E.validate(c).length>0);
 p.onHold=true;assert(E.validate(c).includes('Resume this candidate from Hold'));p.onHold=false;E.recordOpsAgreements(c,'Ops');
-p.stage='Road Test';c.roadTest='Pass';Object.assign(c.roadTestForm,{date:'2026-10-06',testAdminName:'Road Reviewer'});assert.deepEqual(E.validate(c),[]);
+p.stage='Road Test';c.roadTest='Pass';Object.assign(c.roadTestForm,{date:'2026-10-06',testAdminName:'Road Reviewer',timeFrom:'09:15',timeTo:'10:30'});assert.deepEqual(E.validate(c),[]);
+delete c.roadTestForm.timeFrom;assert(E.validate(c).includes('Road test time from'));c.roadTestForm.timeFrom='09:15';
 p.stage='Offer & Onboarding';c.offerLetter='Accepted';c.startDate='2026-10-10';Object.assign(p.onboarding,{adp:'Sent',sf:'Complete',motive:'Sent'});assert.deepEqual(E.validate(c),[]);
 p.stage='Training';Object.assign(p.training,{trainer:'Trainer',completedDate:'2026-10-12',result:'Complete'});assert(E.validate(c).includes('FADV: Complete'));p.background.fadvStatus='Complete';p.background.drugStatus='Pass';assert.deepEqual(E.validate(c),[]);
 // The updated questionnaire is distinct from legacy willingness / shift checkboxes.

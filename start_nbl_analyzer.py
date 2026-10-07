@@ -2991,6 +2991,16 @@ def build_hr_road_test_pdf(payload):
     candidate_signature_png = road.get('candidate_signature_png') or ''
     admin_signature_png = road.get('admin_signature_png') or ''
     month, day, year = _road_test_date_parts(road.get('date'))
+    # Older Production Recruitment exports may omit both times. New Test exports
+    # require the pair in the UI; never write an incomplete or malformed pair.
+    time_from = str(road.get('time_from') or '').strip()
+    time_to = str(road.get('time_to') or '').strip()
+    if time_from or time_to:
+        try:
+            time_from = datetime.strptime(time_from, '%H:%M').strftime('%I:%M %p')
+            time_to = datetime.strptime(time_to, '%H:%M').strftime('%I:%M %p')
+        except ValueError as exc:
+            raise RuntimeError('Enter both road-test times in HH:MM format.') from exc
 
     if not candidate_name:
         raise RuntimeError('Candidate name is required for the road-test form.')
@@ -3027,6 +3037,7 @@ def build_hr_road_test_pdf(payload):
             'Driver License Number': cdl_number,
             'Issuing StateProvince': cdl_issuing_state,
             'Numerical Month': month, 'Numerical Day': day, 'Year': year,
+            'Time of Test  From': time_from, 'To': time_to,
         },
     }
     signature_overlays = {
@@ -3057,6 +3068,7 @@ def build_hr_road_test_pdf(payload):
             continue
         page = writer.pages[page_index]
         set_field_font(page, set(values), 9)
+        set_field_font(page, {'Time of Test  From', 'To'} & set(values), 8)
         writer.update_page_form_field_values(page, values, auto_regenerate=False)
 
     # Render signatures as permanent transparent PNG stamps so they look handwritten
@@ -3425,13 +3437,13 @@ def main():
     # that is still running from hijacking a newer build's browser window.
     server = ThreadingHTTPServer((HOST, REQUESTED_PORT), NBLHandler)
     actual_port = int(server.server_address[1])
-    url = f'http://localhost:{actual_port}/index.html?v=131'
+    url = f'http://localhost:{actual_port}/index.html?v=132'
     if PORT_FILE:
         try:
             Path(PORT_FILE).write_text(url, encoding='utf-8')
         except Exception:
             pass
-    print('NBL FleetCommand v131 is running.')
+    print('NBL FleetCommand v132 is running.')
     print(f'Open: {url}')
     print('Motive API credentials use MOTIVE_API_KEY when provided; local builds fall back to the protected local key file.')
     print('Keep this process running while using the app.')

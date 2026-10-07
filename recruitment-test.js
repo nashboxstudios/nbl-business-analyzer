@@ -71,7 +71,7 @@ function validate(c){
   for(const [k,l] of [['agreedDays','Work days agreed upon'],['dispatchAgreement','Dispatch schedule times explained and agreed upon'],['doublesAgreement','Doubles requirement explained and agreed upon']])need(o[k],l);
   if(o.confirmedSchedule!==scheduleKey(c))errors.push('Save the recorded Ops agreements');
  }else if(p.stage==='Road Test'){
-  if(c.roadTest!=='Pass')errors.push('Road test: Pass');need(r.date,'Road test date');need(r.testAdminName,'Road test administrator');
+  if(c.roadTest!=='Pass')errors.push('Road test: Pass');need(r.date,'Road test date');need(r.testAdminName,'Road test administrator');need(r.timeFrom,'Road test time from');need(r.timeTo,'Road test time to');
  }else if(p.stage==='Offer & Onboarding'){
   if(c.offerLetter!=='Accepted')errors.push('Offer: Accepted');need(c.startDate,'Start date');
   for(const k of ['adp','sf','motive'])if(p.onboarding[k]!=='Sent'&&p.onboarding[k]!=='Complete')errors.push(`${k.toUpperCase()} access sent`);
@@ -190,11 +190,11 @@ function profile(){
  ${section('Background & Drug Screen',pf('background','applicationSent','FADV application sent','date')+pf('background','fadvStatus','FADV status','text',['Not Sent','Sent','In Progress','Stuck','Complete'])+pf('background','drugStatus','Drug screen status','text',['Not Sent','Sent','Scheduled','Pending','Pass','Fail'])+pf('background','drugSent','Drug screen email sent','date')+pf('background','readyForOps','Manager: application has progressed enough to schedule Ops','checkbox')+pf('background','notes','Background / drug-screen notes','textarea')+'<p class="rt-wide rt-help">FADV and drug screen continue independently when the candidate moves to Ops.</p>',p.stage==='Background & Drug Screen')}
  ${section('Hiring Summary',summary)}
  ${section('Ops Interview',pf('ops','agreedDays','Work Days Agreed Upon')+pf('ops','dispatchAgreement','Dispatch Schedule Times Explained And Agreed Upon')+pf('ops','doublesAgreement','Doubles Requirement Explained And Agreed Upon')+`<p class="rt-wide rt-help">Record the candidate’s agreement in each text field. Include the working days, shift and approximate dispatch times, and whether pulling and assembling doubles is required.</p>`+(p.ops.shiftStart||p.ops.dispatchTime||p.ops.doublesRequired?`<p class="rt-wide rt-help">Previous Ops details: shift ${esc(p.ops.shiftStart||'—')} to ${esc(p.ops.shiftEnd||'—')}; dispatch ${esc(p.ops.dispatchTime||'—')}; doubles ${esc(p.ops.doublesRequired||'—')}. Schedule acceptance: ${esc(p.ops.scheduleAccepted||'Not recorded')}; doubles acceptance: ${esc(p.ops.doublesAccepted||'Not recorded')}.</p>`:''),p.stage==='Ops Interview')}
- ${section('Road Test',f('roadTest','Road test status','text',['Not Scheduled','Scheduled','Pass','Fail'])+f('roadTestForm.date','Test date','date')+f('roadTestForm.testAdminName','Administrator')+f('roadTestForm.testAdminFedexId','Administrator FedEx ID')+f('roadTestForm.certificateNumber','Certificate number')+f('roadTestForm.tractorNumber','Tractor number')+f('roadTestForm.trailerNumber','Trailer number')+pf('training','roadNotes','Road test notes','textarea')+`<button type="button" class="button secondary" id="rtRoadPdf">Export Road Test PDF</button>`,p.stage==='Road Test')}
- ${section('Position & Offer',f('type','Part / Full Time','text',['Full Time','Part Time'])+f('position','Position')+f('shift','Shift preference','text',['Day','Night','Flexible'])+f('hiringSummary.proposedPay','Proposed pay')+f('offerLetter','Offer letter status','text',['Not Sent','Sent','Accepted','Declined'])+f('startDate','Proposed start date','date')+f('hiringSummary.notes','Hiring manager notes','textarea'),p.stage==='Offer & Onboarding')}
+ ${section('Road Test',f('roadTest','Road test status','text',['Not Scheduled','Scheduled','Pass','Fail'])+f('roadTestForm.date','Test date','date')+f('roadTestForm.timeFrom','Time From','time')+f('roadTestForm.timeTo','Time To','time')+f('roadTestForm.testAdminName','Administrator')+f('roadTestForm.testAdminFedexId','Administrator FedEx ID')+f('roadTestForm.certificateNumber','Certificate number')+f('roadTestForm.tractorNumber','Tractor number')+f('roadTestForm.trailerNumber','Trailer number')+pf('training','roadNotes','Road test notes','textarea')+`<button type="button" class="button secondary" id="rtRoadPdf">Export Road Test PDF</button>`,p.stage==='Road Test')}
+ ${section('Position & Offer',f('type','Part / Full Time','text',['Full Time','Part Time'])+f('position','Position')+f('shift','Shift preference','text',['Day','Night','Flexible'])+f('hiringSummary.proposedPay','Proposed pay')+f('offerLetter','Offer letter status','text',['Not Sent','Sent','Accepted','Declined'])+f('startDate','Proposed start date','date'),p.stage==='Offer & Onboarding')}
 
- ${section('Training',pf('training','startDate','Training start date','date')+pf('training','trainer','Trainer')+pf('training','result','Training result','text',['Not Started','In Progress','Complete'])+pf('training','completedDate','Completed date','date')+pf('training','notes','Training notes','textarea'),p.stage==='Training')}
  ${section('Onboarding Tasks',['adp','sf','motive','handbook','connectTeams','eVerify'].map(k=>pf('onboarding',k,k==='handbook'?'Handbook':k==='connectTeams'?'Connect Teams':k==='eVerify'?'E-Verify':k.toUpperCase()+' access','text',['Not Sent','Sent','Complete',...(k==='handbook'?['Signed']:[])])).join('')+pf('onboarding','notes','Onboarding notes','textarea'),p.stage==='Offer & Onboarding')}
+ ${section('Training',pf('training','startDate','Training start date','date')+pf('training','trainer','Trainer')+pf('training','result','Training result','text',['Not Started','In Progress','Complete'])+pf('training','completedDate','Completed date','date')+pf('training','notes','Training notes','textarea'),p.stage==='Training')}
  ${section('Document Upload',`<div class="rt-wide" id="rtDocuments">${docs||'<p>No documents.</p>'}</div><p class="rt-wide rt-help">Removing a document here only removes the test reference. Uploads are stored under this test candidate. Do not upload SSN documents.</p><label class="rt-field"><span>Document label</span><input id="rtDocLabel"></label><label class="rt-field"><span>Document expiry (optional)</span><input type="date" id="rtDocExpiry"></label><label class="rt-field"><span>Upload document</span><input type="file" id="rtDocFile" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.doc,.docx"></label><button type="button" class="button secondary" id="rtUpload">Upload & Save</button><label class="rt-field rt-wide"><span>Import driver data from application PDF</span><input type="file" id="rtImportFile" accept=".pdf,application/pdf"></label><button type="button" class="button secondary" id="rtImport">Read Application PDF</button>`)}
  <div class="rt-footer"><button type="submit" class="button primary" id="rtSave">Save Draft</button><button type="button" class="button secondary" id="rtAdvance"${p.stage==='Regular Employee'?' disabled':''}>${p.stage==='Training'?'Complete Training / Hire':'Move to Next Stage'}</button></div></form>`;
 }
@@ -260,10 +260,44 @@ async function importPdf(){
   el('rtModal').innerHTML=profile();bindProfile();message('Driver data added to draft. Review the fields and Save Draft.');
  }catch(e){message(e.message,true);}finally{lock(false);}
 }
+// Match the original Recruitment module’s name-based electronic signatures.
+  function createRoadTestSignaturePng(name){
+    const text=String(name||'').trim();
+    if(!text) return '';
+    const probe=document.createElement('canvas');
+    const pctx=probe.getContext('2d');
+    let fontSize=112;
+    const fontStack='"Snell Roundhand", "Apple Chancery", "Brush Script MT", "Segoe Script", cursive';
+    pctx.font=`italic ${fontSize}px ${fontStack}`;
+    let width=pctx.measureText(text).width;
+    const maxTextWidth=1250;
+    if(width>maxTextWidth){ fontSize=Math.max(70,Math.floor(fontSize*(maxTextWidth/width))); pctx.font=`italic ${fontSize}px ${fontStack}`; width=pctx.measureText(text).width; }
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.ceil(Math.min(1450,width+180)); canvas.height=180;
+    const ctx=canvas.getContext('2d');
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.save();
+    ctx.translate(35,4);
+    ctx.transform(1,0,-0.055,1,0,0);
+    ctx.font=`italic ${fontSize}px ${fontStack}`;
+    ctx.textBaseline='alphabetic';
+    ctx.fillStyle='#101010';
+    ctx.globalAlpha=.96;
+    ctx.fillText(text,20,120);
+    const measured=Math.min(width,canvas.width-130);
+    ctx.strokeStyle='#101010'; ctx.lineWidth=2.3; ctx.lineCap='round'; ctx.globalAlpha=.82;
+    ctx.beginPath();
+    ctx.moveTo(30,143);
+    ctx.bezierCurveTo(35+measured*.22,153,35+measured*.72,148,65+measured,136);
+    ctx.stroke();
+    ctx.restore();
+    return canvas.toDataURL('image/png');
+  }
 async function roadPdf(){
  if(busy)return;collect();const c=clone(draft),r=c.roadTestForm;
- if(['date','testAdminName','testAdminFedexId','certificateNumber','tractorNumber','trailerNumber'].some(k=>!r[k])){message('Complete all six road test form fields before export.',true);return;}
- lock(true);try{const res=await fetch('/api/hr/road-test',{method:'POST',headers:await authHeaders(),body:JSON.stringify({candidate:{name:c.name,fedex_id:c.fedexId||'',cdl_number:c.cdlNumber||'',cdl_issuing_state:c.cdlIssuingState||''},road_test:{date:r.date,test_admin_name:r.testAdminName,test_admin_fedex_id:r.testAdminFedexId,certificate_number:r.certificateNumber,tractor_number:r.tractorNumber,trailer_number:r.trailerNumber}})});if(!res.ok){const data=await res.json();throw new Error(data.error||'Road test export failed.');}const url=URL.createObjectURL(await res.blob()),a=document.createElement('a');a.href=url;a.download='TEST_Road_Test_'+c.name.replace(/[^a-z0-9]/gi,'_')+'.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);message('Test road form exported. Save Draft to keep edited form fields.');}catch(e){message(e.message,true);}finally{lock(false);}
+ if(['date','timeFrom','timeTo','testAdminName','testAdminFedexId','certificateNumber','tractorNumber','trailerNumber'].some(k=>!r[k])){message('Complete all road test form fields, including Time From and Time To, before export.',true);return;}
+ if(!String(c.name||'').trim()){message('Enter the candidate name before exporting the signed road test.',true);return;}
+ lock(true);try{const res=await fetch('/api/hr/road-test',{method:'POST',headers:await authHeaders(),body:JSON.stringify({candidate:{name:c.name,fedex_id:c.fedexId||'',cdl_number:c.cdlNumber||'',cdl_issuing_state:c.cdlIssuingState||''},road_test:{date:r.date,time_from:r.timeFrom,time_to:r.timeTo,test_admin_name:r.testAdminName,test_admin_fedex_id:r.testAdminFedexId,certificate_number:r.certificateNumber,tractor_number:r.tractorNumber,trailer_number:r.trailerNumber,candidate_signature_png:createRoadTestSignaturePng(c.name),admin_signature_png:createRoadTestSignaturePng(r.testAdminName)}})});if(!res.ok){const data=await res.json();throw new Error(data.error||'Road test export failed.');}const url=URL.createObjectURL(await res.blob()),a=document.createElement('a');a.href=url;a.download='TEST_Road_Test_'+c.name.replace(/[^a-z0-9]/gi,'_')+'.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);message('Test road form exported. Save Draft to keep edited form fields.');}catch(e){message(e.message,true);}finally{lock(false);}
 }
 function summary(c){
  const tab=root.open('about:blank','_blank');if(!tab){message('Allow popups to print the summary.',true);return;}
