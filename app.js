@@ -163,12 +163,10 @@
     const key=String(moduleKey||'').trim();
     const role=currentRole(), perms=currentModulePermissions();
     if(FINANCE_MODULE_KEYS.has(key)) return role==='owner';
-    if(role==='owner'||role==='admin'||perms.all===true) return true;
-    if(role==='hr' && key==='hr') return true;
+    if(role==='owner') return true;
     if(key==='dashboard') return true;
-    if(role==='operations' && ['safety','maintenance','meetings','dispatch','audit','ivmr','motive'].includes(key)) return true;
-    if(role==='read_only' && writeAccess) return false;
-    return perms[key]===true;
+    if(['operations','lead_driver'].includes(role) && ['safety','maintenance','meetings','dispatch','audit','ivmr','motive','hr'].includes(key)) return true;
+    return false;
   }
   function canAccessScreen(screen){
     if(screen==='users') return cloudConnected() && isOwnerAccount();
@@ -188,6 +186,12 @@
     document.querySelector('[data-finance-nav="reports"]')?.classList.toggle('hidden',!isOwnerAccount());
     ['folderStatus','chooseFolderBtn','refreshFolderBtn','emptyChooseFolderBtn','uploadStatementBtn','emptyUploadStatementBtn'].forEach(id=>$(id)?.classList.toggle('hidden',!isOwnerAccount()));
     document.querySelector('[data-nav-group="finance"]')?.classList.toggle('hidden',!isOwnerAccount());
+    document.querySelector('[data-nav-group="compliance"]')?.classList.toggle('hidden',!isOwnerAccount());
+    document.querySelectorAll('.nav-group').forEach(group=>{
+      if(group.dataset.navGroup==='finance'||group.dataset.navGroup==='compliance') return;
+      const hasVisibleChild=[...group.querySelectorAll('.nav-btn[data-screen]')].some(btn=>!btn.classList.contains('hidden'));
+      group.classList.toggle('hidden',!hasVisibleChild);
+    });
     if(!isOwnerAccount()){
       state.finance.unlocked=false;
       if(state.finance.autoLockTimer) clearTimeout(state.finance.autoLockTimer);
@@ -237,7 +241,7 @@
         }
       }
     }
-    return {version:104,mileage,updatedAt:new Date().toISOString()};
+    return {version:105,mileage,updatedAt:new Date().toISOString()};
   }
   function normalizeCloudSettlementCatalog(data){
     const ss=data&&typeof data==='object'?data:{};
@@ -523,7 +527,7 @@
   function openCloudSync(){ updateCloudUI(); $('cloudSyncProgress')?.classList.add('hidden'); openModal('cloudSyncModal'); }
 
   const USER_ACCESS_ROLES=[
-    ['admin','Admin'],['operations','Operations'],['hr','HR']
+    ['operations','Operations Manager'],['lead_driver','Lead Driver']
   ];
   function displayPersonName(value){
     const name=String(value||'').trim();
@@ -558,7 +562,7 @@
       const configured=state.cloud.userServiceConfigured;
       status.className=`cloud-sync-warning ${configured?'user-access-ready':'user-access-needs-key'}`;
       status.innerHTML=configured
-        ? '<strong>User management is ready</strong><p>Only the Owner can create or change NBL user access. Driver Pay, Settlement, Reports, and Revenue Finder are never available to non-owner profiles.</p>'
+        ? '<strong>User management is ready</strong><p>Only the Owner can create or change access. Operations Managers and Lead Drivers can use Dashboard, Safety, Operations, and Recruitment only.</p>'
         : `<strong>User creation needs one Railway secret</strong><p>${escapeHtml(state.cloud.userAccessError||'Add SUPABASE_SECRET_KEY under Railway → web → Variables. The key stays server-side and is never exposed to users.')}</p>`;
     }
     const createBtn=$('createNblUserBtn'); if(createBtn) createBtn.disabled=!state.cloud.userServiceConfigured || state.cloud.usersLoading;
