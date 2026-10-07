@@ -693,33 +693,3 @@ body .sidebar{position:fixed;top:0;bottom:0;left:0;z-index:1002;width:min(86vw,3
 
 /* v97: clearer primary navigation hierarchy */
 .sidebar .nav-group-toggle{min-height:34px;padding:7px 8px 8px;font-size:14px;font-weight:900;letter-spacing:.055em;color:#fff}.sidebar .nav-group-chevron{font-size:13px;color:rgba(255,255,255,.62)}.sidebar .nav-group-items{gap:3px;padding-top:1px}.sidebar .nav-btn-child,.sidebar .nav-btn-grandchild{padding-left:43px;font-size:11.5px;font-weight:700;color:rgba(255,255,255,.79)}.sidebar .nav-btn-grandchild{padding-left:43px}.sidebar .nav-btn-grandchild[data-icon]::before{left:10px;width:23px;height:23px}.sidebar .nav-btn-child:hover,.sidebar .nav-btn-grandchild:hover{color:#fff}.sidebar .nav-btn.active{color:#fff;font-weight:800}
-
-/* v122: top incident types for the selected driver and reporting period */
-.safety-top-incidents{list-style:none;margin:0;padding:8px 0;display:grid;gap:24px}
-.safety-top-incident-heading{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:9px;font-size:12px}
-.safety-top-incident-heading strong{color:var(--navy2);overflow-wrap:anywhere}
-.safety-top-incident-heading span{color:var(--muted);white-space:nowrap}
-.safety-incident-bar{height:14px;border-radius:7px;background:#f0eaf3;overflow:hidden}
-.safety-incident-bar span{display:block;height:100%;border-radius:7px;background:#35164e}
-.safety-chart-note{margin:6px 0 0;color:#887b8f;font-size:11px}
-
-/* Candidate hiring summary */
-.hiring-summary-editor{border-top:1px solid #e0e7ed;margin:20px 0;padding-top:18px;scroll-margin-top:16px}
-.hiring-summary-actions{display:flex;gap:9px;flex-wrap:wrap}
-#hiringSummaryPreviewModal{z-index:65}
-.hiring-summary-preview-card{width:min(860px,100%)}
-.hiring-report{color:#243746;background:#fff;font-family:Arial,sans-serif;font-size:14px;line-height:1.55;padding:12px;overflow-wrap:anywhere}
-.hiring-report header{display:flex;gap:22px;align-items:center;border-bottom:2px solid #35164e;padding-bottom:16px;margin-bottom:18px}
-.hiring-report header img{width:76px;height:76px;object-fit:contain}
-.hiring-report header span{color:#35164e;font-weight:700;font-size:15px}
-.hiring-report header h2{margin:5px 0;font-size:24px;color:#243746}
-.hiring-report header p{margin:0;font-size:13px;color:#657285}
-.hiring-report section{margin-bottom:18px}
-.hiring-report h3{background:#eee8f2;color:#35164e;padding:7px 11px;margin:0 0 8px;font-size:15px}
-.hiring-report-notes{white-space:pre-wrap;margin:8px 11px}
-.hiring-report dl{margin:0}
-.hiring-report dl>div{display:grid;grid-template-columns:38% 1fr;padding:7px 11px;gap:16px}
-.hiring-report dl>div:nth-child(odd){background:#f5f7f9}
-.hiring-report dt{color:#526478}.hiring-report dd{margin:0;white-space:pre-wrap}
-.hiring-report dd.complete{color:#216743}.hiring-report dd.issue{color:#a12e2e}.hiring-report dd.pending{color:#8a5d12}
-@media(max-width:600px){.hiring-report{padding:0}.hiring-report header{gap:12px}.hiring-report header img{width:48px;height:48px}.hiring-report header h2{font-size:21px}.hiring-report dl>div{grid-template-columns:1fr;gap:3px}.hiring-summary-editor .form-grid.two{grid-template-columns:1fr}.hiring-summary-actions .button{flex:1 1 120px}}

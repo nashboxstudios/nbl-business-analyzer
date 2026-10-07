@@ -2774,7 +2774,7 @@
       case 'startDate': return c.startDate?fmtDate(c.startDate):'—';
       case 'recruitmentStatus': return recruitmentStatusPill(c.recruitmentStatus);
       case 'daysInProcess': return recruitmentDaysPill(c);
-      case 'actions': return `<div class="row-actions"><button class="table-action" data-hiring-summary-candidate="${escapeHtml(c.id)}">Hiring Summary</button><button class="table-action road-test-action" data-road-test-candidate="${escapeHtml(c.id)}">Road Test</button><button class="table-action" data-edit-recruitment-candidate="${escapeHtml(c.id)}">Edit</button><button class="table-action danger-link" data-delete-recruitment-candidate="${escapeHtml(c.id)}">Delete</button></div>`;
+      case 'actions': return `<div class="row-actions"><button class="table-action road-test-action" data-road-test-candidate="${escapeHtml(c.id)}">Road Test</button><button class="table-action" data-edit-recruitment-candidate="${escapeHtml(c.id)}">Edit</button><button class="table-action danger-link" data-delete-recruitment-candidate="${escapeHtml(c.id)}">Delete</button></div>`;
       default: return '—';
     }
   }
@@ -3205,111 +3205,6 @@
       showAlert('Could not parse the application PDF: '+escapeHtml(err.message),'error');
     }finally{ if($('recruitmentApplicationPdfInput')) $('recruitmentApplicationPdfInput').value=''; }
   }
-  // Hiring reports use an explicit allowlist; never export the candidate object.
-  const HIRING_SUMMARY_INPUTS = {
-    notes:'hiringSummaryNotesInput',payRate:'hiringSummaryPayRateInput',payBasis:'hiringSummaryPayBasisInput',
-    schedule:'hiringSummaryScheduleInput',medicalCardExpiry:'hiringSummaryMedicalExpiryInput',
-    tractorTrailerYears:'hiringSummaryExperienceInput',doublesExperience:'hiringSummaryDoublesExperienceInput',fedexExperience:'hiringSummaryFedexExperienceInput'
-  };
-  function hiringMedicalExpiry(candidate){
-    const dates=[...new Set(recruitmentDocumentSlots(candidate).filter(d=>/\b(med(?:ical)?\s*(?:card|certificate)|dot\s*(?:physical|medical)|medical\s*examiner)\b/i.test(d.label||'')).map(d=>d.expiry).filter(Boolean))];
-    return dates.length===1?dates[0]:(dates.length>1?'':candidate?.medCardExpiry||'');
-  }
-  function populateHiringSummary(candidate){
-    for(const [key,id] of Object.entries(HIRING_SUMMARY_INPUTS)) $(id).value=candidate?.hiringSummary?.[key]??'';
-    const autoDate=hiringMedicalExpiry(candidate);
-    $('hiringSummaryMedicalHelp').textContent=autoDate?`Leave blank to use the medical card document expiry: ${fmtDate(autoDate)}.`:'Enter the applicable medical card expiry, or leave blank to use a dated medical card document.';
-    $('hiringSummarySaveStatus').textContent='Save Summary saves these details with the candidate profile.';
-  }
-  function hiringSummaryInputs(){
-    const result={version:1};
-    for(const [key,id] of Object.entries(HIRING_SUMMARY_INPUTS)){
-      const value=String($(id)?.value||'').trim();
-      result[key]=['payRate','tractorTrailerYears'].includes(key)?(value===''?null:Number(value)):value;
-    }
-    return result;
-  }
-  function hiringSummaryCandidateFromForm(){
-    const form=$('recruitmentCandidateForm');if(!form.reportValidity())return null;
-    const documents=Object.fromEntries(Array.from({length:5},(_,i)=>[`slot${i+1}`,{label:$(`recruitmentDocument${i+1}Label`).value,expiry:$(`recruitmentDocument${i+1}Expiry`).value}]));
-    const existing=(state.hr.candidates||[]).find(c=>c.id===$('recruitmentCandidateId').value);
-    return {name:$('recruitmentNameInput').value.trim(),domicile:$('recruitmentDomicileInput').value.trim(),shift:$('recruitmentShiftInput').value,startDate:$('recruitmentStartDateInput').value,
-      fadvStatus:$('recruitmentFadvStatusInput').value,drugTest:$('recruitmentDrugTestInput').value,roadTest:$('recruitmentRoadTestInput').value,equipmentFam:$('recruitmentEquipmentFamInput').value,
-      doubles:$('recruitmentDoublesInput').value,cdlExpiry:$('recruitmentCdlExpiryInput').value,cdlIssuingState:$('recruitmentCdlIssuingStateInput').value.trim(),
-      medCardExpiry:existing?.medCardExpiry||'',documents,hiringSummary:hiringSummaryInputs()};
-  }
-  function hiringSummaryReport(candidate){
-    const h=candidate.hiringSummary||{},text=v=>v==null||String(v).trim()===''?'Not provided':String(v).trim(),date=v=>v?fmtDate(v):'Not provided';
-    const rate=h.payRate==null||h.payRate===''?'Not provided':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(h.payRate));
-    return {name:text(candidate.name),terminal:text(candidate.domicile),date:fmtDate(todayIso()),notes:text(h.notes),sections:[
-      {title:'Position & Offer',rows:[['Proposed Pay Rate',rate],['Pay Basis',text(h.payBasis)],['Schedule Discussed',text(h.schedule)],['Shift',text(candidate.shift)],['Proposed Start Date',date(candidate.startDate)]]},
-      {title:'Hiring Requirements',rows:[['Background / FADV Status',text(candidate.fadvStatus)],['Drug Screen Status',text(candidate.drugTest)],['Road Test Status',text(candidate.roadTest)],['Equipment Familiarization',text(candidate.equipmentFam)],['Doubles Endorsement',text(candidate.doubles)],['CDL Expiry Date',date(candidate.cdlExpiry)],['CDL Issuing State',text(candidate.cdlIssuingState)],['Medical Card Expiry Date',date(h.medicalCardExpiry||hiringMedicalExpiry(candidate))]]},
-      {title:'Experience',rows:[['Years of Tractor-Trailer Experience',text(h.tractorTrailerYears)],['Doubles Driving Experience',text(h.doublesExperience)],['FedEx Experience',text(h.fedexExperience)]]}
-    ]};
-  }
-  function hiringStatusClass(value){
-    return /^(Pass|Complete|Yes)$/i.test(value)?'complete':/^(Fail|Stuck)$/i.test(value)?'issue':/^(Taken|Sent|Scheduled|In Progress|Not Scheduled|Incomplete)$/i.test(value)?'pending':'';
-  }
-  function previewHiringSummary(){
-    const candidate=hiringSummaryCandidateFromForm();if(!candidate)return;
-    const r=hiringSummaryReport(candidate);state.hiringSummaryPreview=r;
-    $('hiringSummaryPreviewContent').innerHTML=`<article class="hiring-report"><header><img src="assets/nashbox-logistics-logo.png" alt="Nashbox Logistics"><div><span>Candidate Hiring Summary</span><h2>${escapeHtml(r.name)}</h2><p>Location / Terminal: ${escapeHtml(r.terminal)}</p><p>Report Date: ${escapeHtml(r.date)}</p></div></header><section><h3>Hiring Notes</h3><p class="hiring-report-notes">${escapeHtml(r.notes)}</p></section>${r.sections.map(section=>`<section><h3>${escapeHtml(section.title)}</h3><dl>${section.rows.map(([label,value])=>`<div><dt>${escapeHtml(label)}</dt><dd class="${hiringStatusClass(value)}">${escapeHtml(value)}</dd></div>`).join('')}</dl></section>`).join('')}</article>`;
-    openModal('hiringSummaryPreviewModal');
-  }
-  async function renderHiringSummaryCanvases(report){
-    const pages=[],W=794,H=1123,M=46,bottom=1060;let canvas,ctx,y;
-    let logo=null;try{logo=await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=reject;img.src='assets/nashbox-logistics-logo.png';});}catch(_){}
-    function wrapped(value,width){
-      const lines=[];
-      for(const paragraph of String(value).split(/\r?\n/)){
-        let line='';
-        for(const word of paragraph.split(/\s+/)){
-          if(ctx.measureText(line+(line?' ':'')+word).width<=width){line+=(line?' ':'')+word;continue;}
-          if(line){lines.push(line);line='';}
-          for(const char of word){if(ctx.measureText(line+char).width>width&&line){lines.push(line);line='';}line+=char;}
-        }
-        lines.push(line||' ');
-      }return lines;
-    }
-    function newPage(){
-      canvas=document.createElement('canvas');canvas.width=W*2;canvas.height=H*2;ctx=canvas.getContext('2d');ctx.scale(2,2);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);pages.push(canvas);
-      if(logo){const ratio=Math.min(64/logo.width,64/logo.height);ctx.drawImage(logo,M,30,logo.width*ratio,logo.height*ratio);}
-      ctx.fillStyle='#35164E';ctx.font='bold 13px Arial';ctx.fillText('NASHBOX LOGISTICS',M+80,44);
-      ctx.font='bold 19px Arial';ctx.fillText('Candidate Hiring Summary',M+80,68);
-      ctx.fillStyle='#657285';ctx.font='12px Arial';ctx.fillText(`Report Date: ${report.date}`,M+80,88);
-      y=119;ctx.font='bold 21px Arial';ctx.fillStyle='#243746';for(const line of wrapped(report.name,W-2*M)){ctx.fillText(line,M,y);y+=25;}
-      ctx.font='13px Arial';ctx.fillStyle='#657285';for(const line of wrapped(`Location / Terminal: ${report.terminal}`,W-2*M)){ctx.fillText(line,M,y);y+=19;}y+=10;
-    }
-    function heading(title){ctx.fillStyle='#EEE8F2';ctx.fillRect(M,y,W-2*M,28);ctx.fillStyle='#35164E';ctx.font='bold 14px Arial';ctx.fillText(title,M+10,y+19);y+=38;}
-    function row(label,value,section){
-      ctx.font='13px Arial';const labels=wrapped(label,254),values=wrapped(value,408);let offset=0;
-      const count=Math.max(labels.length,values.length);
-      while(offset<count){
-        if(y+30>bottom){newPage();heading(section+' (continued)');}
-        const take=Math.min(count-offset,Math.max(1,Math.floor((bottom-y-10)/19)));
-        const displayLabels=offset===0?labels:wrapped(label+' (continued)',254);
-        const height=Math.max(31,Math.max(take,displayLabels.length)*19+10);
-        ctx.fillStyle='#F5F7F9';ctx.fillRect(M,y,W-2*M,height);ctx.fillStyle='#526478';ctx.font='13px Arial';
-        for(let j=0;j<displayLabels.length;j++)ctx.fillText(displayLabels[j],M+10,y+19+j*19);
-        const status=hiringStatusClass(value);ctx.fillStyle=status==='complete'?'#216743':status==='issue'?'#A12E2E':status==='pending'?'#8A5D12':'#243746';
-        for(let j=0;j<take;j++)if(values[offset+j])ctx.fillText(values[offset+j],M+280,y+19+j*19);
-        y+=height+3;offset+=take;
-      }
-    }
-    newPage();heading('Hiring Notes');ctx.font='14px Arial';const noteLines=wrapped(report.notes,W-2*M-20);
-    for(const line of noteLines){if(y+22>bottom){newPage();heading('Hiring Notes (continued)');}ctx.fillStyle='#243746';ctx.font='14px Arial';ctx.fillText(line,M+10,y+16);y+=21;}y+=15;
-    for(const section of report.sections){if(y+82>bottom)newPage();heading(section.title);for(const [label,value] of section.rows)row(label,value,section.title);y+=12;}
-    pages.forEach((page,i)=>{const c=page.getContext('2d');c.fillStyle='#748090';c.font='11px Arial';c.fillText(`NBL FleetCommand   |   Candidate Hiring Summary`,M,H-28);c.fillText(`Page ${i+1} of ${pages.length}`,W-M-85,H-28);});
-    return pages;
-  }
-  async function downloadHiringSummaryPdf(fromPreview=false){
-    const report=fromPreview?state.hiringSummaryPreview:(()=>{const c=hiringSummaryCandidateFromForm();return c?hiringSummaryReport(c):null;})();if(!report)return;
-    const buttons=[$('hiringSummaryDownloadBtn'),$('hiringSummaryPreviewDownloadBtn')];buttons.forEach(b=>b.disabled=true);
-    try{const canvases=await renderHiringSummaryCanvases(report),jpegs=[];for(const c of canvases)jpegs.push(await canvasJpegBytes(c));
-      downloadBlob(jpegPagesToPdf(jpegs,canvases[0].width,canvases[0].height),`NBL_Hiring_Summary_${sanitize(report.name)||'Candidate'}_${todayIso()}.pdf`,'application/pdf');
-    }catch(err){showAlert('Could not create the Hiring Summary PDF: '+escapeHtml(err.message),'error');}finally{buttons.forEach(b=>b.disabled=false);}
-  }
-
   function openRecruitmentCandidateModal(id=''){
     const c=id?(state.hr.candidates||[]).find(x=>x.id===id):null;
     $('recruitmentCandidateId').value=c?.id||'';
@@ -3333,17 +3228,9 @@
     if($('recruitmentApplicationPdfButton')) $('recruitmentApplicationPdfButton').textContent=c?'Choose Update PDF':'Choose PDF';
     const form=$('recruitmentCandidateForm'); if(form) form.dataset.sourceApplicationName=c?.sourceApplicationName||'';
     setRecruitmentApplicationParseStatus(c?.sourceApplicationName?`Current profile last imported from ${c.sourceApplicationName}. Choose another PDF to update it.`:'No application selected.');
-    populateHiringSummary(c);
     openModal('recruitmentCandidateModal'); setTimeout(()=>$('recruitmentNameInput')?.focus(),0);
   }
   async function saveRecruitmentCandidateFromForm(e){
-    e.preventDefault();
-    const form=$('recruitmentCandidateForm');if(form.dataset.saving==='1')return;
-    form.dataset.saving='1';const buttons=Array.from(form.querySelectorAll('button[type="submit"]'));
-    buttons.forEach(button=>button.disabled=true);
-    try{await persistRecruitmentCandidateFromForm(e);}finally{delete form.dataset.saving;buttons.forEach(button=>button.disabled=false);}
-  }
-  async function persistRecruitmentCandidateFromForm(e){
     e.preventDefault();
     const id=$('recruitmentCandidateId').value, existing=id?(state.hr.candidates||[]).find(x=>x.id===id):null, now=new Date().toISOString();
     const newStatus=normalizeRecruitmentStatus($('recruitmentStatusInput').value), wasTerminal=existing?HR_TERMINAL_STATUSES.has(existing.recruitmentStatus):false, isTerminal=HR_TERMINAL_STATUSES.has(newStatus);
@@ -3356,7 +3243,6 @@
       return [`slot${number}`,updated];
     }).filter(([,doc])=>doc?.path||doc?.label));
     const record={
-      ...existing,hiringSummary:hiringSummaryInputs(),
       id:existing?.id||uid('candidate'),name:String($('recruitmentNameInput').value||'').trim(),email:String($('recruitmentEmailInput').value||'').trim(),phone:String($('recruitmentPhoneInput').value||'').trim(),address:String($('recruitmentAddressInput').value||'').trim(),
       dob:$('recruitmentDobInput').value||'',cdlNumber:String($('recruitmentCdlNumberInput').value||'').trim(),cdlIssuingState:String($('recruitmentCdlIssuingStateInput').value||'').trim(),cdlExpiry:$('recruitmentCdlExpiryInput').value||'',
       ssnFull:(()=>{ const typed=normalizedRecruitmentSsn($('recruitmentSsnInput').value); if(typed) return typed; const draft=normalizedRecruitmentSsn(state.hrSsn?.draftFull); const last4=recruitmentSsnLast4FromInput($('recruitmentSsnInput').value); return draft && (!last4 || draft.endsWith(last4)) ? draft : ''; })(),
@@ -3370,8 +3256,7 @@
     if(record.ssnFull) record.ssnLast4=record.ssnFull.slice(-4);
     if(!record.name){ showAlert('Candidate name is required.','warning'); return; }
     if(existing) Object.assign(existing,record); else state.hr.candidates.push(record);
-    const saved=await saveHrData(true);
-    if(!saved){ renderHr(); $('hiringSummarySaveStatus').textContent='Not saved. Connect to NBL Cloud or select a writable data folder, then try again.';showAlert('The candidate changes have not been saved. Connect to NBL Cloud or select a writable data folder, then try again.','error');return; }
+    await saveHrData(true);
     const uploads=Array.from({length:5},(_,index)=>{const number=index+1;return [`slot${number}`,$(`recruitmentDocument${number}Input`)?.files?.[0],number];}).filter(([,file])=>file);
     if(uploads.length){
       if(!cloudConnected()){setRecruitmentDocumentUploadStatus('Candidate saved, but documents require an NBL Cloud connection.','error');renderHr();return;}
@@ -3379,9 +3264,7 @@
       try{for(const [kind,file,number] of uploads){const previous=record.documents?.[kind]?.path||'',label=String($(`recruitmentDocument${number}Label`)?.value||'').trim()||file.name,expiry=$(`recruitmentDocument${number}Expiry`)?.value||'',meta=await window.NBLCloud.uploadRecruitmentDocument(state.cloud.organization.id,record.id,kind,file);record.documents[kind]={...meta,label,expiry};if(previous&&previous!==meta.path)await window.NBLCloud.deleteRecruitmentDocument(previous);}record.updatedAt=new Date().toISOString();await saveHrData(true);}
       catch(err){updateRecruitmentDocumentUi(record);setRecruitmentDocumentUploadStatus(`Candidate saved, but a document could not be uploaded: ${err.message||String(err)}`,'error');renderHr();return;}
     }
-    $('recruitmentCandidateId').value=record.id;
-    $('hiringSummarySaveStatus').textContent='Summary saved with the candidate profile.';
-    if(e.submitter?.id!=='hiringSummarySaveBtn')closeModal('recruitmentCandidateModal');renderHr();setScreen('hr');showAlert(`Recruitment record for <strong>${escapeHtml(record.name)}</strong> saved${uploads.length?' with its documents':''}.`,'success');
+    closeModal('recruitmentCandidateModal');renderHr();setScreen('hr');showAlert(`Recruitment record for <strong>${escapeHtml(record.name)}</strong> saved${uploads.length?' with its documents':''}.`,'success');
   }
   function openRecruitmentRoadTestModal(id){
     const c=(state.hr.candidates||[]).find(x=>x.id===id); if(!c) return;
@@ -5879,8 +5762,8 @@
 
   function safetyDefaultDates(){
     if(state.safety.startDate&&state.safety.endDate) return;
-    const end=new Date(),start=addDays(end,-6);
-    state.safety.startDate=isoLocal(start);state.safety.endDate=isoLocal(end);
+    const end=new Date(),start=new Date();start.setDate(end.getDate()-29);
+    state.safety.startDate=start.toISOString().slice(0,10);state.safety.endDate=end.toISOString().slice(0,10);
   }
   function safetyDriverName(driver){return displayPersonName(driver?.name||[driver?.first_name,driver?.last_name].filter(Boolean).join(' ')||'');}
   function safetyDriverId(driver){return String(driver?.id??driver?.driver_id??'').trim();}
@@ -5976,44 +5859,9 @@
   function safetySortValue(row,key,all){const adjusted=safetyAdjustedScore(row,all);if(key==='driver')return safetyDriverName(row.driver).toLowerCase();if(key==='official')return Number(row.score);if(key==='adjusted')return adjusted.score;if(key==='miles')return safetyScorecardMiles(row);if(key==='events')return all.filter(x=>safetyEventDriver(x.event,x.source)?.id===safetyDriverId(row.driver)).length;return adjusted.score;}
   function safetySortableHeading(label,key,sort){const active=sort.key===key,arrow=active?(sort.dir==='asc'?' ▲':' ▼'):'';return `<th><button class="safety-sort" type="button" data-safety-sort="${key}">${label}${arrow}</button></th>`;}
   function safetyTrendLabel(snapshot){const value=snapshot.endDate||snapshot.capturedAt||'';if(!value)return '—';const d=new Date(`${String(value).slice(0,10)}T12:00:00`);return isNaN(d)?String(value).slice(0,10):new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric'}).format(d);}
-  function safetyScoreTrendSvg(snapshots){
-    const rows=snapshots.filter(x=>x.adjustedScore!=null&&Number.isFinite(Number(x.adjustedScore))).slice(-12);
-    if(!rows.length)return '<div class="safety-chart-empty">Load Safety data to begin building this driver’s trend.</div>';
-    const W=720,H=260,L=48,R=18,T=18,B=42,plotW=W-L-R,plotH=H-T-B,
-      x=i=>L+(rows.length===1?plotW/2:i*plotW/(rows.length-1)),
-      y=v=>T+(100-Math.max(75,Math.min(100,Number(v))))/25*plotH,
-      points=rows.map((r,i)=>`${x(i)},${y(r.adjustedScore)}`).join(' '),belowScale=rows.some(r=>Number(r.adjustedScore)<75);
-    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Adjusted score trend, scale 75 to 100"><rect x="${L}" y="${y(100)}" width="${plotW}" height="${y(96)-y(100)}" fill="#E7F6ED"/><rect x="${L}" y="${y(96)}" width="${plotW}" height="${y(85)-y(96)}" fill="#FFF6D9"/><rect x="${L}" y="${y(85)}" width="${plotW}" height="${y(75)-y(85)}" fill="#FDE8E6"/>${[75,80,85,90,95,100].map(v=>`<line x1="${L}" y1="${y(v)}" x2="${W-R}" y2="${y(v)}" class="grid"/><text x="${L-8}" y="${y(v)+4}" text-anchor="end">${v}</text>`).join('')}<polyline points="${points}" class="score-line"/>${rows.map((r,i)=>{const title=`${safetyTrendLabel(r)}: ${Number(r.adjustedScore).toFixed(1)}${Number(r.adjustedScore)<75?' (below chart scale)':''}`,marker=Number(r.adjustedScore)<75?`<path d="M ${x(i)-6} ${y(75)-4} L ${x(i)+6} ${y(75)-4} L ${x(i)} ${y(75)+5} Z" fill="${safetyBandColor(r.adjustedScore)}"><title>${escapeHtml(title)}</title></path>`:`<circle cx="${x(i)}" cy="${y(r.adjustedScore)}" r="5" fill="${safetyBandColor(r.adjustedScore)}"><title>${escapeHtml(title)}</title></circle>`;return `${marker}<text x="${x(i)}" y="${H-17}" text-anchor="middle">${escapeHtml(safetyTrendLabel(r))}</text>`;}).join('')}</svg>${belowScale?'<p class="safety-chart-note">▼ Score below 75; hover for the actual value.</p>':''}`;
-  }
-  function safetyTopIncidents(driverId,all){
-    if(!driverId)return [];
-    const counts=new Map(),{startDate,endDate}=state.safety;
-    for(const item of all){
-      if(safetyEventDriver(item.event,item.source)?.id!==driverId||safetyDismissal(item).dismissed)continue;
-      const time=safetyEventTime(item.event),date=time?new Date(time):null;
-      if(!date||isNaN(date))continue;
-      const day=isoLocal(date);if(day<startDate||day>endDate)continue;
-      const type=safetyCanonicalType(safetyEventType(item.event,item.source));
-      counts.set(type,(counts.get(type)||0)+1);
-    }
-    return [...counts].map(([type,count])=>({type,count})).sort((a,b)=>b.count-a.count||a.type.localeCompare(b.type)).slice(0,3);
-  }
-  function safetyTopIncidentsHtml(driverId,all){
-    if(!driverId)return '<div class="safety-chart-empty">Select a driver to see their Top 3 Incidents.</div>';
-    const rows=safetyTopIncidents(driverId,all);
-    if(!rows.length)return '<div class="safety-chart-empty">No active incidents for this driver in the selected period.</div>';
-    const max=rows[0].count;
-    return `<ol class="safety-top-incidents">${rows.map(r=>`<li><div class="safety-top-incident-heading"><strong>${escapeHtml(r.type.replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase()))}</strong><span>${fmtNum(r.count)} incident${r.count===1?'':'s'}</span></div><div class="safety-incident-bar" aria-hidden="true"><span style="width:${r.count/max*100}%"></span></div></li>`).join('')}</ol>`;
-  }
-  function renderSafetyTrends(scorecards,all){
-    const select=$('safetyTrendDriver');if(!select)return;
-    const available=scorecards.map(r=>({id:safetyDriverId(r.driver),name:safetyDriverName(r.driver)})).filter(x=>x.id);
-    if(!state.safety.trendDriverId||!available.some(x=>x.id===state.safety.trendDriverId))state.safety.trendDriverId=available[0]?.id||'';
-    select.innerHTML='<option value="">Select Driver</option>'+available.map(x=>`<option value="${escapeHtml(x.id)}">${escapeHtml(x.name)}</option>`).join('');select.value=state.safety.trendDriverId;
-    const snapshots=safetyDriverSnapshots(state.safety.trendDriverId);
-    $('safetyScoreTrendChart').innerHTML=safetyScoreTrendSvg(snapshots);
-    $('safetyTopIncidentsChart').innerHTML=safetyTopIncidentsHtml(state.safety.trendDriverId,all);
-  }
+  function safetyScoreTrendSvg(snapshots){const rows=snapshots.filter(x=>Number.isFinite(Number(x.adjustedScore))).slice(-12);if(!rows.length)return '<div class="safety-chart-empty">Load Safety data more than once to begin building this driver’s trend.</div>';const W=720,H=260,L=48,R=18,T=18,B=42,plotW=W-L-R,plotH=H-T-B,x=i=>L+(rows.length===1?plotW/2:i*plotW/(rows.length-1)),y=v=>T+(100-Math.max(0,Math.min(100,Number(v))))/100*plotH,points=rows.map((r,i)=>`${x(i)},${y(r.adjustedScore)}`).join(' ');return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Adjusted score trend"><rect x="${L}" y="${y(100)}" width="${plotW}" height="${y(96)-y(100)}" fill="#E7F6ED"/><rect x="${L}" y="${y(96)}" width="${plotW}" height="${y(85)-y(96)}" fill="#FFF6D9"/><rect x="${L}" y="${y(85)}" width="${plotW}" height="${y(0)-y(85)}" fill="#FDE8E6"/>${[0,50,85,96,100].map(v=>`<line x1="${L}" y1="${y(v)}" x2="${W-R}" y2="${y(v)}" class="grid"/><text x="${L-8}" y="${y(v)+4}" text-anchor="end">${v}</text>`).join('')}<polyline points="${points}" class="score-line"/>${rows.map((r,i)=>`<circle cx="${x(i)}" cy="${y(r.adjustedScore)}" r="5" fill="${safetyBandColor(r.adjustedScore)}"><title>${safetyTrendLabel(r)}: ${Number(r.adjustedScore).toFixed(1)}</title></circle><text x="${x(i)}" y="${H-17}" text-anchor="middle">${safetyTrendLabel(r)}</text>`).join('')}</svg>`;}
+  function safetyIncidentTrendSvg(snapshots){const rows=snapshots.slice(-12);if(!rows.length)return '<div class="safety-chart-empty">No saved incident history is available yet.</div>';const W=720,H=260,L=45,R=18,T=20,B=42,plotW=W-L-R,plotH=H-T-B,max=Math.max(1,...rows.map(x=>Number(x.activeIncidentCount)||0)),slot=plotW/rows.length,bar=Math.min(42,slot*.58),y=v=>T+plotH-(Number(v)||0)/max*plotH;return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Incident trend">${Array.from({length:5},(_,i)=>Math.round(max*i/4)).map(v=>`<line x1="${L}" y1="${y(v)}" x2="${W-R}" y2="${y(v)}" class="grid"/><text x="${L-7}" y="${y(v)+4}" text-anchor="end">${v}</text>`).join('')}${rows.map((r,i)=>{const x=L+i*slot+(slot-bar)/2,h=T+plotH-y(r.activeIncidentCount);return `<rect x="${x}" y="${y(r.activeIncidentCount)}" width="${bar}" height="${h}" rx="4" fill="${safetyBandColor(r.adjustedScore)}"><title>${safetyTrendLabel(r)}: ${r.activeIncidentCount||0} active incidents</title></rect><text x="${x+bar/2}" y="${H-17}" text-anchor="middle">${safetyTrendLabel(r)}</text>`;}).join('')}</svg>`;}
+  function renderSafetyTrends(scorecards,all){const select=$('safetyTrendDriver');if(!select)return;const available=scorecards.map(r=>({id:safetyDriverId(r.driver),name:safetyDriverName(r.driver)})).filter(x=>x.id);if(!state.safety.trendDriverId||!available.some(x=>x.id===state.safety.trendDriverId))state.safety.trendDriverId=available[0]?.id||'';select.innerHTML='<option value="">Select Driver</option>'+available.map(x=>`<option value="${escapeHtml(x.id)}">${escapeHtml(x.name)}</option>`).join('');select.value=state.safety.trendDriverId;const snapshots=safetyDriverSnapshots(state.safety.trendDriverId);$('safetyScoreTrendChart').innerHTML=safetyScoreTrendSvg(snapshots);$('safetyIncidentTrendChart').innerHTML=safetyIncidentTrendSvg(snapshots);}
   function renderSafetyAtRisk(scorecards,all){const range=`${state.safety.startDate}|${state.safety.endDate}`,items=scorecards.map(r=>{const id=safetyDriverId(r.driver),adj=safetyAdjustedScore(r,all),previous=safetyPreviousAdjusted(id,range),delta=previous==null?null:adj.score-previous;return {row:r,id,name:safetyDriverName(r.driver),adjusted:adj.score,rating:safetyScoreBand(adj.score),delta,incidents:all.filter(x=>safetyEventDriver(x.event,x.source)?.id===id&&!safetyDismissal(x).dismissed).length};}).filter(x=>Number.isFinite(x.adjusted)&&x.adjusted>0).sort((a,b)=>a.adjusted-b.adjusted||a.name.localeCompare(b.name)).slice(0,4);$('safetyAtRiskCount').textContent=`${items.length} driver${items.length===1?'':'s'}`;$('safetyAtRiskList').innerHTML=items.length?items.map(x=>`<div class="safety-risk-card ${x.rating==='Critical'?'critical':'declining'}"><div><span>${escapeHtml(x.rating)}</span><strong>${escapeHtml(x.name||'Unknown Driver')}</strong><small>${x.incidents} active incident${x.incidents===1?'':'s'}${x.delta==null?'':` • ${x.delta>=0?'+':''}${x.delta.toFixed(1)} vs prior snapshot`}</small></div><b>${x.adjusted.toFixed(1)}</b><div class="safety-risk-actions"><button class="table-action" data-safety-driver-view="${escapeHtml(x.id)}">Incidents</button><button class="table-action" data-safety-driver-trend="${escapeHtml(x.id)}">Trend</button><button class="table-action" data-safety-driver-export="${escapeHtml(x.id)}">PDF</button></div></div>`).join(''):'<div class="safety-chart-empty">No drivers with a non-zero Adjusted Score are available.</div>';}
   function renderSafety(){
     if(!$('safetyScreen'))return;safetyDefaultDates();const s=state.safety;
@@ -6333,9 +6181,6 @@
   $('managementItemForm').addEventListener('submit',saveManagementFromForm);
   $('addRecruitmentCandidateBtn')?.addEventListener('click',()=>openRecruitmentCandidateModal());
   $('recruitmentCandidateForm')?.addEventListener('submit',saveRecruitmentCandidateFromForm);
-  $('hiringSummaryPreviewBtn')?.addEventListener('click',previewHiringSummary);
-  $('hiringSummaryDownloadBtn')?.addEventListener('click',()=>downloadHiringSummaryPdf());
-  $('hiringSummaryPreviewDownloadBtn')?.addEventListener('click',()=>downloadHiringSummaryPdf(true));
   $('recruitmentRoadTestForm')?.addEventListener('submit',saveRecruitmentRoadTest);
   $('roadTestSaveOnlyBtn')?.addEventListener('click',finishRoadTestSaveOnly);
   $('roadTestExportAfterSaveBtn')?.addEventListener('click',exportRecruitmentRoadTestPdf);
@@ -6418,7 +6263,6 @@
     const editManagement=e.target.closest('[data-edit-management]'); if(editManagement) openManagementModal(editManagement.dataset.editManagement);
     const deleteManagementBtn=e.target.closest('[data-delete-management]'); if(deleteManagementBtn) deleteManagementItem(deleteManagementBtn.dataset.deleteManagement);
     const roadTestRecruitment=e.target.closest('[data-road-test-candidate]'); if(roadTestRecruitment){ openRecruitmentRoadTestModal(roadTestRecruitment.dataset.roadTestCandidate); return; }
-    const hiringSummary=e.target.closest('[data-hiring-summary-candidate]');if(hiringSummary){openRecruitmentCandidateModal(hiringSummary.dataset.hiringSummaryCandidate);setTimeout(()=>$('hiringSummarySection').scrollIntoView({block:'start',behavior:'smooth'}),80);return;}
     const editRecruitment=e.target.closest('[data-edit-recruitment-candidate]'); if(editRecruitment){ openRecruitmentCandidateModal(editRecruitment.dataset.editRecruitmentCandidate); return; }
     const deleteRecruitment=e.target.closest('[data-delete-recruitment-candidate]'); if(deleteRecruitment){ deleteRecruitmentCandidate(deleteRecruitment.dataset.deleteRecruitmentCandidate); return; }
     const auditTab=e.target.closest('[data-audit-tab]'); if(auditTab){ setAuditTab(auditTab.dataset.auditTab); return; }
