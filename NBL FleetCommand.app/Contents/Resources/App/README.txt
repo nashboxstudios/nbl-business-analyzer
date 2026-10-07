@@ -1,13 +1,14 @@
-NBL FleetCommand — Version 100
+NBL FleetCommand — Version 101
 
-Version 100 - Safety Module
+Version 101 - Safety Module Enhancements
 
-- Added Safety as a separate main module with Motive driver score rankings from best to worst.
-- Added date-range loading for official Motive scorecards, Driver Performance Events, and Speeding Events.
-- Added driver-level event filtering, event severity, tractor, details, and camera-media links when available.
-- Added an Unassigned Events workflow that lets users assign an event to an active driver and saves the assignment in the shared Safety cloud snapshot.
-- Clearly distinguishes FleetCommand event assignments from Motive's official score because Motive does not expose a public event-reassignment API or its complete scoring formula.
-- Restyled Dashboard in the left ribbon to match the font and prominence of the main module headings.
+- Added Motive Score and Estimated Adjusted Score side by side; locally assigned, active events reduce the estimate using the configured Motive behavior weights and mileage exposure.
+- Rankings are sortable and default to the lowest adjusted score first, so drivers needing attention appear at the top.
+- Added the exact Excellent, Good, Fair, and Needs Attention score bands used by the Safety module.
+- Events dismissed in Motive are recognized automatically. Users can also dismiss or restore events in FleetCommand, with dismissal status saved in the shared Safety cloud snapshot.
+- Dismissed events are excluded from active-event counts and Estimated Adjusted Scores, with Active, All, and Dismissed event filters.
+- Added the Motive behavior weight to each event and retained driver assignment, severity, tractor, details, and media information.
+- Changed the primary ribbon labels to DASHBOARD and SAFETY and removed their letter icons.
 
 NBL FleetCommand — Version 99
 
