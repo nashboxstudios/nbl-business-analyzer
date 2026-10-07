@@ -1,3 +1,17 @@
+NBL FleetCommand — Version 125
+
+Version 125 - Recruitment Hiring Summary Refinements
+
+- Removes FADV status, Road Test Status, Medical Card Expiry and Proposed Start Date from the hiring report and its preview. The candidate data is retained.
+- Uses one Doubles dropdown: Yes With Experience, Yes No Experience, No.
+- Removes the separate doubles-experience editor and includes one Doubles row in the report.
+- Retains previous doubles-experience notes in saved data. Legacy Yes records without experience information require a choice before saving or exporting.
+- Keeps one Onboarding Tasks section immediately before Driver Documents.
+- Retains separate Hiring Status and Hiring Summary sections before Onboarding Tasks.
+- Displays Version 125 below the logo and refreshes versioned app assets.
+- No SQL migration or new dependency is required.
+- This package must be deployed to update the live app.
+
 NBL FleetCommand — Version 124
 
 Version 124 - Hiring Summary Access and Version Label

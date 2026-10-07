@@ -20,10 +20,10 @@
   const HR_RECRUITMENT_FIXED_COLUMNS = ['name'];
   const HR_RECRUITMENT_DEFAULT_ORDER = ['name','domicile','doubles','fadvStatus','notes','equipmentFam','roadTest','drugTest','offerLetter','startDate','recruitmentStatus','daysInProcess','actions'];
   const HR_RECRUITMENT_DEFAULT_WIDTHS = {
-    name:190,email:220,phone:150,domicile:145,fedexId:105,shift:90,type:110,doubles:90,dateAdded:110,screeningInterview:135,fadvStatus:120,notes:240,opsInterview:120,equipmentFam:110,roadTest:115,drugTest:110,offerLetter:120,startDate:110,recruitmentStatus:135,daysInProcess:120,actions:190
+    name:190,email:220,phone:150,domicile:145,fedexId:105,shift:90,type:110,doubles:210,dateAdded:110,screeningInterview:135,fadvStatus:120,notes:240,opsInterview:120,equipmentFam:110,roadTest:115,drugTest:110,offerLetter:120,startDate:110,recruitmentStatus:135,daysInProcess:120,actions:190
   };
   const HR_RECRUITMENT_MIN_WIDTHS = {
-    name:120,email:150,phone:115,domicile:110,fedexId:80,shift:75,type:90,doubles:75,dateAdded:95,screeningInterview:105,fadvStatus:100,notes:160,opsInterview:100,equipmentFam:95,roadTest:100,drugTest:100,offerLetter:105,startDate:95,recruitmentStatus:110,daysInProcess:100,actions:170
+    name:120,email:150,phone:115,domicile:110,fedexId:80,shift:75,type:90,doubles:170,dateAdded:95,screeningInterview:105,fadvStatus:100,notes:160,opsInterview:100,equipmentFam:95,roadTest:100,drugTest:100,offerLetter:105,startDate:95,recruitmentStatus:110,daysInProcess:100,actions:170
   };
   const HR_RECRUITMENT_LABELS = {
     name:'Name',email:'Email',phone:'Phone',domicile:'Location / Domicile',fedexId:'FedEx ID',shift:'Shift',type:'Type',doubles:'Doubles',dateAdded:'Date Added',screeningInterview:'Screening Interview',fadvStatus:'FADV Status',notes:'Notes',opsInterview:'Ops Interview',equipmentFam:'Equipment Fam',roadTest:'Road Test',drugTest:'Drug Test',offerLetter:'Offer Letter',startDate:'Start Date',recruitmentStatus:'Recruitment Status',daysInProcess:'Days in Process',actions:'Actions'
@@ -2636,6 +2636,21 @@
     data.recruitmentLayout={layoutVersion:HR_RECRUITMENT_LAYOUT_VERSION,columnOrder:[...fixed,...movable,actions],columnWidths:widths};
     return data.recruitmentLayout;
   }
+  const RECRUITMENT_DOUBLES_OPTIONS=['Yes With Experience','Yes No Experience','No'];
+  function normalizeRecruitmentDoubles(candidate){
+    const value=String(candidate?.doubles||'').trim(),experience=String(candidate?.hiringSummary?.doublesExperience||'').trim();
+    if(RECRUITMENT_DOUBLES_OPTIONS.includes(value))return value;
+    if(/^no$/i.test(value))return 'No';
+    if(/^yes$/i.test(value)){
+      if(/^(no\b|yes\b.*\bno experience\b)/i.test(experience))return 'Yes No Experience';
+      if(/^yes\b/i.test(experience))return 'Yes With Experience';
+      return 'Yes'; // Preserve legacy endorsement data until experience is specified.
+    }
+    return '';
+  }
+  function recruitmentDoublesLabel(candidate){
+    const value=normalizeRecruitmentDoubles(candidate);return value==='Yes'?'Yes (experience not specified)':value||'Not provided';
+  }
   const HR_TERMINAL_STATUSES=new Set(['Hired','Rejected','Terminated']);
   function normalizeRecruitmentStatus(status){
     const s=String(status||'').trim();
@@ -2698,7 +2713,7 @@
       const dir=await state.directoryHandle.getDirectoryHandle('HR');
       const fh=await dir.getFileHandle('hr_data.json');
       const parsed=JSON.parse(await (await fh.getFile()).text());
-      if(parsed && Array.isArray(parsed.candidates)) data={...data,...parsed,version:11,candidates:parsed.candidates.map(c=>{ const legacyDigits=String(c.ssnFull||c.ssn||'').replace(/\D/g,''); const full=legacyDigits.length===9?legacyDigits:''; const last4=String(c.ssnLast4||full||c.ssn||'').replace(/\D/g,'').slice(-4); const migrated={...c,recruitmentStatus:normalizeRecruitmentStatus(c.recruitmentStatus),drugTest:c.drugTest||'Not Taken',doubles:(c.doubles==='Yes'?'Yes':'No'),notes:String(c.notes||c.reasonStuck||''),dob:c.dob||'',cdlNumber:c.cdlNumber||'',cdlIssuingState:c.cdlIssuingState||'',cdlExpiry:c.cdlExpiry||'',ssnFull:full,ssnLast4:last4,sourceApplicationName:c.sourceApplicationName||'',roadTestForm:(c.roadTestForm&&typeof c.roadTestForm==='object'?c.roadTestForm:{})}; delete migrated.ssn; delete migrated.reasonStuck; return migrated; })};
+      if(parsed && Array.isArray(parsed.candidates)) data={...data,...parsed,version:11,candidates:parsed.candidates.map(c=>{ const legacyDigits=String(c.ssnFull||c.ssn||'').replace(/\D/g,''); const full=legacyDigits.length===9?legacyDigits:''; const last4=String(c.ssnLast4||full||c.ssn||'').replace(/\D/g,'').slice(-4); const migrated={...c,recruitmentStatus:normalizeRecruitmentStatus(c.recruitmentStatus),drugTest:c.drugTest||'Not Taken',doubles:normalizeRecruitmentDoubles(c),notes:String(c.notes||c.reasonStuck||''),dob:c.dob||'',cdlNumber:c.cdlNumber||'',cdlIssuingState:c.cdlIssuingState||'',cdlExpiry:c.cdlExpiry||'',ssnFull:full,ssnLast4:last4,sourceApplicationName:c.sourceApplicationName||'',roadTestForm:(c.roadTestForm&&typeof c.roadTestForm==='object'?c.roadTestForm:{})}; delete migrated.ssn; delete migrated.reasonStuck; return migrated; })};
     }catch(err){ if(err?.name!=='NotFoundError') console.warn('Could not load HR data',err); }
     ensureRecruitmentLayout(data);
     state.hr=data; state.hrLoaded=true; if(state.dispatchLoaded)syncSharedDriverRoster(); renderHr(); renderDispatch(); renderDailyDispatch();
@@ -2761,7 +2776,7 @@
       case 'fedexId': return escapeHtml(c.fedexId||'—');
       case 'shift': return escapeHtml(c.shift||'—');
       case 'type': return escapeHtml(c.type||'—');
-      case 'doubles': return `<span class="hr-doubles-pill ${c.doubles==='Yes'?'yes':'no'}">${escapeHtml(c.doubles==='Yes'?'Yes':'No')}</span>`;
+      case 'doubles': return `<span class="hr-doubles-pill ${normalizeRecruitmentDoubles(c).startsWith('Yes')?'yes':'no'}">${escapeHtml(recruitmentDoublesLabel(c))}</span>`;
       case 'dateAdded': return fmtDate(c.dateAdded);
       case 'screeningInterview': return c.screeningInterview?fmtDate(c.screeningInterview):'—';
       case 'fadvStatus': return recruitmentFadvPill(c.fadvStatus);
@@ -3209,7 +3224,7 @@
   const HIRING_SUMMARY_INPUTS = {
     notes:'hiringSummaryNotesInput',payRate:'hiringSummaryPayRateInput',payBasis:'hiringSummaryPayBasisInput',
     schedule:'hiringSummaryScheduleInput',medicalCardExpiry:'hiringSummaryMedicalExpiryInput',
-    tractorTrailerYears:'hiringSummaryExperienceInput',doublesExperience:'hiringSummaryDoublesExperienceInput',fedexExperience:'hiringSummaryFedexExperienceInput'
+    tractorTrailerYears:'hiringSummaryExperienceInput',fedexExperience:'hiringSummaryFedexExperienceInput'
   };
   function hiringMedicalExpiry(candidate){
     const dates=[...new Set(recruitmentDocumentSlots(candidate).filter(d=>/\b(med(?:ical)?\s*(?:card|certificate)|dot\s*(?:physical|medical)|medical\s*examiner)\b/i.test(d.label||'')).map(d=>d.expiry).filter(Boolean))];
@@ -3222,7 +3237,8 @@
     $('hiringSummarySaveStatus').textContent='Save Summary saves these details with the candidate profile.';
   }
   function hiringSummaryInputs(){
-    const result={version:1};
+    const existing=(state.hr.candidates||[]).find(c=>c.id===$('recruitmentCandidateId').value);
+    const result={...existing?.hiringSummary,version:2};
     for(const [key,id] of Object.entries(HIRING_SUMMARY_INPUTS)){
       const value=String($(id)?.value||'').trim();
       result[key]=['payRate','tractorTrailerYears'].includes(key)?(value===''?null:Number(value)):value;
@@ -3242,13 +3258,13 @@
     const h=candidate.hiringSummary||{},text=v=>v==null||String(v).trim()===''?'Not provided':String(v).trim(),date=v=>v?fmtDate(v):'Not provided';
     const rate=h.payRate==null||h.payRate===''?'Not provided':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(h.payRate));
     return {name:text(candidate.name),terminal:text(candidate.domicile),date:fmtDate(todayIso()),notes:text(h.notes),sections:[
-      {title:'Position & Offer',rows:[['Proposed Pay Rate',rate],['Pay Basis',text(h.payBasis)],['Schedule Discussed',text(h.schedule)],['Shift',text(candidate.shift)],['Proposed Start Date',date(candidate.startDate)]]},
-      {title:'Hiring Requirements',rows:[['Background / FADV Status',text(candidate.fadvStatus)],['Drug Screen Status',text(candidate.drugTest)],['Road Test Status',text(candidate.roadTest)],['Equipment Familiarization',text(candidate.equipmentFam)],['Doubles Endorsement',text(candidate.doubles)],['CDL Expiry Date',date(candidate.cdlExpiry)],['CDL Issuing State',text(candidate.cdlIssuingState)],['Medical Card Expiry Date',date(h.medicalCardExpiry||hiringMedicalExpiry(candidate))]]},
-      {title:'Experience',rows:[['Years of Tractor-Trailer Experience',text(h.tractorTrailerYears)],['Doubles Driving Experience',text(h.doublesExperience)],['FedEx Experience',text(h.fedexExperience)]]}
+      {title:'Position & Offer',rows:[['Proposed Pay Rate',rate],['Pay Basis',text(h.payBasis)],['Schedule Discussed',text(h.schedule)],['Shift',text(candidate.shift)]]},
+      {title:'Hiring Requirements',rows:[['Drug Screen Status',text(candidate.drugTest)],['Equipment Familiarization',text(candidate.equipmentFam)],['CDL Expiry Date',date(candidate.cdlExpiry)],['CDL Issuing State',text(candidate.cdlIssuingState)]]},
+      {title:'Experience',rows:[['Years of Tractor-Trailer Experience',text(h.tractorTrailerYears)],['Doubles',recruitmentDoublesLabel(candidate)],['FedEx Experience',text(h.fedexExperience)]]}
     ]};
   }
   function hiringStatusClass(value){
-    return /^(Pass|Complete|Yes)$/i.test(value)?'complete':/^(Fail|Stuck)$/i.test(value)?'issue':/^(Taken|Sent|Scheduled|In Progress|Not Scheduled|Incomplete)$/i.test(value)?'pending':'';
+    return /^(Pass|Complete|Yes|Yes With Experience|Yes No Experience)$/i.test(value)?'complete':/^(Fail|Stuck)$/i.test(value)?'issue':/^(Taken|Sent|Scheduled|In Progress|Not Scheduled|Incomplete)$/i.test(value)?'pending':'';
   }
   function previewHiringSummary(){
     const candidate=hiringSummaryCandidateFromForm();if(!candidate)return;
@@ -3319,7 +3335,7 @@
     $('recruitmentDobInput').value=c?.dob||''; $('recruitmentCdlNumberInput').value=c?.cdlNumber||''; $('recruitmentCdlIssuingStateInput').value=c?.cdlIssuingState||''; $('recruitmentCdlExpiryInput').value=c?.cdlExpiry||'';
     state.hrSsn.draftFull=normalizedRecruitmentSsn(c?.ssnFull||''); state.hrSsn.legacyLast4=String(c?.ssnLast4||state.hrSsn.draftFull.slice(-4)||'').replace(/\D/g,'').slice(-4); state.hrSsn.revealed=false; state.hrSsn.existingCandidate=!!c; $('recruitmentSsnInput').value=maskedRecruitmentSsn(state.hrSsn.draftFull?state.hrSsn.draftFull.slice(-4):state.hrSsn.legacyLast4); $('recruitmentSsnInput').placeholder='XXX-XX-1234'; updateRecruitmentSsnRevealButton();
     $('recruitmentDomicileInput').value=c?.domicile||''; $('recruitmentFedexIdInput').value=c?.fedexId||''; $('recruitmentDateAddedInput').value=c?.dateAdded||todayIso();
-    $('recruitmentShiftInput').value=c?.shift||'Day'; $('recruitmentTypeInput').value=c?.type||'Full Time'; $('recruitmentDoublesInput').value=c?.doubles==='Yes'?'Yes':'No'; $('recruitmentStatusInput').value=normalizeRecruitmentStatus(c?.recruitmentStatus);
+    $('recruitmentShiftInput').value=c?.shift||'Day'; $('recruitmentTypeInput').value=c?.type||'Full Time'; const doubles=c?normalizeRecruitmentDoubles(c):'No'; $('recruitmentDoublesInput').value=RECRUITMENT_DOUBLES_OPTIONS.includes(doubles)?doubles:''; $('recruitmentDoublesHelp').textContent=doubles==='Yes'?'This record currently says Yes. Select whether the candidate has doubles driving experience.':(c?.hiringSummary?.doublesExperience?`Previous experience notes: ${c.hiringSummary.doublesExperience}`:'Select endorsement and experience in one field.'); $('recruitmentStatusInput').value=normalizeRecruitmentStatus(c?.recruitmentStatus);
     $('recruitmentScreeningInterviewInput').value=c?.screeningInterview||''; $('recruitmentFadvStatusInput').value=c?.fadvStatus||'In Progress'; $('recruitmentOpsInterviewInput').value=c?.opsInterview||'';
     $('recruitmentNotesInput').value=c?.notes||c?.reasonStuck||''; $('recruitmentEquipmentFamInput').value=c?.equipmentFam||'No'; $('recruitmentRoadTestInput').value=c?.roadTest||'Not Scheduled';
     $('recruitmentDrugTestInput').value=c?.drugTest||'Not Taken'; $('recruitmentEverifyInput').value=c?.eVerify||'Not Started'; $('recruitmentOfferLetterInput').value=c?.offerLetter||'Not Sent'; $('recruitmentStartDateInput').value=c?.startDate||'';
@@ -3345,6 +3361,7 @@
   }
   async function persistRecruitmentCandidateFromForm(e){
     e.preventDefault();
+    if(!$('recruitmentCandidateForm').reportValidity())return;
     const id=$('recruitmentCandidateId').value, existing=id?(state.hr.candidates||[]).find(x=>x.id===id):null, now=new Date().toISOString();
     const newStatus=normalizeRecruitmentStatus($('recruitmentStatusInput').value), wasTerminal=existing?HR_TERMINAL_STATUSES.has(existing.recruitmentStatus):false, isTerminal=HR_TERMINAL_STATUSES.has(newStatus);
     let completedAt=existing?.completedAt||'';
@@ -3361,7 +3378,7 @@
       dob:$('recruitmentDobInput').value||'',cdlNumber:String($('recruitmentCdlNumberInput').value||'').trim(),cdlIssuingState:String($('recruitmentCdlIssuingStateInput').value||'').trim(),cdlExpiry:$('recruitmentCdlExpiryInput').value||'',
       ssnFull:(()=>{ const typed=normalizedRecruitmentSsn($('recruitmentSsnInput').value); if(typed) return typed; const draft=normalizedRecruitmentSsn(state.hrSsn?.draftFull); const last4=recruitmentSsnLast4FromInput($('recruitmentSsnInput').value); return draft && (!last4 || draft.endsWith(last4)) ? draft : ''; })(),
       ssnLast4:(()=>{ const typed=recruitmentSsnLast4FromInput($('recruitmentSsnInput').value); return typed||String(state.hrSsn?.legacyLast4||existing?.ssnLast4||'').replace(/\D/g,'').slice(-4); })(),
-      domicile:String($('recruitmentDomicileInput').value||'').trim(),fedexId:String($('recruitmentFedexIdInput').value||'').trim(),dateAdded:$('recruitmentDateAddedInput').value||todayIso(),shift:$('recruitmentShiftInput').value,type:$('recruitmentTypeInput').value,doubles:$('recruitmentDoublesInput').value==='Yes'?'Yes':'No',
+      domicile:String($('recruitmentDomicileInput').value||'').trim(),fedexId:String($('recruitmentFedexIdInput').value||'').trim(),dateAdded:$('recruitmentDateAddedInput').value||todayIso(),shift:$('recruitmentShiftInput').value,type:$('recruitmentTypeInput').value,doubles:$('recruitmentDoublesInput').value,
       screeningInterview:$('recruitmentScreeningInterviewInput').value||'',fadvStatus:$('recruitmentFadvStatusInput').value,notes:String($('recruitmentNotesInput').value||'').trim(),
       opsInterview:$('recruitmentOpsInterviewInput').value||'',equipmentFam:$('recruitmentEquipmentFamInput').value,roadTest:$('recruitmentRoadTestInput').value,drugTest:$('recruitmentDrugTestInput').value,eVerify:$('recruitmentEverifyInput').value,offerLetter:$('recruitmentOfferLetterInput').value,startDate:$('recruitmentStartDateInput').value||'',
       safetyForward:$('recruitmentSafetyForwardInput').value,connectTeams:$('recruitmentConnectTeamsInput').value,adp:$('recruitmentAdpInput').value,motiveOnboarding:$('recruitmentMotiveInput').value,employeeHandbook:$('recruitmentEmployeeHandbookInput').value,
