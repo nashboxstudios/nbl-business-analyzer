@@ -1,3 +1,12 @@
+NBL FleetCommand — Version 91
+
+Version 91 - Focused Financial Trends
+--------------------------------------
+- Reduced the Financial Analysis summary to Payroll %, Maintenance %, Fuel %, and Operating Income %.
+- Split the cost-ratio trend into separate Payroll/Employee Costs, Maintenance, and Fuel charts.
+- Made Weekly P&L Detail collapsible. The selected-period totals remain visible while weekly rows are collapsed.
+
+
 NBL FleetCommand — Version 90
 
 Version 90 - Financial Analysis
