@@ -64,7 +64,7 @@ def validate_nbl_access_token(token):
         'apikey': SUPABASE_PUBLISHABLE_KEY,
         'Authorization': f'Bearer {token}',
         'Accept': 'application/json',
-        'User-Agent': 'NBL-Business-Analyzer/80'
+        'User-Agent': 'NBL-Business-Analyzer/81'
     }
     try:
         req = Request(SUPABASE_URL + '/auth/v1/user', headers=headers, method='GET')
@@ -148,7 +148,7 @@ def supabase_service_request(path, method='GET', body=None, prefer=''):
         'apikey': SUPABASE_SECRET_KEY,
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'User-Agent': 'NBL-Business-Analyzer/80'
+        'User-Agent': 'NBL-Business-Analyzer/81'
     }
     # Modern sb_secret_ keys are sent as apikey only. Legacy service_role JWTs
     # are still supported through the fallback environment variable.
@@ -335,7 +335,7 @@ def motive_request(path, params=None, timeout=25, extra_headers=None):
         'X-API-Key': key,
         'Accept': 'application/json',
         'X-Metric-Units': 'false',
-        'User-Agent': 'NBL-Business-Analyzer/80'
+        'User-Agent': 'NBL-Business-Analyzer/81'
     }
     if extra_headers:
         headers.update(extra_headers)
@@ -2926,7 +2926,7 @@ class NBLHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == '/health':
-            return self.send_json({'ok': True, 'app': 'NBL Business Analyzer', 'version': 80})
+            return self.send_json({'ok': True, 'app': 'NBL Business Analyzer', 'version': 81})
         if parsed.path.startswith('/api/') and not require_nbl_api_access(self, parsed.path, 'GET'):
             return
         if parsed.path == '/api/admin/users':
@@ -3138,13 +3138,13 @@ def main():
     # that is still running from hijacking a newer build's browser window.
     server = ThreadingHTTPServer((HOST, REQUESTED_PORT), NBLHandler)
     actual_port = int(server.server_address[1])
-    url = f'http://localhost:{actual_port}/index.html?v=80'
+    url = f'http://localhost:{actual_port}/index.html?v=81'
     if PORT_FILE:
         try:
             Path(PORT_FILE).write_text(url, encoding='utf-8')
         except Exception:
             pass
-    print('NBL Business Analyzer v80 is running.')
+    print('NBL Business Analyzer v81 is running.')
     print(f'Open: {url}')
     print('Motive API credentials use MOTIVE_API_KEY when provided; local builds fall back to the protected local key file.')
     print('Keep this process running while using the app.')
