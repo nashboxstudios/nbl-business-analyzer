@@ -2778,9 +2778,9 @@
       default: return '—';
     }
   }
-  function recruitmentHeaderHtml(order){
+  function recruitmentHeaderHtml(order,rowClass=''){
     const activeKey=state.recruitmentSort?.key||'', activeDir=state.recruitmentSort?.dir||'asc';
-    return '<tr>'+order.map(key=>{
+    return `<tr${rowClass?` class="${escapeHtml(rowClass)}"`:''}>`+order.map(key=>{
       const label=HR_RECRUITMENT_LABELS[key]||key;
       const sortable=key!=='actions';
       const movable=!HR_RECRUITMENT_FIXED_COLUMNS.includes(key) && key!=='actions';
@@ -2929,13 +2929,13 @@
     const rows=filteredRecruitmentCandidates(), layout=state.hr.recruitmentLayout, order=layout.columnOrder;
     $('recruitmentCandidateCount').textContent=`${rows.length} driver${rows.length===1?'':'s'}`;
     const table=$('recruitmentTable');
-    table.querySelector('thead').innerHTML=recruitmentHeaderHtml(order);
+    table.querySelector('thead').innerHTML='';
     const visibleStatuses=state.recruitmentStatusFilter?[state.recruitmentStatusFilter]:HR_RECRUITMENT_STATUSES;
     const groupedHtml=visibleStatuses.map(status=>{
       const groupRows=rows.filter(c=>normalizeRecruitmentStatus(c.recruitmentStatus)===status);
       if(!groupRows.length) return '';
       const groupClass=status.toLowerCase().replace(/\s+/g,'-');
-      return `<tr class="hr-status-group-row ${groupClass}"><td colspan="${order.length}"><div class="hr-status-group-heading"><span>${escapeHtml(status)}</span><strong>${groupRows.length}</strong></div></td></tr>`+groupRows.map(c=>`<tr data-hr-candidate-id="${escapeHtml(c.id)}" title="Double-click to edit candidate" class="${HR_TERMINAL_STATUSES.has(normalizeRecruitmentStatus(c.recruitmentStatus))?'hr-terminal-row':''}">${order.map(key=>`<td data-hr-column="${escapeHtml(key)}" class="${key==='notes'?'hr-reason-cell':''}">${recruitmentCellHtml(c,key)}</td>`).join('')}</tr>`).join('');
+      return `<tr class="hr-status-group-row ${groupClass}"><td colspan="${order.length}"><div class="hr-status-group-heading"><span>${escapeHtml(status)}</span><strong>${groupRows.length}</strong></div></td></tr>`+recruitmentHeaderHtml(order,'hr-group-column-row')+groupRows.map(c=>`<tr data-hr-candidate-id="${escapeHtml(c.id)}" title="Double-click to edit candidate" class="${HR_TERMINAL_STATUSES.has(normalizeRecruitmentStatus(c.recruitmentStatus))?'hr-terminal-row':''}">${order.map(key=>`<td data-hr-column="${escapeHtml(key)}" class="${key==='notes'?'hr-reason-cell':''}">${recruitmentCellHtml(c,key)}</td>`).join('')}</tr>`).join('');
     }).join('');
     table.querySelector('tbody').innerHTML=groupedHtml||`<tr><td colspan="${order.length}" class="empty-table-cell">No drivers match the current Recruitment view.</td></tr>`;
     applyRecruitmentColumnLayout(table); initializeRecruitmentTableInteractions(table);

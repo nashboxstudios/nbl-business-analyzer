@@ -502,6 +502,8 @@ body.hr-global-column-resize,body.hr-global-column-resize *{cursor:col-resize!im
 .hr-status-group-row.hired td{background:#eff8f3!important}
 .hr-status-group-row.rejected td{background:#f5f3f6!important}
 .hr-status-group-row.terminated td{background:#fff2f2!important}
+.hr-recruitment-table .hr-group-column-row th{position:static;top:auto;z-index:3;background:#f7f3f9;border-top:1px solid #e4dce9}
+.hr-recruitment-table.hr-layout-enabled .hr-group-column-row th[data-hr-column="name"]{position:sticky!important;left:0!important;top:auto!important;z-index:6!important;background:#f2ebf6!important}
 .hr-status-group-heading{display:flex;align-items:center;gap:8px;text-transform:uppercase;letter-spacing:.06em;font-size:10px;font-weight:900;color:#41566d}
 .hr-status-group-heading strong{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;padding:0 6px;border-radius:999px;background:#fff;border:1px solid #d6dfe9;font-size:10px;color:#33495f}
 
