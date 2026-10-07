@@ -1,5 +1,8 @@
-Recruitment Test verification (v132)
+Recruitment Test verification (v133)
 
+- `node tests/recruitment-table.cjs` with jsdom: all seven ascending/descending sorts,
+  blank values last, numeric day counts, calendar-day/DST checks, screening-date-only
+  calculation, sort retained through filters/refresh, reset, and summary branding.
 - `node tests/recruitment-test.cjs`: stage prerequisites, early Ops, three Ops agreement fields and legacy conversion,
   Hold, final clearance, test-only REST writes, conflicts, save failure, SSN stripping.
 - `node tests/recruitment-test-dom.cjs` with jsdom available: full app navigation,
@@ -24,3 +27,7 @@ fixture writes. Cross-organization writes and outsider reads were blocked.
 The table has RLS enabled and no authenticated DELETE privilege. The 22 original
 candidate records matched their pre-migration fingerprint after the test copy.
 Fixtures contain synthetic names; no candidate exports are checked into this repo.
+
+V133 hiring-summary print layout was rendered with WeasyPrint and visually checked
+using synthetic data. Browser-native print/layout verification remains subject to
+the Chromium environment limitation described above.

@@ -1,4 +1,10 @@
-NBL FleetCommand — Version 132
+NBL FleetCommand — Version 133
+
+Version 133 - Recruitment Table and Hiring Summary
+- Sort all seven Recruitment Test columns in either direction by clicking their headers.
+- Days in Process counts calendar days from Screening Interview date; missing dates display a dash.
+- Table and Ops Manager hiring-summary export use the Nashbox purple/orange palette and existing Recruitment styling.
+- Summary includes the Nashbox Logistics logo and preserves print colors.
 
 Version 132 - Road Test and Candidate Profile
 - Recruitment Test road test now records Time From / Time To and fills the PDF test-time fields.
