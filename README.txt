@@ -1,4 +1,10 @@
-NBL FleetCommand — Version 133
+NBL FleetCommand — Version 134
+
+Version 134 - First Advantage Import and Mobile Summary
+- First Advantage PDF import is at the top of Candidate Details and starts when a file is selected. Review detected values and Save Draft.
+- Ops Interview includes a saved interview date, required before advancing to Road Test.
+- Hiring Summary offers Phone PDF: narrow 108 x 192 mm pages, a single column, larger type, and brand colors. Standard letter output remains available.
+- Phone controls use larger touch targets, 16 px inputs, and a horizontally scrolling table.
 
 Version 133 - Recruitment Table and Hiring Summary
 - Sort all seven Recruitment Test columns in either direction by clicking their headers.

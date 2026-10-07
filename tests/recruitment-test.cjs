@@ -7,8 +7,8 @@ Object.assign(p.screening,{interviewer:'Reviewer',date:'2026-10-04',experience:'
 assert.deepEqual(E.validate(c),[],'Criminal answer recorded without automatic disqualification');
 p.stage='Background & Drug Screen';Object.assign(p.background,{applicationSent:'2026-10-04',drugStatus:'Pending',readyForOps:true,fadvStatus:'In Progress'});
 assert.deepEqual(E.validate(c),[],'Manager may advance before FADV or drug result complete');
-p.stage='Ops Interview';Object.assign(p.ops,{agreedDays:'Mon-Fri',dispatchAgreement:'6 AM dispatch; 6 AM–4 PM shift explained and accepted',doublesAgreement:'Pulling and assembling doubles explained and accepted'});E.recordOpsAgreements(c,'Ops');
-assert.deepEqual(E.validate(c),[]);
+p.stage='Ops Interview';Object.assign(p.ops,{date:'2026-10-05',agreedDays:'Mon-Fri',dispatchAgreement:'6 AM dispatch; 6 AM–4 PM shift explained and accepted',doublesAgreement:'Pulling and assembling doubles explained and accepted'});E.recordOpsAgreements(c,'Ops');
+assert.deepEqual(E.validate(c),[]);delete p.ops.date;assert(E.validate(c).includes('Ops interview date'));p.ops.date='2026-10-05';
 const previous=E.normalize(c);p.ops.dispatchAgreement='8 AM dispatch accepted';E.reconcile(previous,c);assert.equal(p.ops.confirmedSchedule,undefined);assert(E.validate(c).length>0);
 p.onHold=true;assert(E.validate(c).includes('Resume this candidate from Hold'));p.onHold=false;E.recordOpsAgreements(c,'Ops');
 p.stage='Road Test';c.roadTest='Pass';Object.assign(c.roadTestForm,{date:'2026-10-06',testAdminName:'Road Reviewer',timeFrom:'09:15',timeTo:'10:30'});assert.deepEqual(E.validate(c),[]);

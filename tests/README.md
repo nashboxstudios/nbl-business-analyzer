@@ -1,4 +1,4 @@
-Recruitment Test verification (v133)
+Recruitment Test verification (v134)
 
 - `node tests/recruitment-table.cjs` with jsdom: all seven ascending/descending sorts,
   blank values last, numeric day counts, calendar-day/DST checks, screening-date-only
@@ -31,3 +31,11 @@ Fixtures contain synthetic names; no candidate exports are checked into this rep
 V133 hiring-summary print layout was rendered with WeasyPrint and visually checked
 using synthetic data. Browser-native print/layout verification remains subject to
 the Chromium environment limitation described above.
+
+V134 DOM verification covers prominent/automatic First Advantage import, parser
+failure recovery, detected fields, saved Ops date and its stage prerequisite, and
+Phone PDF selection. Letter and phone print layouts were rendered with synthetic
+data using WeasyPrint; phone page dimensions and full content were checked.
+The browser suite includes 320/390/430 px layout checks and phone PDF rendering.
+Native Chromium verification was unavailable here because its download returned
+a truncated archive. Physical iOS/Android print behavior was not tested.
