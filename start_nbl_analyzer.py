@@ -113,11 +113,19 @@ def require_nbl_auth(handler):
         return None
     return user
 
+def effective_membership_role(membership):
+    membership = membership if isinstance(membership, dict) else {}
+    database_role = str(membership.get('role') or '').strip().lower()
+    permissions = membership.get('module_permissions') if isinstance(membership.get('module_permissions'), dict) else {}
+    access_role = str(permissions.get('access_role') or '').strip().lower()
+    if database_role == 'operations' and access_role in ('operations', 'lead_driver'):
+        return access_role
+    return database_role
+
 def api_role_allowed(user, path, method='GET'):
     membership = user.get('_nbl_membership') if isinstance(user, dict) else {}
     membership = membership if isinstance(membership, dict) else {}
-    role = str(membership.get('role') or '').strip().lower()
-    perms = membership.get('module_permissions') if isinstance(membership.get('module_permissions'), dict) else {}
+    role = effective_membership_role(membership)
     if path.startswith('/api/admin/'):
         return role == 'owner'
     if role == 'owner':
@@ -201,13 +209,14 @@ def owner_user_directory(user):
         au = auth_by_id.get(uid, {})
         pr = profile_by_id.get(uid, {})
         meta = au.get('user_metadata') if isinstance(au.get('user_metadata'), dict) else {}
+        permissions = member.get('module_permissions') if isinstance(member.get('module_permissions'), dict) else {}
         out.append({
             'user_id': uid,
             'email': str(au.get('email') or ''),
             'full_name': str(pr.get('full_name') or meta.get('full_name') or ''),
-            'role': str(member.get('role') or 'read_only'),
+            'role': effective_membership_role(member) or 'read_only',
             'status': str(member.get('status') or 'active'),
-            'module_permissions': member.get('module_permissions') if isinstance(member.get('module_permissions'), dict) else {},
+            'module_permissions': permissions,
             'created_at': member.get('created_at') or au.get('created_at'),
             'last_sign_in_at': au.get('last_sign_in_at')
         })
@@ -247,7 +256,8 @@ def create_nbl_user(user, data):
             'user_id': uid, 'full_name': full_name or None, 'updated_at': datetime.now(timezone.utc).isoformat()
         }], 'resolution=merge-duplicates,return=representation')
         supabase_service_request('/rest/v1/organization_members?on_conflict=organization_id,user_id', 'POST', [{
-            'organization_id': org_id, 'user_id': uid, 'role': role, 'status': 'active', 'module_permissions': {}
+            'organization_id': org_id, 'user_id': uid, 'role': 'operations', 'status': 'active',
+            'module_permissions': {'access_role': role}
         }], 'resolution=merge-duplicates,return=representation')
     except Exception:
         try:
@@ -285,7 +295,8 @@ def update_nbl_user(user, data):
         raise RuntimeError('The Owner profile cannot be changed from User Access.')
     patch_q = urlencode({'organization_id': f'eq.{org_id}', 'user_id': f'eq.{uid}'})
     supabase_service_request('/rest/v1/organization_members?' + patch_q, 'PATCH', {
-        'role': role, 'status': status, 'updated_at': datetime.now(timezone.utc).isoformat()
+        'role': 'operations', 'status': status, 'module_permissions': {'access_role': role},
+        'updated_at': datetime.now(timezone.utc).isoformat()
     }, 'return=representation')
     supabase_service_request('/rest/v1/profiles?on_conflict=user_id', 'POST', [{
         'user_id': uid, 'full_name': full_name or None, 'updated_at': datetime.now(timezone.utc).isoformat()
@@ -3005,7 +3016,7 @@ class NBLHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == '/health':
-            return self.send_json({'ok': True, 'app': 'NBL FleetCommand', 'version': 105})
+            return self.send_json({'ok': True, 'app': 'NBL FleetCommand', 'version': 107})
         if parsed.path.startswith('/api/') and not require_nbl_api_access(self, parsed.path, 'GET'):
             return
         if parsed.path == '/api/admin/users':
@@ -3297,13 +3308,13 @@ def main():
     # that is still running from hijacking a newer build's browser window.
     server = ThreadingHTTPServer((HOST, REQUESTED_PORT), NBLHandler)
     actual_port = int(server.server_address[1])
-    url = f'http://localhost:{actual_port}/index.html?v=105'
+    url = f'http://localhost:{actual_port}/index.html?v=107'
     if PORT_FILE:
         try:
             Path(PORT_FILE).write_text(url, encoding='utf-8')
         except Exception:
             pass
-    print('NBL FleetCommand v105 is running.')
+    print('NBL FleetCommand v107 is running.')
     print(f'Open: {url}')
     print('Motive API credentials use MOTIVE_API_KEY when provided; local builds fall back to the protected local key file.')
     print('Keep this process running while using the app.')
