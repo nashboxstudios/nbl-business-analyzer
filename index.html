@@ -6,8 +6,8 @@
   <title>NBL FleetCommand</title>
   <meta name="theme-color" content="#35164E" />
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=136" />
-  <link rel="stylesheet" href="recruitment-test.css?v=136">
+  <link rel="stylesheet" href="styles.css?v=137" />
+  <link rel="stylesheet" href="recruitment-test.css?v=137">
 </head>
 <body>
 
@@ -33,7 +33,7 @@
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
         <div class="app-name">NBL FleetCommand</div>
         <div class="app-tagline">Operations Intelligence</div>
-        <div class="app-version">Version 136</div>
+        <div class="app-version">Version 137</div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-standalone nav-main-modules">
@@ -64,8 +64,7 @@
         <div class="nav-group" data-nav-group="people">
           <button type="button" class="nav-group-toggle" aria-expanded="true"><span class="nav-group-title">People</span><span class="nav-group-chevron" aria-hidden="true">▾</span></button>
           <div class="nav-group-items">
-            <button class="nav-btn nav-btn-child" data-icon="R" data-screen="hr">Recruitment</button>
-            <button class="nav-btn nav-btn-child" data-icon="T" data-screen="recruitment-test">Recruitment – Test</button>
+            <button class="nav-btn nav-btn-child" data-icon="R" data-screen="recruitment-test">Recruitment</button>
             <button class="nav-btn nav-btn-child hidden" data-icon="U" id="userAccessNav" data-screen="users">Users</button>
           </div>
         </div>
@@ -85,6 +84,12 @@
           <button type="button" class="nav-group-toggle" aria-expanded="true"><span class="nav-group-title">Compliance</span><span class="nav-group-chevron" aria-hidden="true">▾</span></button>
           <div class="nav-group-items">
             <button class="nav-btn nav-btn-child" data-icon="I" data-screen="ivmr">IVMR</button>
+          </div>
+        </div>
+        <div class="nav-group" data-nav-group="archive">
+          <button type="button" class="nav-group-toggle" aria-expanded="true"><span class="nav-group-title">Archive</span><span class="nav-group-chevron" aria-hidden="true">▾</span></button>
+          <div class="nav-group-items">
+            <button class="nav-btn nav-btn-child" data-icon="R" data-screen="hr">Recruitment Archive</button>
           </div>
         </div>
       </nav>
@@ -448,8 +453,8 @@
           <div class="hr-toolbar">
             <div>
               <span class="eyebrow">Admin / Human Resources</span>
-              <h2>Recruitment</h2>
-              <p>Manage the driver recruiting pipeline and group drivers by In Progress, Hired, Rejected, or Terminated status.</p>
+              <h2>Recruitment Archive</h2>
+              <p>The original Recruitment module and its saved candidates. Use Recruitment under People for the current hiring workflow.</p>
             </div>
             <button class="button primary" id="addRecruitmentCandidateBtn">+ Add Candidate</button>
           </div>
@@ -459,7 +464,7 @@
             <div class="panel hr-recruitment-panel">
               <div class="panel-heading">
                 <div>
-                  <h2>Recruitment Pipeline</h2>
+                  <h2>Archived Recruitment Pipeline</h2>
                   <p>Drivers are grouped by Recruitment Status. Name stays frozen; click a header to sort, drag a column edge to resize, use the grip to rearrange workflow columns, or double-click a row to edit.</p>
                 </div>
                 <div class="hr-recruitment-controls">
@@ -471,7 +476,7 @@
                     <option value="Rejected">Rejected</option>
                     <option value="Terminated">Terminated</option>
                   </select>
-                  <button type="button" class="button secondary" id="exportRecruitmentExcelBtn" title="Export the complete recruitment list to Excel">Export Recruitment List</button>
+                  <button type="button" class="button secondary" id="exportRecruitmentExcelBtn" title="Export the original recruitment list to Excel">Export Archive List</button>
                   <button type="button" class="button secondary hr-reset-layout-btn" id="resetRecruitmentLayoutBtn" title="Restore the default recruitment column widths and order">Reset Columns</button>
                   <div class="history-count" id="recruitmentCandidateCount">0 candidates</div>
                 </div>
@@ -1091,7 +1096,7 @@
 
   <div class="modal-backdrop hidden" id="recruitmentCandidateModal">
     <div class="modal-card extra-wide">
-      <div class="modal-heading"><div><span class="eyebrow">HR Recruitment</span><h2 id="recruitmentCandidateModalTitle">Add Candidate</h2></div><button class="icon-btn" data-close-modal="recruitmentCandidateModal">×</button></div>
+      <div class="modal-heading"><div><span class="eyebrow">Recruitment Archive</span><h2 id="recruitmentCandidateModalTitle">Add Candidate</h2></div><button class="icon-btn" data-close-modal="recruitmentCandidateModal">×</button></div>
       <form id="recruitmentCandidateForm">
         <input type="hidden" id="recruitmentCandidateId">
         <details id="recruitmentApplicationSection" class="hr-candidate-section" data-default-open="false"><summary>Application Import</summary><div class="hr-candidate-section-content">
@@ -1217,7 +1222,7 @@
 
   <div class="modal-backdrop hidden" id="recruitmentRoadTestModal">
     <div class="modal-card wide">
-      <div class="modal-heading"><div><span class="eyebrow">HR Recruitment</span><h2 id="recruitmentRoadTestModalTitle">Road Test Form</h2></div><button class="icon-btn" data-close-modal="recruitmentRoadTestModal">×</button></div>
+      <div class="modal-heading"><div><span class="eyebrow">Recruitment Archive</span><h2 id="recruitmentRoadTestModalTitle">Road Test Form</h2></div><button class="icon-btn" data-close-modal="recruitmentRoadTestModal">×</button></div>
       <form id="recruitmentRoadTestForm">
         <input type="hidden" id="recruitmentRoadTestCandidateId">
         <div class="road-test-template-note">
@@ -1607,8 +1612,8 @@
   </div>
 
   <script src="core.js?v=117"></script>
-  <script src="cloud.js?v=136"></script>
-  <script src="recruitment-test.js?v=136"></script>
-  <script src="app.js?v=136"></script>
+  <script src="cloud.js?v=137"></script>
+  <script src="recruitment-test.js?v=137"></script>
+  <script src="app.js?v=137"></script>
 </body>
 </html>

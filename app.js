@@ -953,7 +953,7 @@
     $('emptyState').classList.toggle('hidden',!needsEmpty);
     if(needsEmpty && requiresWorkspace) $('emptyStateText').textContent=cloudConnected()?'This module is connected to NBL Cloud. No cloud data has been uploaded yet. Open Cloud Sync to import your existing local NBL data.':'Sign in to NBL Cloud or choose your local NBL business data folder to begin.';
     if(needsEmpty && (screen==='drivers'||screen==='summary')) $('emptyStateText').textContent=cloudConnected()?'No settlement data is stored in NBL Cloud yet. Open Cloud Sync to import your existing local NBL data, or upload a settlement CSV.':'Choose a data folder and upload a settlement CSV.';
-    const titles={dashboard:'Dashboard',safety:'Safety',drivers:'Driver Pay',summary:'Settlement','settlement-reports':'Settlement Reports','financial-analysis':'Financial Analysis',maintenance:'Fleet Maintenance','trip-inspections':'Trip Inspections','fault-codes':'Motive Fault Codes','maintenance-tasks':'Maintenance Tasks',meetings:'Meetings',hr:'Recruitment','recruitment-test':'Recruitment – Test',users:'User Access',audit:'Audit',revenue:'Revenue Finder',dispatch:'Weekly Dispatch Planner','daily-dispatch':'Daily Dispatch Board',ivmr:'IVMR',motive:'Motive'};
+    const titles={dashboard:'Dashboard',safety:'Safety',drivers:'Driver Pay',summary:'Settlement','settlement-reports':'Settlement Reports','financial-analysis':'Financial Analysis',maintenance:'Fleet Maintenance','trip-inspections':'Trip Inspections','fault-codes':'Motive Fault Codes','maintenance-tasks':'Maintenance Tasks',meetings:'Meetings',hr:'Recruitment Archive','recruitment-test':'Recruitment',users:'User Access',audit:'Audit',revenue:'Revenue Finder',dispatch:'Weekly Dispatch Planner','daily-dispatch':'Daily Dispatch Board',ivmr:'IVMR',motive:'Motive'};
     $('pageTitle').textContent=titles[screen]||'NBL FleetCommand';
     $('saveBtn').classList.toggle('hidden',folderScreen || financeLocked);
     $('exportBtn').classList.toggle('hidden',folderScreen || financeLocked);
@@ -1009,7 +1009,7 @@
       $('fileMeta').textContent=workspace ? `${label} • ${active} in progress driver${active===1?'':'s'} • ${stuck} FADV stuck` : 'Connect NBL Cloud or choose your local data folder to begin.';
       if(workspace) renderHr();
     } else if(screen==='recruitment-test') {
-      $('fileMeta').textContent='Separate test candidates • Interview and stage workflow';
+      $('fileMeta').textContent='Candidate interviews • Hiring and onboarding workflow';
       window.NBLRecruitmentTest?.open();
     } else if(screen==='users') {
       $('fileMeta').textContent='Owner-only access management • Finance modules remain unavailable to every non-owner account.';

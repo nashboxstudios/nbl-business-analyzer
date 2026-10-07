@@ -1,4 +1,10 @@
-NBL FleetCommand — Version 136
+NBL FleetCommand — Version 137
+
+Version 137 - Recruitment Promotion and Archive
+- Recruitment under People now opens the newer interview and hiring workflow, previously Recruitment - Test.
+- The original module is available as Recruitment Archive under Archive at the bottom of navigation.
+- Active buttons, profile headings, messages, and hiring summaries use Recruitment.
+- Both existing data stores, candidate IDs, document references, access permissions, and save behavior are retained.
 
 Version 136 - Grouped Recruitment Test Table
 - Removes the stage-count tiles above the table.

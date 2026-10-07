@@ -1,4 +1,4 @@
-Recruitment Test verification (v136)
+Recruitment Test verification (v137)
 
 - `node tests/recruitment-table.cjs` with jsdom: all seven ascending/descending sorts,
   blank values last, numeric day counts, calendar-day/DST checks, screening-date-only
@@ -48,3 +48,8 @@ V136 verifies four ordered status groups, no stage tiles, Name/Location tie orde
 column sorting within groups, filtering, and profiles collapsed on open/reopen/new.
 Expanded sections are retained when saving or importing. Engine, table, and full
 app DOM checks passed. Native browser verification remains unavailable as above.
+
+V137 checks Recruitment under People, Recruitment Archive in the last sidebar
+group, module/page/profile/report labels, and save/reopen through the active
+workflow while preserving the original candidate module. The existing data
+stores and cloud APIs are retained; this release does not migrate candidates.
