@@ -5762,8 +5762,8 @@
 
   function safetyDefaultDates(){
     if(state.safety.startDate&&state.safety.endDate) return;
-    const end=new Date(),start=new Date();start.setDate(end.getDate()-29);
-    state.safety.startDate=start.toISOString().slice(0,10);state.safety.endDate=end.toISOString().slice(0,10);
+    const end=new Date(),start=addDays(end,-6);
+    state.safety.startDate=isoLocal(start);state.safety.endDate=isoLocal(end);
   }
   function safetyDriverName(driver){return displayPersonName(driver?.name||[driver?.first_name,driver?.last_name].filter(Boolean).join(' ')||'');}
   function safetyDriverId(driver){return String(driver?.id??driver?.driver_id??'').trim();}
@@ -5859,9 +5859,44 @@
   function safetySortValue(row,key,all){const adjusted=safetyAdjustedScore(row,all);if(key==='driver')return safetyDriverName(row.driver).toLowerCase();if(key==='official')return Number(row.score);if(key==='adjusted')return adjusted.score;if(key==='miles')return safetyScorecardMiles(row);if(key==='events')return all.filter(x=>safetyEventDriver(x.event,x.source)?.id===safetyDriverId(row.driver)).length;return adjusted.score;}
   function safetySortableHeading(label,key,sort){const active=sort.key===key,arrow=active?(sort.dir==='asc'?' ▲':' ▼'):'';return `<th><button class="safety-sort" type="button" data-safety-sort="${key}">${label}${arrow}</button></th>`;}
   function safetyTrendLabel(snapshot){const value=snapshot.endDate||snapshot.capturedAt||'';if(!value)return '—';const d=new Date(`${String(value).slice(0,10)}T12:00:00`);return isNaN(d)?String(value).slice(0,10):new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric'}).format(d);}
-  function safetyScoreTrendSvg(snapshots){const rows=snapshots.filter(x=>Number.isFinite(Number(x.adjustedScore))).slice(-12);if(!rows.length)return '<div class="safety-chart-empty">Load Safety data more than once to begin building this driver’s trend.</div>';const W=720,H=260,L=48,R=18,T=18,B=42,plotW=W-L-R,plotH=H-T-B,x=i=>L+(rows.length===1?plotW/2:i*plotW/(rows.length-1)),y=v=>T+(100-Math.max(0,Math.min(100,Number(v))))/100*plotH,points=rows.map((r,i)=>`${x(i)},${y(r.adjustedScore)}`).join(' ');return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Adjusted score trend"><rect x="${L}" y="${y(100)}" width="${plotW}" height="${y(96)-y(100)}" fill="#E7F6ED"/><rect x="${L}" y="${y(96)}" width="${plotW}" height="${y(85)-y(96)}" fill="#FFF6D9"/><rect x="${L}" y="${y(85)}" width="${plotW}" height="${y(0)-y(85)}" fill="#FDE8E6"/>${[0,50,85,96,100].map(v=>`<line x1="${L}" y1="${y(v)}" x2="${W-R}" y2="${y(v)}" class="grid"/><text x="${L-8}" y="${y(v)+4}" text-anchor="end">${v}</text>`).join('')}<polyline points="${points}" class="score-line"/>${rows.map((r,i)=>`<circle cx="${x(i)}" cy="${y(r.adjustedScore)}" r="5" fill="${safetyBandColor(r.adjustedScore)}"><title>${safetyTrendLabel(r)}: ${Number(r.adjustedScore).toFixed(1)}</title></circle><text x="${x(i)}" y="${H-17}" text-anchor="middle">${safetyTrendLabel(r)}</text>`).join('')}</svg>`;}
-  function safetyIncidentTrendSvg(snapshots){const rows=snapshots.slice(-12);if(!rows.length)return '<div class="safety-chart-empty">No saved incident history is available yet.</div>';const W=720,H=260,L=45,R=18,T=20,B=42,plotW=W-L-R,plotH=H-T-B,max=Math.max(1,...rows.map(x=>Number(x.activeIncidentCount)||0)),slot=plotW/rows.length,bar=Math.min(42,slot*.58),y=v=>T+plotH-(Number(v)||0)/max*plotH;return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Incident trend">${Array.from({length:5},(_,i)=>Math.round(max*i/4)).map(v=>`<line x1="${L}" y1="${y(v)}" x2="${W-R}" y2="${y(v)}" class="grid"/><text x="${L-7}" y="${y(v)+4}" text-anchor="end">${v}</text>`).join('')}${rows.map((r,i)=>{const x=L+i*slot+(slot-bar)/2,h=T+plotH-y(r.activeIncidentCount);return `<rect x="${x}" y="${y(r.activeIncidentCount)}" width="${bar}" height="${h}" rx="4" fill="${safetyBandColor(r.adjustedScore)}"><title>${safetyTrendLabel(r)}: ${r.activeIncidentCount||0} active incidents</title></rect><text x="${x+bar/2}" y="${H-17}" text-anchor="middle">${safetyTrendLabel(r)}</text>`;}).join('')}</svg>`;}
-  function renderSafetyTrends(scorecards,all){const select=$('safetyTrendDriver');if(!select)return;const available=scorecards.map(r=>({id:safetyDriverId(r.driver),name:safetyDriverName(r.driver)})).filter(x=>x.id);if(!state.safety.trendDriverId||!available.some(x=>x.id===state.safety.trendDriverId))state.safety.trendDriverId=available[0]?.id||'';select.innerHTML='<option value="">Select Driver</option>'+available.map(x=>`<option value="${escapeHtml(x.id)}">${escapeHtml(x.name)}</option>`).join('');select.value=state.safety.trendDriverId;const snapshots=safetyDriverSnapshots(state.safety.trendDriverId);$('safetyScoreTrendChart').innerHTML=safetyScoreTrendSvg(snapshots);$('safetyIncidentTrendChart').innerHTML=safetyIncidentTrendSvg(snapshots);}
+  function safetyScoreTrendSvg(snapshots){
+    const rows=snapshots.filter(x=>x.adjustedScore!=null&&Number.isFinite(Number(x.adjustedScore))).slice(-12);
+    if(!rows.length)return '<div class="safety-chart-empty">Load Safety data to begin building this driver’s trend.</div>';
+    const W=720,H=260,L=48,R=18,T=18,B=42,plotW=W-L-R,plotH=H-T-B,
+      x=i=>L+(rows.length===1?plotW/2:i*plotW/(rows.length-1)),
+      y=v=>T+(100-Math.max(75,Math.min(100,Number(v))))/25*plotH,
+      points=rows.map((r,i)=>`${x(i)},${y(r.adjustedScore)}`).join(' '),belowScale=rows.some(r=>Number(r.adjustedScore)<75);
+    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Adjusted score trend, scale 75 to 100"><rect x="${L}" y="${y(100)}" width="${plotW}" height="${y(96)-y(100)}" fill="#E7F6ED"/><rect x="${L}" y="${y(96)}" width="${plotW}" height="${y(85)-y(96)}" fill="#FFF6D9"/><rect x="${L}" y="${y(85)}" width="${plotW}" height="${y(75)-y(85)}" fill="#FDE8E6"/>${[75,80,85,90,95,100].map(v=>`<line x1="${L}" y1="${y(v)}" x2="${W-R}" y2="${y(v)}" class="grid"/><text x="${L-8}" y="${y(v)+4}" text-anchor="end">${v}</text>`).join('')}<polyline points="${points}" class="score-line"/>${rows.map((r,i)=>{const title=`${safetyTrendLabel(r)}: ${Number(r.adjustedScore).toFixed(1)}${Number(r.adjustedScore)<75?' (below chart scale)':''}`,marker=Number(r.adjustedScore)<75?`<path d="M ${x(i)-6} ${y(75)-4} L ${x(i)+6} ${y(75)-4} L ${x(i)} ${y(75)+5} Z" fill="${safetyBandColor(r.adjustedScore)}"><title>${escapeHtml(title)}</title></path>`:`<circle cx="${x(i)}" cy="${y(r.adjustedScore)}" r="5" fill="${safetyBandColor(r.adjustedScore)}"><title>${escapeHtml(title)}</title></circle>`;return `${marker}<text x="${x(i)}" y="${H-17}" text-anchor="middle">${escapeHtml(safetyTrendLabel(r))}</text>`;}).join('')}</svg>${belowScale?'<p class="safety-chart-note">▼ Score below 75; hover for the actual value.</p>':''}`;
+  }
+  function safetyTopIncidents(driverId,all){
+    if(!driverId)return [];
+    const counts=new Map(),{startDate,endDate}=state.safety;
+    for(const item of all){
+      if(safetyEventDriver(item.event,item.source)?.id!==driverId||safetyDismissal(item).dismissed)continue;
+      const time=safetyEventTime(item.event),date=time?new Date(time):null;
+      if(!date||isNaN(date))continue;
+      const day=isoLocal(date);if(day<startDate||day>endDate)continue;
+      const type=safetyCanonicalType(safetyEventType(item.event,item.source));
+      counts.set(type,(counts.get(type)||0)+1);
+    }
+    return [...counts].map(([type,count])=>({type,count})).sort((a,b)=>b.count-a.count||a.type.localeCompare(b.type)).slice(0,3);
+  }
+  function safetyTopIncidentsHtml(driverId,all){
+    if(!driverId)return '<div class="safety-chart-empty">Select a driver to see their Top 3 Incidents.</div>';
+    const rows=safetyTopIncidents(driverId,all);
+    if(!rows.length)return '<div class="safety-chart-empty">No active incidents for this driver in the selected period.</div>';
+    const max=rows[0].count;
+    return `<ol class="safety-top-incidents">${rows.map(r=>`<li><div class="safety-top-incident-heading"><strong>${escapeHtml(r.type.replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase()))}</strong><span>${fmtNum(r.count)} incident${r.count===1?'':'s'}</span></div><div class="safety-incident-bar" aria-hidden="true"><span style="width:${r.count/max*100}%"></span></div></li>`).join('')}</ol>`;
+  }
+  function renderSafetyTrends(scorecards,all){
+    const select=$('safetyTrendDriver');if(!select)return;
+    const available=scorecards.map(r=>({id:safetyDriverId(r.driver),name:safetyDriverName(r.driver)})).filter(x=>x.id);
+    if(!state.safety.trendDriverId||!available.some(x=>x.id===state.safety.trendDriverId))state.safety.trendDriverId=available[0]?.id||'';
+    select.innerHTML='<option value="">Select Driver</option>'+available.map(x=>`<option value="${escapeHtml(x.id)}">${escapeHtml(x.name)}</option>`).join('');select.value=state.safety.trendDriverId;
+    const snapshots=safetyDriverSnapshots(state.safety.trendDriverId);
+    $('safetyScoreTrendChart').innerHTML=safetyScoreTrendSvg(snapshots);
+    $('safetyTopIncidentsChart').innerHTML=safetyTopIncidentsHtml(state.safety.trendDriverId,all);
+  }
   function renderSafetyAtRisk(scorecards,all){const range=`${state.safety.startDate}|${state.safety.endDate}`,items=scorecards.map(r=>{const id=safetyDriverId(r.driver),adj=safetyAdjustedScore(r,all),previous=safetyPreviousAdjusted(id,range),delta=previous==null?null:adj.score-previous;return {row:r,id,name:safetyDriverName(r.driver),adjusted:adj.score,rating:safetyScoreBand(adj.score),delta,incidents:all.filter(x=>safetyEventDriver(x.event,x.source)?.id===id&&!safetyDismissal(x).dismissed).length};}).filter(x=>Number.isFinite(x.adjusted)&&x.adjusted>0).sort((a,b)=>a.adjusted-b.adjusted||a.name.localeCompare(b.name)).slice(0,4);$('safetyAtRiskCount').textContent=`${items.length} driver${items.length===1?'':'s'}`;$('safetyAtRiskList').innerHTML=items.length?items.map(x=>`<div class="safety-risk-card ${x.rating==='Critical'?'critical':'declining'}"><div><span>${escapeHtml(x.rating)}</span><strong>${escapeHtml(x.name||'Unknown Driver')}</strong><small>${x.incidents} active incident${x.incidents===1?'':'s'}${x.delta==null?'':` • ${x.delta>=0?'+':''}${x.delta.toFixed(1)} vs prior snapshot`}</small></div><b>${x.adjusted.toFixed(1)}</b><div class="safety-risk-actions"><button class="table-action" data-safety-driver-view="${escapeHtml(x.id)}">Incidents</button><button class="table-action" data-safety-driver-trend="${escapeHtml(x.id)}">Trend</button><button class="table-action" data-safety-driver-export="${escapeHtml(x.id)}">PDF</button></div></div>`).join(''):'<div class="safety-chart-empty">No drivers with a non-zero Adjusted Score are available.</div>';}
   function renderSafety(){
     if(!$('safetyScreen'))return;safetyDefaultDates();const s=state.safety;

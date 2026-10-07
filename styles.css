@@ -693,3 +693,12 @@ body .sidebar{position:fixed;top:0;bottom:0;left:0;z-index:1002;width:min(86vw,3
 
 /* v97: clearer primary navigation hierarchy */
 .sidebar .nav-group-toggle{min-height:34px;padding:7px 8px 8px;font-size:14px;font-weight:900;letter-spacing:.055em;color:#fff}.sidebar .nav-group-chevron{font-size:13px;color:rgba(255,255,255,.62)}.sidebar .nav-group-items{gap:3px;padding-top:1px}.sidebar .nav-btn-child,.sidebar .nav-btn-grandchild{padding-left:43px;font-size:11.5px;font-weight:700;color:rgba(255,255,255,.79)}.sidebar .nav-btn-grandchild{padding-left:43px}.sidebar .nav-btn-grandchild[data-icon]::before{left:10px;width:23px;height:23px}.sidebar .nav-btn-child:hover,.sidebar .nav-btn-grandchild:hover{color:#fff}.sidebar .nav-btn.active{color:#fff;font-weight:800}
+
+/* v122: top incident types for the selected driver and reporting period */
+.safety-top-incidents{list-style:none;margin:0;padding:8px 0;display:grid;gap:24px}
+.safety-top-incident-heading{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:9px;font-size:12px}
+.safety-top-incident-heading strong{color:var(--navy2);overflow-wrap:anywhere}
+.safety-top-incident-heading span{color:var(--muted);white-space:nowrap}
+.safety-incident-bar{height:14px;border-radius:7px;background:#f0eaf3;overflow:hidden}
+.safety-incident-bar span{display:block;height:100%;border-radius:7px;background:#35164e}
+.safety-chart-note{margin:6px 0 0;color:#887b8f;font-size:11px}

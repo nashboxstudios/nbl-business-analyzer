@@ -1,3 +1,15 @@
+NBL FleetCommand — Version 122
+
+Version 122 - Safety Dashboard
+
+- Fixes the Adjusted Score Trend scale at 75–100, retaining the actual scores.
+- Marks scores below 75 at the lower edge with their actual value in the tooltip.
+- Replaces Incident Trend with Top 3 Incidents for the selected driver and reporting period, ranked by frequency.
+- Combines equivalent incident names and excludes dismissed events.
+- Defaults the Safety date range to today and the previous six days, using local calendar dates.
+- Keeps manually loaded date ranges and the existing score history and PDF exports.
+- No new database migration is required for this update.
+
 NBL FleetCommand — Version 121
 
 Version 121 - Recruitment Status Section Headers
