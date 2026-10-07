@@ -1,3 +1,18 @@
+NBL FleetCommand — Version 126
+
+Version 126 - Candidate Profile Sections and Hiring Report
+
+- Adds Employment Type (Full Time / Part Time) from the saved Type field to Position & Offer in the preview and PDF.
+- Colors Doubles: No red, Yes No Experience yellow, Yes With Experience green, with readable status backgrounds.
+- Removes Equipment Familiarization from the hiring report; retains the profile field.
+- Makes Application Import, Candidate Details, Driver Profile Details, Hiring Status, Hiring Summary, Onboarding Tasks and Driver Documents collapsible, with larger section titles.
+- Opens Candidate Details initially; other sections can be opened independently.
+- Expands a section automatically when a required field needs attention or the Recruitment Hiring Summary table action is used.
+- Removes the Open Hiring Summary shortcut at the top of the profile.
+- Keeps Onboarding Tasks immediately before Driver Documents and preserves existing candidate data.
+- Version 126 is displayed below the logo. No SQL migration or new dependency is required.
+- Deploy this package to update the live app.
+
 NBL FleetCommand — Version 125
 
 Version 125 - Recruitment Hiring Summary Refinements

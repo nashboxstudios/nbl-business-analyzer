@@ -3249,7 +3249,7 @@
     const form=$('recruitmentCandidateForm');if(!form.reportValidity())return null;
     const documents=Object.fromEntries(Array.from({length:5},(_,i)=>[`slot${i+1}`,{label:$(`recruitmentDocument${i+1}Label`).value,expiry:$(`recruitmentDocument${i+1}Expiry`).value}]));
     const existing=(state.hr.candidates||[]).find(c=>c.id===$('recruitmentCandidateId').value);
-    return {name:$('recruitmentNameInput').value.trim(),domicile:$('recruitmentDomicileInput').value.trim(),shift:$('recruitmentShiftInput').value,startDate:$('recruitmentStartDateInput').value,
+    return {name:$('recruitmentNameInput').value.trim(),domicile:$('recruitmentDomicileInput').value.trim(),shift:$('recruitmentShiftInput').value,type:$('recruitmentTypeInput').value,startDate:$('recruitmentStartDateInput').value,
       fadvStatus:$('recruitmentFadvStatusInput').value,drugTest:$('recruitmentDrugTestInput').value,roadTest:$('recruitmentRoadTestInput').value,equipmentFam:$('recruitmentEquipmentFamInput').value,
       doubles:$('recruitmentDoublesInput').value,cdlExpiry:$('recruitmentCdlExpiryInput').value,cdlIssuingState:$('recruitmentCdlIssuingStateInput').value.trim(),
       medCardExpiry:existing?.medCardExpiry||'',documents,hiringSummary:hiringSummaryInputs()};
@@ -3258,18 +3258,19 @@
     const h=candidate.hiringSummary||{},text=v=>v==null||String(v).trim()===''?'Not provided':String(v).trim(),date=v=>v?fmtDate(v):'Not provided';
     const rate=h.payRate==null||h.payRate===''?'Not provided':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(h.payRate));
     return {name:text(candidate.name),terminal:text(candidate.domicile),date:fmtDate(todayIso()),notes:text(h.notes),sections:[
-      {title:'Position & Offer',rows:[['Proposed Pay Rate',rate],['Pay Basis',text(h.payBasis)],['Schedule Discussed',text(h.schedule)],['Shift',text(candidate.shift)]]},
-      {title:'Hiring Requirements',rows:[['Drug Screen Status',text(candidate.drugTest)],['Equipment Familiarization',text(candidate.equipmentFam)],['CDL Expiry Date',date(candidate.cdlExpiry)],['CDL Issuing State',text(candidate.cdlIssuingState)]]},
+      {title:'Position & Offer',rows:[['Employment Type',text(candidate.type)],['Proposed Pay Rate',rate],['Pay Basis',text(h.payBasis)],['Schedule Discussed',text(h.schedule)],['Shift',text(candidate.shift)]]},
+      {title:'Hiring Requirements',rows:[['Drug Screen Status',text(candidate.drugTest)],['CDL Expiry Date',date(candidate.cdlExpiry)],['CDL Issuing State',text(candidate.cdlIssuingState)]]},
       {title:'Experience',rows:[['Years of Tractor-Trailer Experience',text(h.tractorTrailerYears)],['Doubles',recruitmentDoublesLabel(candidate)],['FedEx Experience',text(h.fedexExperience)]]}
     ]};
   }
-  function hiringStatusClass(value){
+  function hiringStatusClass(value,label=''){
+    if(label==='Doubles')return value==='No'?'issue':value==='Yes No Experience'?'pending':value==='Yes With Experience'?'complete':'';
     return /^(Pass|Complete|Yes|Yes With Experience|Yes No Experience)$/i.test(value)?'complete':/^(Fail|Stuck)$/i.test(value)?'issue':/^(Taken|Sent|Scheduled|In Progress|Not Scheduled|Incomplete)$/i.test(value)?'pending':'';
   }
   function previewHiringSummary(){
     const candidate=hiringSummaryCandidateFromForm();if(!candidate)return;
     const r=hiringSummaryReport(candidate);state.hiringSummaryPreview=r;
-    $('hiringSummaryPreviewContent').innerHTML=`<article class="hiring-report"><header><img src="assets/nashbox-logistics-logo.png" alt="Nashbox Logistics"><div><span>Candidate Hiring Summary</span><h2>${escapeHtml(r.name)}</h2><p>Location / Terminal: ${escapeHtml(r.terminal)}</p><p>Report Date: ${escapeHtml(r.date)}</p></div></header><section><h3>Hiring Notes</h3><p class="hiring-report-notes">${escapeHtml(r.notes)}</p></section>${r.sections.map(section=>`<section><h3>${escapeHtml(section.title)}</h3><dl>${section.rows.map(([label,value])=>`<div><dt>${escapeHtml(label)}</dt><dd class="${hiringStatusClass(value)}">${escapeHtml(value)}</dd></div>`).join('')}</dl></section>`).join('')}</article>`;
+    $('hiringSummaryPreviewContent').innerHTML=`<article class="hiring-report"><header><img src="assets/nashbox-logistics-logo.png" alt="Nashbox Logistics"><div><span>Candidate Hiring Summary</span><h2>${escapeHtml(r.name)}</h2><p>Location / Terminal: ${escapeHtml(r.terminal)}</p><p>Report Date: ${escapeHtml(r.date)}</p></div></header><section><h3>Hiring Notes</h3><p class="hiring-report-notes">${escapeHtml(r.notes)}</p></section>${r.sections.map(section=>`<section><h3>${escapeHtml(section.title)}</h3><dl>${section.rows.map(([label,value])=>`<div><dt>${escapeHtml(label)}</dt><dd class="${hiringStatusClass(value,label)}${label==='Doubles'?' doubles-status':''}">${escapeHtml(value)}</dd></div>`).join('')}</dl></section>`).join('')}</article>`;
     openModal('hiringSummaryPreviewModal');
   }
   async function renderHiringSummaryCanvases(report){
@@ -3307,7 +3308,9 @@
         const height=Math.max(31,Math.max(take,displayLabels.length)*19+10);
         ctx.fillStyle='#F5F7F9';ctx.fillRect(M,y,W-2*M,height);ctx.fillStyle='#526478';ctx.font='13px Arial';
         for(let j=0;j<displayLabels.length;j++)ctx.fillText(displayLabels[j],M+10,y+19+j*19);
-        const status=hiringStatusClass(value);ctx.fillStyle=status==='complete'?'#216743':status==='issue'?'#A12E2E':status==='pending'?'#8A5D12':'#243746';
+        const status=hiringStatusClass(value,label);
+        if(label==='Doubles'&&status){ctx.fillStyle={complete:'#E3F2E8',issue:'#FCE8E6',pending:'#FFF3CD'}[status];ctx.fillRect(M+274,y,W-2*M-274,height);}
+        ctx.fillStyle=status==='complete'?'#216743':status==='issue'?'#A12E2E':status==='pending'?'#8A5D12':'#243746';
         for(let j=0;j<take;j++)if(values[offset+j])ctx.fillText(values[offset+j],M+280,y+19+j*19);
         y+=height+3;offset+=take;
       }
@@ -3326,7 +3329,14 @@
     }catch(err){showAlert('Could not create the Hiring Summary PDF: '+escapeHtml(err.message),'error');}finally{buttons.forEach(b=>b.disabled=false);}
   }
 
+  function revealRecruitmentSection(id){
+    const section=$(id);if(!section)return;section.open=true;section.scrollIntoView({block:'start',behavior:'smooth'});
+  }
+  function revealRecruitmentInvalidField(event){
+    const section=event.target?.closest?.('details.hr-candidate-section');if(section)section.open=true;
+  }
   function openRecruitmentCandidateModal(id=''){
+    document.querySelectorAll('#recruitmentCandidateForm details.hr-candidate-section').forEach(section=>section.open=section.dataset.defaultOpen==='true');
     const c=id?(state.hr.candidates||[]).find(x=>x.id===id):null;
     $('recruitmentCandidateId').value=c?.id||'';
     $('recruitmentCandidateModalTitle').textContent=c?`Edit Candidate — ${c.name}`:'Add Candidate';
@@ -6350,8 +6360,8 @@
   $('managementItemForm').addEventListener('submit',saveManagementFromForm);
   $('addRecruitmentCandidateBtn')?.addEventListener('click',()=>openRecruitmentCandidateModal());
   $('recruitmentCandidateForm')?.addEventListener('submit',saveRecruitmentCandidateFromForm);
+  $('recruitmentCandidateForm')?.addEventListener('invalid',revealRecruitmentInvalidField,true);
   $('hiringSummaryPreviewBtn')?.addEventListener('click',previewHiringSummary);
-  $('openHiringSummarySectionBtn')?.addEventListener('click',()=>{$('hiringSummarySection').scrollIntoView({block:'start',behavior:'smooth'});$('hiringSummaryNotesInput').focus({preventScroll:true});});
   $('hiringSummaryDownloadBtn')?.addEventListener('click',()=>downloadHiringSummaryPdf());
   $('hiringSummaryPreviewDownloadBtn')?.addEventListener('click',()=>downloadHiringSummaryPdf(true));
   $('recruitmentRoadTestForm')?.addEventListener('submit',saveRecruitmentRoadTest);
@@ -6436,7 +6446,7 @@
     const editManagement=e.target.closest('[data-edit-management]'); if(editManagement) openManagementModal(editManagement.dataset.editManagement);
     const deleteManagementBtn=e.target.closest('[data-delete-management]'); if(deleteManagementBtn) deleteManagementItem(deleteManagementBtn.dataset.deleteManagement);
     const roadTestRecruitment=e.target.closest('[data-road-test-candidate]'); if(roadTestRecruitment){ openRecruitmentRoadTestModal(roadTestRecruitment.dataset.roadTestCandidate); return; }
-    const hiringSummary=e.target.closest('[data-hiring-summary-candidate]');if(hiringSummary){openRecruitmentCandidateModal(hiringSummary.dataset.hiringSummaryCandidate);setTimeout(()=>$('hiringSummarySection').scrollIntoView({block:'start',behavior:'smooth'}),80);return;}
+    const hiringSummary=e.target.closest('[data-hiring-summary-candidate]');if(hiringSummary){openRecruitmentCandidateModal(hiringSummary.dataset.hiringSummaryCandidate);setTimeout(()=>revealRecruitmentSection('hiringSummarySection'),80);return;}
     const editRecruitment=e.target.closest('[data-edit-recruitment-candidate]'); if(editRecruitment){ openRecruitmentCandidateModal(editRecruitment.dataset.editRecruitmentCandidate); return; }
     const deleteRecruitment=e.target.closest('[data-delete-recruitment-candidate]'); if(deleteRecruitment){ deleteRecruitmentCandidate(deleteRecruitment.dataset.deleteRecruitmentCandidate); return; }
     const auditTab=e.target.closest('[data-audit-tab]'); if(auditTab){ setAuditTab(auditTab.dataset.auditTab); return; }
