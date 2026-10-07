@@ -3087,7 +3087,7 @@
   function confirmRecruitmentApplicationNameMismatch(existingName,pdfName,fileName=''){
     return new Promise(resolve=>{
       if(state.hrApplicationMismatch?.resolver){ try{state.hrApplicationMismatch.resolver(false);}catch(_){} }
-      state.hrApplicationMismatch={resolver};
+      state.hrApplicationMismatch={resolver:resolve};
       if($('recruitmentMismatchExistingName')) $('recruitmentMismatchExistingName').textContent=existingName||'—';
       if($('recruitmentMismatchPdfName')) $('recruitmentMismatchPdfName').textContent=pdfName||'—';
       if($('recruitmentMismatchFileName')) $('recruitmentMismatchFileName').textContent=fileName?`File: ${fileName}`:'Review the selected application before accepting it.';

@@ -1,3 +1,14 @@
+NBL FleetCommand — Version 127
+
+Version 127 - First Advantage PDF Import Fix
+
+- Fixes "resolver is not defined" when an application PDF name differs from the existing candidate name.
+- Restores the Accept Upload / Reject Upload confirmation. Accept continues the supported-field update and save; Reject or closing the prompt leaves the candidate unchanged.
+- Preserves all Version 126 hiring summary and collapsible profile changes.
+- Displays Version 127 below the logo and refreshes versioned app assets.
+- No SQL migration or new dependency is required.
+- Deploy this package to update the live app.
+
 NBL FleetCommand — Version 126
 
 Version 126 - Candidate Profile Sections and Hiring Report
