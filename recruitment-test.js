@@ -7,6 +7,7 @@ const OPS_FIELDS=['agreedDays','dispatchAgreement','doublesAgreement'];
 const scheduleKey=c=>JSON.stringify(OPS_FIELDS.map(k=>c.testPipeline?.ops?.[k]||''));
 const legacyScheduleKey=c=>JSON.stringify(['agreedDays','shiftStart','shiftEnd','dispatchTime','doublesRequired'].map(k=>c.testPipeline?.ops?.[k]||''));
 const SCREENING_QUESTIONS={
+ sexOffender:'Has the candidate reported a sex-offender record?',
  experience:'FedEx requires 1 year of tractor-trailer experience in the last 3 years, or 5 in the last 10. Can you tell me more about your work experience?',
  availability:'Do you prefer a day or night shift? And what days are your available?',
  payExpectation:'What are your expectations in terms of pay?',
@@ -127,8 +128,29 @@ function sortCandidates(candidates,key='name',direction='asc',today){
   return 0;
  });
 }
+// Keep the overview factual: eligibility and individual criminal answers are recorded explicitly.
+function interviewSummaryFields(candidate){
+ const c=normalize(candidate),s=c.testPipeline.screening,h=c.hiringSummary;
+ const compact=v=>String(v??'').replace(/\s+/g,' ').trim();
+ const shown=v=>compact(v)||'Not recorded';
+ const joined=(...values)=>[...new Set(values.map(compact).filter(Boolean))].join('; ');
+ const record=(answer,notes)=>joined(answer==='No'?'None reported':answer==='Yes'?'Reported':answer,notes);
+ return [
+  ['Preferred location',shown(c.location)],['CDL experience',shown(joined(s.experienceRequirement,s.experience))],['FedEx experience',shown(h.fedexExperience)],
+  ['Pay discussed',shown(s.payExpectation)],['shift discussed',shown(joined(s.possibleShifts,s.availability))],['doubles',shown(joined(c.doubles,s.doublesNotes))],
+  ['safety',shown(record(s.safety,s.safetyNotes))],['felony/misdemeanor',shown(record(s.criminal,s.criminalNotes))],['sex offender',shown(record(s.sexOffender,s.sexOffenderNotes))]
+ ];
+}
+function interviewSummary(candidate){
+ const custom=String(candidate.hiringSummary?.interviewSummary??'').replace(/\s+/g,' ').trim();
+ const fields=interviewSummaryFields(candidate).map(([label,value])=>`${label}: ${value}`);
+ return custom||fields.slice(0,3).join('; ')+'. '+fields.slice(3).join('; ')+'.';
+}
+const INTERVIEW_SUMMARY_LIMIT=600;
 function summaryHtml(candidate,logoUrl='assets/nashbox-logistics-logo.png',format='letter'){
  const phone=format==='phone';
+ const overview=interviewSummary(candidate);
+ if(overview.length>INTERVIEW_SUMMARY_LIMIT)throw new Error('The Interview Summary is too long. Review and shorten it in Hiring Summary to 600 characters or fewer before exporting.');
  const c=normalize(candidate),p=c.testPipeline,s=p.screening,b=p.background,e=escapeHtml;
  const shown=v=>v===undefined||v===null||String(v).trim()===''?'Not recorded':String(v);
  const date=v=>{if(!v)return 'Not recorded';const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(v);return m?`${m[2]}/${m[3]}/${m[1]}`:v;};
@@ -138,6 +160,8 @@ function summaryHtml(candidate,logoUrl='assets/nashbox-logistics-logo.png',forma
  const question=(title,prompt,answer,details)=>`<article class="question"><h3>${e(title)}</h3>${prompt?`<p class="prompt">${e(prompt)}</p>`:''}<p class="answer">${value(answer)}</p>${details?`<p class="detail">${e(details)}</p>`:''}</article>`;
  const yesNo=v=>v?'Yes':'Not recorded';
  const doublesColor=c.doubles==='No'?'#a92323':c.doubles==='Yes With Experience'?'#157344':'#946800';
+ const summaryFields=interviewSummaryFields(c).map(([label,v])=>`<strong>${e(label)}:</strong> ${label==='doubles'?`<span class="status">${e(v)}</span>`:e(v)}`);
+ const overviewHtml=String(c.hiringSummary.interviewSummary||'').trim()?e(overview):summaryFields.slice(0,3).join('; ')+'. '+summaryFields.slice(3).join('; ')+'.';
  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ops Manager Hiring Summary - ${e(c.name)}</title><style>
  *{box-sizing:border-box}:root{--purple:#5B2A86;--purple-dark:#35164E;--orange:#F15A24;--text:#30283A;--muted:#756C7D;--line:#E7E0EA}body{margin:0;background:#F8F6FA;color:var(--text);font:14px/1.5 Arial,sans-serif}
  .toolbar{max-width:900px;margin:22px auto 12px;display:flex;align-items:center;gap:14px;padding:0 12px}.toolbar button{padding:11px 18px;border:0;border-radius:8px;background:var(--orange);color:#fff;font:inherit;font-weight:bold;cursor:pointer}.toolbar span{font-size:12px;color:var(--muted)}
@@ -147,29 +171,23 @@ function summaryHtml(candidate,logoUrl='assets/nashbox-logistics-logo.png',forma
  @media(max-width:600px){body{font-size:16px}.answer,dd{font-size:16px}.prompt{font-size:14px}.report{padding:24px 18px}.report-header{gap:12px}.report-header img{width:48px;height:48px}.facts{grid-template-columns:1fr}h1{font-size:24px}.toolbar{flex-wrap:wrap}}
  @media print{@page{size:letter;margin:16mm}body{background:#fff;font-size:11pt}.toolbar{display:none}.report{max-width:none;box-shadow:none;padding:0;margin:0}.report-header{break-inside:avoid}.facts{grid-template-columns:1fr 1fr}h1{font-size:23pt}h2{font-size:14pt}.question h3{font-size:11pt}.answer,dd{font-size:11pt}.prompt{font-size:9pt}.report-section{margin-top:18px}h1,h2,h3{break-after:avoid}.fact{break-inside:avoid;padding:8px 10px}.facts{gap:8px 16px}.question{padding-bottom:10px;margin-bottom:10px}.interview-meta{margin-bottom:14px}.instructions{font-size:9pt}.footnote{margin-top:16px;padding-top:10px}}
 
- .phone-report .report{max-width:408px;padding:20px 16px}.phone-report .facts{grid-template-columns:1fr}.phone-report .report-header{gap:12px}.phone-report .report-header img{width:48px;height:48px}.phone-report h1{font-size:24px}.phone-report .answer,.phone-report dd{font-size:16px}.phone-report .prompt{font-size:14px}.phone-report .toolbar{max-width:408px;flex-wrap:wrap}
- @media print{@page phone{size:108mm 192mm;margin:8mm}.phone-report{page:phone}.phone-report .report{max-width:none;padding:0}.phone-report .facts{grid-template-columns:1fr;gap:8px}.phone-report h1{font-size:20pt}.phone-report h2{font-size:15pt;padding:8px 10px}.phone-report .question h3{font-size:12pt}.phone-report .answer,.phone-report dd{font-size:12pt}.phone-report .prompt,.phone-report .detail{font-size:10.5pt}.phone-report .instructions{font-size:10pt}.phone-report .report-header{margin-bottom:16px;padding-bottom:12px}.phone-report .brand{font-size:9pt}.phone-report .subtitle{font-size:10.5pt}.phone-report dt{font-size:9pt}}
- </style></head><body${phone?' class="phone-report"':''}><div class="toolbar"><button type="button" onclick="window.print()">${phone?'Print / Save Phone PDF':'Print / Save PDF'}</button><span>${phone?'Phone format · Single column · ':''}Share this summary with the Ops Manager.</span></div><main class="report"><header class="report-header"><img src="${e(logoUrl)}" alt="Nashbox Logistics"><div class="header-copy"><div class="brand">NASHBOX LOGISTICS</div><p class="report-label">Recruitment${phone?' · Prepared '+e(new Date().toLocaleDateString('en-US')):''}</p><h1>${value(c.name)}</h1><p class="subtitle">Hiring Summary for the Ops Manager · ${value(c.location)}</p></div></header>
- <section class="report-section"><h2>Candidate Details</h2>${facts([['Name',c.name],['Location',c.location],['Phone',c.phone],['FedEx ID',c.fedexId]])}</section>
+ .interview-overview{font-size:15px;line-height:1.65;margin:0;overflow-wrap:anywhere}.supporting-details{margin-top:28px}.screening-replies{display:grid;grid-template-columns:1fr 1fr;gap:10px 18px}.screening-replies .question{margin:0}.screening-replies .question:last-child{grid-column:1/-1}@media(max-width:600px){.screening-replies{grid-template-columns:1fr}}@media print{.facts{grid-template-columns:repeat(3,1fr)}.screening-replies{grid-template-columns:1fr 1fr}.supporting-details{break-before:page;margin-top:0}.interview-overview{font-size:11pt;line-height:1.6}}
+ .phone-report .report{max-width:408px;padding:20px 16px}.phone-report .facts{grid-template-columns:1fr}.phone-report .screening-replies{grid-template-columns:1fr}.phone-report .report-header{gap:12px}.phone-report .report-header img{width:48px;height:48px}.phone-report h1{font-size:24px}.phone-report .answer,.phone-report dd{font-size:16px}.phone-report .prompt{font-size:14px}.phone-report .toolbar{max-width:408px;flex-wrap:wrap}
+ @media print{@page phone{size:108mm 192mm;margin:8mm}.phone-report{page:phone}.phone-report .report{max-width:none;padding:0}.phone-report .facts{grid-template-columns:1fr;gap:8px}.phone-report h1{font-size:20pt}.phone-report h2{font-size:15pt;padding:8px 10px}.phone-report .question h3{font-size:12pt}.phone-report .answer,.phone-report dd{font-size:12pt}.phone-report .prompt,.phone-report .detail{font-size:10.5pt}.phone-report .instructions{font-size:10pt}.phone-report .report-header{margin-bottom:16px;padding-bottom:12px}.phone-report .brand{font-size:9pt}.phone-report .subtitle{font-size:10.5pt}.phone-report dt{font-size:9pt}.phone-report .fact{padding:6px 10px}.phone-report .facts{gap:6px}.phone-report .screening-replies{gap:6px}.phone-report .question{padding-bottom:6px}.phone-report .question h3{margin-bottom:3px}.phone-report .report-section{margin-top:12px}.phone-report .supporting-details>section:last-of-type{break-before:page;margin-top:0}.phone-report .interview-meta{break-inside:avoid}}
+ </style></head><body${phone?' class="phone-report"':''}><div class="toolbar"><button type="button" onclick="window.print()">${phone?'Print / Save Phone PDF':'Print / Save PDF'}</button><span>${phone?'Phone format · Single column · ':''}Share this summary with the Ops Manager.</span></div><main class="report"><header class="report-header"><img src="${e(logoUrl)}" alt="Nashbox Logistics"><div class="header-copy"><div class="brand">NASHBOX LOGISTICS</div><p class="report-label">Recruitment${phone?' · Prepared '+e(new Date().toLocaleDateString('en-US')):''}</p><h1>${value(c.name)}</h1><p class="subtitle">Hiring Summary for the Ops Manager</p></div></header>
+ <section class="report-section interview-summary"><h2>Interview Summary</h2><p class="interview-overview">${overviewHtml}</p></section><div class="supporting-details">
+ <section class="report-section"><h2>Candidate Details</h2>${facts([['Name',c.name],['Phone',c.phone],['FedEx ID',c.fedexId]])}</section>
  <section class="report-section"><h2>Background &amp; Drug Screen</h2>${facts([['FADV status',b.fadvStatus],['Drug screen status',b.drugStatus],['Manager ready for Ops',yesNo(b.readyForOps)]])}${b.notes?question('Background / drug-screen notes','',b.notes):''}</section>
  <section class="report-section"><h2>Screening Interview</h2><div class="interview-meta">${facts([['Interview date',date(s.date)],['Interviewer',s.interviewer],['Screening decision',s.decision]])}</div>
- ${question('CDL & Experience',SCREENING_QUESTIONS.experience,s.experience)}
- ${question('Expectations — Work Timing',SCREENING_QUESTIONS.availability,s.availability)}
- ${question('Expectations — Pay',SCREENING_QUESTIONS.payExpectation,s.payExpectation)}
- ${question('Peak Schedule',SCREENING_QUESTIONS.peak,s.peak)}
- ${question('Doubles Experience',SCREENING_QUESTIONS.doublesNotes,s.doublesNotes)}
- <article class="question"><h3>Doubles Endorsement &amp; Experience</h3><p class="answer status">${value(c.doubles)}</p></article>
- ${question('Doubles Endorsement & Training',SCREENING_QUESTIONS.doublesTrainingWilling,s.doublesTrainingWilling)}
- ${question('Shift Availability',SCREENING_QUESTIONS.shifts,s.possibleShifts,`Candidate OK with shifts / final assignment: ${shown(s.shiftAvailabilityAccepted)}. Shifts explained: ${yesNo(s.shiftsExplained)}.`)}
- ${question('Safety Record',SCREENING_QUESTIONS.safety,s.safety,s.safetyNotes)}
- ${question('Felony or Misdemeanor',SCREENING_QUESTIONS.criminal,s.criminal,s.criminalNotes)}
- ${question('Background Check',SCREENING_QUESTIONS.consent,s.consent)}
- ${question('Valid Documents',SCREENING_QUESTIONS.documents,s.documents)}
+ <div class="screening-replies">${question('Peak Schedule','',s.peak)}
+ ${question('Doubles Endorsement & Training','',s.doublesTrainingWilling)}
+ ${question('Background Check','',s.consent)}
+ ${question('Valid Documents','',s.documents)}
  ${question('Application Process Explained','',yesNo(s.processExplained))}
- ${question('Screening Interview Notes','',s.notes)}</section>${phone?'':`<p class="footnote">Prepared ${e(new Date().toLocaleDateString('en-US'))} · Missing answers are shown as “Not recorded”.</p>`}</main></body></html>`;
+ ${s.notes?question('Screening Interview Notes','',s.notes):''}</div></section>${phone?'':`<p class="footnote">Prepared ${e(new Date().toLocaleDateString('en-US'))} · Missing answers are shown as “Not recorded”.</p>`}</div></main></body></html>`;
 }
 
-const engine={STAGES,normalize,reconcile,validate,scheduleKey,recordOpsAgreements,SCREENING_QUESTIONS,APPLICATION_PROCESS,summaryHtml,TABLE_COLUMNS,daysInProcess,sortCandidates,GROUPS,candidateGroup,duplicateMatches};
+const engine={STAGES,normalize,reconcile,validate,scheduleKey,recordOpsAgreements,SCREENING_QUESTIONS,APPLICATION_PROCESS,interviewSummary,INTERVIEW_SUMMARY_LIMIT,summaryHtml,TABLE_COLUMNS,daysInProcess,sortCandidates,GROUPS,candidateGroup,duplicateMatches};
 if(typeof module!=='undefined'&&module.exports)module.exports=engine;
 if(!root.document)return;
 const esc=x=>String(x??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
@@ -221,7 +239,8 @@ function profile(openSections=[]){
  const section=(title,html)=>`<details class="rt-section"${openSections.includes(title)?' open':''}><summary>${esc(title)}</summary><div class="rt-grid">${html}</div></details>`;
  const documentList=general=>Object.entries(draft.documents).filter(([,d])=>d?.path&&(d.bucket==='nbl-recruitment-general-documents')===general).map(([k,d])=>`<div class="rt-doc"><span>${esc(d.label||d.fileName||k)}</span><button type="button" data-rt-view="${esc(k)}">View</button>${readOnly?'':`<button type="button" data-rt-remove="${esc(k)}">Remove from profile</button>`}</div>`).join('')||'<p>No documents.</p>';
  if(readOnly)return `<div class="rt-modal-header"><div><small>Recruitment · Operational view</small><h2>${esc(draft.name)}</h2></div><button type="button" class="button secondary" id="rtClose">Close</button></div><div id="rtMessage" aria-live="polite"></div><p>Read-only access. Personal identifiers, screening answers, background reports, pay, and sensitive documents are restricted.</p>${section('Candidate Details',`<p>Name: ${esc(draft.name)}</p><p>Location: ${esc(draft.location)}</p><p>FedEx ID: ${esc(draft.fedexId||'—')}</p><p>Start date: ${esc(draft.startDate||'—')}</p>`)}${section('Schedule & Stage',`<p>Stage: ${esc(p.stage)}</p><p>Due: ${esc(p.dueDate||'—')}</p><p>Assigned to: ${esc(p.assignedTo||'—')}</p><p>Days: ${esc(p.ops.agreedDays||'—')}</p><p>Dispatch: ${esc(p.ops.dispatchAgreement||'—')}</p><p>Doubles: ${esc(p.ops.doublesAgreement||draft.doubles||'—')}</p>`)}${section('Onboarding',Object.entries(p.onboarding).map(([k,v])=>`<p>${esc(k)}: ${esc(v)}</p>`).join(''))}${section('Training',`<p>Start: ${esc(p.training.startDate||'—')}</p><p>Trainer: ${esc(p.training.trainer||'—')}</p><p>Result: ${esc(p.training.result||'—')}</p><p>Completed: ${esc(p.training.completedDate||'—')}</p>`)}${section('General Documents',documentList(true))}`;
- const summary=`<p class="rt-wide">A summary for the Ops Manager combining Candidate Details, Background &amp; Drug Screen, and Screening Interview.</p><button type="button" class="button secondary" id="rtSummary">Print / Save PDF</button><button type="button" class="button secondary" id="rtSummaryPhone">Phone PDF</button>`;
+ const overview=interviewSummary(draft);
+ const summary=f('hiringSummary.interviewSummary','Interview Summary (optional concise wording)','textarea')+`<p class="rt-wide rt-help">Leave blank to build the overview from recorded answers. Review all nine topics: preferred location, CDL requirement, FedEx experience, pay, shift, doubles, safety, felony/misdemeanor and sex-offender record. Use one or two short sentences, up to ${INTERVIEW_SUMMARY_LIMIT} characters. Review custom wording whenever screening answers change.</p><p class="rt-wide rt-help" id="rtSummaryPreview"><strong>Current overview (${overview.length}/${INTERVIEW_SUMMARY_LIMIT} characters):</strong> ${esc(overview)}</p><button type="button" class="button secondary" id="rtSummaryEdit">Edit current overview</button><button type="button" class="button secondary" id="rtSummary">Print / Save PDF</button><button type="button" class="button secondary" id="rtSummaryPhone">Phone PDF</button>`;
  const importer=`<div class="rt-wide rt-import-box"><h3>Import First Advantage Application</h3><p>Choose the driver’s First Advantage PDF to fill detected name, contact, current address, DOB, FedEx ID, and CDL details. Review the imported values, then Save Draft.</p><label class="rt-field" for="rtImportFile"><span>First Advantage PDF (up to 15 MB)</span><input type="file" id="rtImportFile" accept=".pdf,application/pdf"></label><button type="button" class="button secondary" id="rtImport">Read First Advantage PDF</button></div>`;
  const histories=p.history.slice().reverse().map(h=>`<li>${esc(new Date(h.at).toLocaleString())} — ${esc(h.action)}${h.by?' · '+esc(h.by):''}</li>`).join('');
  return `<form id="rtForm"><div class="rt-modal-header"><div><small>Recruitment</small><h2>${esc(draft.name||'New Candidate')}</h2>${draft._cloudUpdatedAt?'<small>'+esc(createdLabel(draft))+'</small>':''}</div><button type="button" class="button secondary" id="rtClose" aria-label="Close candidate">Close</button></div><div id="rtMessage" aria-live="polite"></div><div id="rtDuplicateWarning" class="rt-duplicate-warning" role="status" aria-live="polite" hidden></div>
@@ -231,6 +250,8 @@ function profile(openSections=[]){
  ${section('Screening Interview',
   pf('screening','date','Interview date','date')+pf('screening','interviewer','Interviewer')+
   pf('screening','experience',SCREENING_QUESTIONS.experience,'textarea')+
+  pf('screening','experienceRequirement','CDL experience requirement reviewed','text',['Meets 1 in 3','Meets 5 in 10','Does not meet','Needs verification'])+
+  f('hiringSummary.fedexExperience','FedEx experience')+
   pf('screening','availability',SCREENING_QUESTIONS.availability,'textarea')+
   pf('screening','payExpectation',SCREENING_QUESTIONS.payExpectation)+
   pf('screening','peak',SCREENING_QUESTIONS.peak,'text',yes)+
@@ -243,6 +264,7 @@ function profile(openSections=[]){
   pf('screening','shiftsExplained','Possible shifts and final shift assignment explained','checkbox')+
   pf('screening','safety',SCREENING_QUESTIONS.safety,'text',yes)+pf('screening','safetyNotes','Safety record details','textarea')+
   pf('screening','criminal',SCREENING_QUESTIONS.criminal,'text',yes)+pf('screening','criminalNotes','Candidate explanation / review notes','textarea')+
+  pf('screening','sexOffender',SCREENING_QUESTIONS.sexOffender,'text',yes)+pf('screening','sexOffenderNotes','Sex-offender record details','textarea')+
   pf('screening','consent',SCREENING_QUESTIONS.consent,'text',yes)+pf('screening','documents',SCREENING_QUESTIONS.documents,'text',yes)+
   `<div class="rt-wide rt-instructions"><h3>Explain the Application Process</h3><p>${esc(APPLICATION_PROCESS)}</p></div>`+
   pf('screening','processExplained','Application and drug-screen process explained','checkbox')+
@@ -305,6 +327,8 @@ function bindProfile(){
   }
  }));
  el('rtForm').querySelectorAll('[data-rt-field]').forEach(x=>{if(identityFields.includes(x.dataset.rtField))x.addEventListener('input',()=>{put(draft,x.dataset.rtField,x.value);showDuplicateWarning();});});
+ el('rtSummaryEdit').onclick=()=>{collect();const input=el('rt_hiringSummary_interviewSummary');input.value=interviewSummary(draft);put(draft,'hiringSummary.interviewSummary',input.value);input.focus();};
+ el('rt_hiringSummary_interviewSummary').addEventListener('input',()=>{collect();const overview=interviewSummary(draft);el('rtSummaryPreview').textContent=`Current overview (${overview.length}/${INTERVIEW_SUMMARY_LIMIT} characters): ${overview}`;});
  el('rtSummary').onclick=()=>summary(collect());el('rtSummaryPhone').onclick=()=>summary(collect(),'phone');el('rtImportFile').onchange=()=>importPdf();el('rtRoadPdf').onclick=roadPdf;el('rtUpload').onclick=upload;el('rtImport').onclick=importPdf;
  el('rtForm').querySelectorAll('[data-rt-remove]').forEach(x=>x.onclick=()=>{collect();delete draft.documents[x.dataset.rtRemove];redrawProfile();message('Reference removed from draft. Save Draft to keep this change.');});
 }
@@ -401,8 +425,9 @@ async function roadPdf(){
  lock(true);try{const res=await fetch('/api/hr/road-test',{method:'POST',headers:await authHeaders(),body:JSON.stringify({candidate:{name:c.name,fedex_id:c.fedexId||'',cdl_number:c.cdlNumber||'',cdl_issuing_state:c.cdlIssuingState||''},road_test:{date:r.date,time_from:r.timeFrom,time_to:r.timeTo,test_admin_name:r.testAdminName,test_admin_fedex_id:r.testAdminFedexId,certificate_number:r.certificateNumber,tractor_number:r.tractorNumber,trailer_number:r.trailerNumber,candidate_signature_png:createRoadTestSignaturePng(c.name),admin_signature_png:createRoadTestSignaturePng(r.testAdminName)}})});if(!res.ok){const data=await res.json();throw new Error(data.error||'Road test export failed.');}const url=URL.createObjectURL(await res.blob()),a=document.createElement('a');a.href=url;a.download='Road_Test_'+c.name.replace(/[^a-z0-9]/gi,'_')+'.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);message('Road test form exported. Save Draft to keep edited form fields.');}catch(e){message(e.message,true);}finally{lock(false);}
 }
 function summary(c,format='letter'){
+ let html;try{html=summaryHtml(c,new URL('assets/nashbox-logistics-logo.png',document.baseURI).href,format);}catch(e){message(e.message,true);const input=el('rt_hiringSummary_interviewSummary');input.closest('details').open=true;input.focus();return;}
  const tab=root.open('about:blank','_blank');if(!tab){message('Allow popups to print the summary.',true);return;}
- tab.opener=null;tab.document.write(summaryHtml(c,new URL('assets/nashbox-logistics-logo.png',document.baseURI).href,format));tab.document.close();
+ tab.opener=null;tab.document.write(html);tab.document.close();
 }
 function reset(){generation++;workspace='';records=[];loaded=false;draft=null;busy=false;readOnly=false;search='';filter='';sortKey='name';sortDirection='asc';el('rtModal')?.close();el('rtModal')?.remove();if(el('recruitmentTestScreen'))el('recruitmentTestScreen').innerHTML='';}
 root.NBLRecruitmentTest={init:b=>{bridge=b;},open,reset,engine};

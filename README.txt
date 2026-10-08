@@ -1,3 +1,14 @@
+NBL FleetCommand — Version 145
+
+Version 145 - Compact Ops Manager Hiring Summary
+- Interview Summary leads page 1; supporting details begin on the next page.
+- Consolidates location, CDL requirement, FedEx experience, pay, shift, doubles,
+  safety and reported criminal records without repeating them in detail sections.
+- Adds explicit CDL requirement review, FedEx experience and sex-offender answers.
+- Optional concise summary wording; exports require at most 600 characters.
+- Missing answers remain Not recorded; eligibility and records are never inferred.
+- Candidate source answers, permissions and stored documents remain intact.
+
 NBL FleetCommand — Version 144
 
 Version 144 - Read-only Motive IVMR Location Inspection
