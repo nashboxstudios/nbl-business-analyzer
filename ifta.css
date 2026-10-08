@@ -1,0 +1,18 @@
+#iftaScreen .ifta-controls{display:flex;gap:14px;align-items:end;flex-wrap:wrap;margin:18px 0}
+#iftaScreen .ifta-controls label{display:grid;gap:6px;font-weight:600}
+#iftaScreen .ifta-controls input{width:110px}
+#iftaScreen .ifta-controls select{width:190px}
+#iftaScreen .num{text-align:right;font-variant-numeric:tabular-nums}
+#iftaScreen td input[type=number]{width:135px;text-align:right}
+#iftaScreen .ifta-review{display:grid;gap:12px;padding:18px;background:var(--bg,#f7f4fa);border-radius:12px;margin:18px 0}
+#iftaScreen .ifta-review label{display:flex;gap:10px;align-items:start}
+#iftaScreen .ifta-review input[type=checkbox]{width:18px;flex:none}
+#iftaScreen textarea{width:100%;min-height:75px}
+#iftaScreen details{margin-top:20px}
+#iftaScreen summary{cursor:pointer;font-weight:600;padding:12px 0}
+#iftaScreen #iftaWarnings{padding-left:22px;font-size:13px;line-height:1.6}
+#iftaScreen td small{display:block;color:#6a6071}
+#iftaScreen table{min-width:660px}
+#iftaScreen #iftaFuelTable{min-width:1040px}
+#iftaScreen #iftaStats{margin:12px 0;color:#6a6071;font-size:13px}
+@media(max-width:600px){#iftaScreen .ifta-controls button{width:100%}#iftaScreen .ifta-controls{gap:10px}#iftaScreen .ifta-review{padding:12px}}

@@ -8,6 +8,7 @@
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
   <link rel="stylesheet" href="styles.css?v=140" />
   <link rel="stylesheet" href="recruitment-test.css?v=140">
+  <link rel="stylesheet" href="ifta.css?v=1">
 </head>
 <body>
 
@@ -84,6 +85,7 @@
           <button type="button" class="nav-group-toggle" aria-expanded="true"><span class="nav-group-title">Compliance</span><span class="nav-group-chevron" aria-hidden="true">▾</span></button>
           <div class="nav-group-items">
             <button class="nav-btn nav-btn-child" data-icon="I" data-screen="ivmr">IVMR</button>
+            <button class="nav-btn nav-btn-child protected-nav" data-icon="Q" data-screen="ifta">IFTA <em class="nav-lock">Locked</em></button>
           </div>
         </div>
         <div class="nav-group" data-nav-group="archive">
@@ -768,6 +770,32 @@
             <div class="table-wrap">
               <table id="dailyDispatchTable" class="daily-dispatch-table"><thead></thead><tbody></tbody><tfoot></tfoot></table>
             </div>
+          </div>
+        </div>
+
+        <div id="iftaScreen" class="screen hidden">
+          <div class="panel">
+            <span class="eyebrow">Quarterly Compliance</span>
+            <h2>IFTA Import Worksheet</h2>
+            <p>Calculate jurisdiction miles from Motive and diesel gallons from saved settlements for any calendar quarter.</p>
+            <div class="ifta-controls">
+              <label>Year <input id="iftaYear" type="number" min="2000" max="2100" step="1"></label>
+              <label>Quarter <select id="iftaQuarter"><option value="1">Q1 · Jan–Mar</option><option value="2">Q2 · Apr–Jun</option><option value="3">Q3 · Jul–Sep</option><option value="4">Q4 · Oct–Dec</option></select></label>
+              <button type="button" class="button primary" id="iftaGenerate">Calculate Quarter</button>
+              <button type="button" class="button" id="iftaSave" disabled>Save Quarter</button>
+              <button type="button" class="button" id="iftaReload">Reload Saved Quarter</button>
+              <button type="button" class="button" id="iftaExport" disabled>Export Excel</button>
+            </div>
+            <p id="iftaPeriod"></p><div id="iftaMessage" role="status" hidden></div>
+            <p id="iftaStats"></p><ul id="iftaWarnings"></ul>
+            <div class="table-wrap"><table id="iftaTable"><thead><tr><th>Jurisdiction</th><th>Fuel Type</th><th>Total Miles</th><th>Total Taxable Miles</th><th>Tax Paid Gallons</th></tr></thead><tbody id="iftaRows"></tbody><tfoot id="iftaTotals"></tfoot></table></div>
+            <div class="ifta-review" id="iftaReview" hidden>
+              <p>Taxable miles initially equal total miles. Adjust Column D for documented exemptions. Exclude nonqualifying purchases from Column E below.</p>
+              <label><input type="checkbox" id="iftaMileageReviewed">I reviewed the quarter’s mileage coverage, vehicles, and taxable-mile adjustments.</label>
+              <label><input type="checkbox" id="iftaFuelReviewed">I verified the included gallons are qualifying tax-paid diesel and reconciled all purchases for the quarter.</label>
+              <label for="iftaNotes">Review notes / exemption and receipt references</label><textarea id="iftaNotes" placeholder="Record any adjustments and supporting references."></textarea>
+            </div>
+            <details><summary>Fuel purchases and source statements</summary><div class="table-wrap"><table id="iftaFuelTable"><thead><tr><th>Include</th><th>Purchase Date</th><th>Jurisdiction</th><th>Tractor</th><th>Gallons</th><th>Ticket</th><th>Vendor / City</th><th>Statement</th></tr></thead><tbody id="iftaFuelRows"></tbody></table></div></details>
           </div>
         </div>
 
@@ -1612,8 +1640,9 @@
   </div>
 
   <script src="core.js?v=117"></script>
-  <script src="cloud.js?v=140"></script>
+  <script src="cloud.js?v=140-ifta-1"></script>
   <script src="recruitment-test.js?v=140"></script>
-  <script src="app.js?v=140"></script>
+  <script src="ifta.js?v=1"></script>
+  <script src="app.js?v=140-ifta-1"></script>
 </body>
 </html>

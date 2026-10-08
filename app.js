@@ -152,7 +152,7 @@
 
   const CLOUD_MODULES=['dashboard','safety','hr','driver_pay','maintenance','meetings','audit','dispatch','settlement','ivmr'];
   const CLOUD_MODULE_LABELS={dashboard:'Dashboard',safety:'Safety',hr:'Recruitment / HR',driver_pay:'Driver Pay',maintenance:'Maintenance',meetings:'Meetings',audit:'Audit',dispatch:'Dispatch',settlement:'Settlement / Revenue Finder',ivmr:'IVMR'};
-  const SCREEN_MODULE_MAP={dashboard:'dashboard',safety:'safety',drivers:'driver_pay',summary:'settlement','settlement-reports':'reports','financial-analysis':'reports',revenue:'settlement',maintenance:'maintenance','trip-inspections':'maintenance','fault-codes':'maintenance','maintenance-tasks':'maintenance',meetings:'meetings',hr:'hr','recruitment-test':'hr',audit:'audit',dispatch:'dispatch','daily-dispatch':'dispatch',ivmr:'ivmr',motive:'motive'};
+  const SCREEN_MODULE_MAP={dashboard:'dashboard',safety:'safety',drivers:'driver_pay',summary:'settlement','settlement-reports':'reports','financial-analysis':'reports',revenue:'settlement',maintenance:'maintenance','trip-inspections':'maintenance','fault-codes':'maintenance','maintenance-tasks':'maintenance',meetings:'meetings',hr:'hr','recruitment-test':'hr',audit:'audit',dispatch:'dispatch','daily-dispatch':'dispatch',ivmr:'ivmr',ifta:'settlement',motive:'motive'};
   const FINANCE_MODULE_KEYS=new Set(['driver_pay','settlement','revenue','reports']);
   function cloudConnected(){ return !!state.cloud?.connected; }
   function currentRole(){
@@ -174,6 +174,7 @@
     return false;
   }
   function canAccessScreen(screen){
+    if(screen==='ifta'&&cloudConnected())return isOwnerAccount();
     if(screen==='hr'&&cloudConnected()&&currentRole()==='lead_driver') return false;
     if(screen==='users') return cloudConnected() && isOwnerAccount();
     const moduleKey=SCREEN_MODULE_MAP[screen];
@@ -301,6 +302,7 @@
     };
   }
   function resetCloudBackedState(){
+    window.NBLIFTA?.reset();
     window.NBLRecruitmentTest?.reset();
     state.result=null; state.file=null; state.rawBytes=null; state.rawText=''; state.catalog=[]; state.currentStatementId=null;
     state.settlement={activeTab:'summary',analysisStatementId:null};
@@ -763,7 +765,7 @@
   function escapeHtml(s){return String(s==null?'':s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 
 
-  const FINANCE_SCREENS = new Set(['drivers','summary','settlement-reports','financial-analysis','revenue']);
+  const FINANCE_SCREENS = new Set(['drivers','summary','settlement-reports','financial-analysis','revenue','ifta']);
   function isFinanceScreen(screen){ return FINANCE_SCREENS.has(screen); }
   function randomBytes(n){ const b=new Uint8Array(n); crypto.getRandomValues(b); return b; }
   function bytesToB64url(bytes){
@@ -947,15 +949,16 @@
     $('dispatchScreen')?.classList.toggle('hidden',screen!=='dispatch' || !workspace);
     $('dailyDispatchScreen')?.classList.toggle('hidden',screen!=='daily-dispatch' || !workspace);
     $('ivmrScreen')?.classList.toggle('hidden',screen!=='ivmr' || !workspace);
+    $('iftaScreen')?.classList.toggle('hidden',screen!=='ifta' || !workspace || financeLocked);
     $('motiveScreen')?.classList.toggle('hidden',screen!=='motive');
     $('financeLockedState')?.classList.toggle('hidden',!financeLocked);
-    const folderScreen = screen==='dashboard' || screen==='safety' || screen==='maintenance' || screen==='trip-inspections' || screen==='fault-codes' || screen==='maintenance-tasks' || screen==='meetings' || screen==='hr' || screen==='recruitment-test' || screen==='users' || screen==='audit' || screen==='settlement-reports' || screen==='financial-analysis' || screen==='revenue' || screen==='dispatch' || screen==='daily-dispatch' || screen==='ivmr' || screen==='motive';
-    const requiresWorkspace = screen==='maintenance' || screen==='trip-inspections' || screen==='fault-codes' || screen==='maintenance-tasks' || screen==='meetings' || screen==='hr' || screen==='audit' || screen==='settlement-reports' || screen==='revenue' || screen==='dispatch' || screen==='daily-dispatch' || screen==='ivmr';
+    const folderScreen = screen==='dashboard' || screen==='safety' || screen==='maintenance' || screen==='trip-inspections' || screen==='fault-codes' || screen==='maintenance-tasks' || screen==='meetings' || screen==='hr' || screen==='recruitment-test' || screen==='users' || screen==='audit' || screen==='settlement-reports' || screen==='financial-analysis' || screen==='revenue' || screen==='dispatch' || screen==='daily-dispatch' || screen==='ivmr' || screen==='ifta' || screen==='motive';
+    const requiresWorkspace = screen==='maintenance' || screen==='trip-inspections' || screen==='fault-codes' || screen==='maintenance-tasks' || screen==='meetings' || screen==='hr' || screen==='audit' || screen==='settlement-reports' || screen==='revenue' || screen==='dispatch' || screen==='daily-dispatch' || screen==='ivmr' || screen==='ifta';
     const needsEmpty = financeLocked ? false : ((screen==='users'||screen==='dashboard'||screen==='recruitment-test') ? false : (requiresWorkspace ? !workspace : (screen==='motive' ? false : !hasResult)));
     $('emptyState').classList.toggle('hidden',!needsEmpty);
     if(needsEmpty && requiresWorkspace) $('emptyStateText').textContent=cloudConnected()?'This module is connected to NBL Cloud. No cloud data has been uploaded yet. Open Cloud Sync to import your existing local NBL data.':'Sign in to NBL Cloud or choose your local NBL business data folder to begin.';
     if(needsEmpty && (screen==='drivers'||screen==='summary')) $('emptyStateText').textContent=cloudConnected()?'No settlement data is stored in NBL Cloud yet. Open Cloud Sync to import your existing local NBL data, or upload a settlement CSV.':'Choose a data folder and upload a settlement CSV.';
-    const titles={dashboard:'Dashboard',safety:'Safety',drivers:'Driver Pay',summary:'Settlement','settlement-reports':'Settlement Reports','financial-analysis':'Financial Analysis',maintenance:'Fleet Maintenance','trip-inspections':'Trip Inspections','fault-codes':'Motive Fault Codes','maintenance-tasks':'Maintenance Tasks',meetings:'Meetings',hr:'Recruitment Archive','recruitment-test':'Recruitment',users:'User Access',audit:'Audit',revenue:'Revenue Finder',dispatch:'Weekly Dispatch Planner','daily-dispatch':'Daily Dispatch Board',ivmr:'IVMR',motive:'Motive'};
+    const titles={dashboard:'Dashboard',safety:'Safety',drivers:'Driver Pay',summary:'Settlement','settlement-reports':'Settlement Reports','financial-analysis':'Financial Analysis',maintenance:'Fleet Maintenance','trip-inspections':'Trip Inspections','fault-codes':'Motive Fault Codes','maintenance-tasks':'Maintenance Tasks',meetings:'Meetings',hr:'Recruitment Archive','recruitment-test':'Recruitment',users:'User Access',audit:'Audit',revenue:'Revenue Finder',dispatch:'Weekly Dispatch Planner','daily-dispatch':'Daily Dispatch Board',ivmr:'IVMR',ifta:'IFTA',motive:'Motive'};
     $('pageTitle').textContent=titles[screen]||'NBL FleetCommand';
     $('saveBtn').classList.toggle('hidden',folderScreen || financeLocked);
     $('exportBtn').classList.toggle('hidden',folderScreen || financeLocked);
@@ -1032,6 +1035,9 @@
       const date=$('dailyDispatchDateInput')?.value||todayIso(),saved=state.dispatch.dailyBoards?.[date];
       $('fileMeta').textContent=workspace ? `${label} • ${fmtDate(date)} daily dispatch${saved?.savedAt?' • saved':' • not yet saved'}` : 'Connect NBL Cloud or choose your local data folder to begin.';
       if(workspace) renderDailyDispatch();
+    } else if(screen==='ifta') {
+      $('fileMeta').textContent='Quarterly jurisdiction mileage and tax-paid fuel • Owner access';
+      if(workspace&&!financeLocked)window.NBLIFTA?.open();
     } else if(screen==='ivmr') {
       const i=state.ivmr;
       $('fileMeta').textContent=workspace ? `${label} • ${i.loadedAt?`IVMR ${fmtDate(i.startDate)} to ${fmtDate(i.endDate)}`:'choose a reporting period and load Motive IFTA data'}` : 'Connect NBL Cloud or choose your local data folder to begin.';
@@ -6584,5 +6590,21 @@
     updateCloudUI();
   }
   window.NBLRecruitmentTest?.init({getContext:()=>({orgId:state.cloud.organization?.id,connected:cloudConnected(),allowed:canAccessModuleKey('hr',false),canWrite:canAccessModuleKey('hr',true),userName:state.cloud.profile?.full_name||state.cloud.user?.email||'NBL User'})});
+  window.NBLIFTA?.init({
+    getContext:()=>({orgId:state.cloud.organization?.id,connected:cloudConnected(),allowed:canAccessScreen('ifta')&&state.finance.unlocked}),
+    api:localApi,
+    getCatalog:async()=>{
+      if(cloudConnected()){
+        return window.NBLCloud.getIftaFuelCatalog(state.cloud.organization.id);
+      }
+      return state.catalog||[];
+    },
+    download:async(path,data)=>{
+      const headers=await backendAuthHeaders();
+      const response=await fetch(path,{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify(data)});
+      if(!response.ok){const err=await response.json().catch(()=>({}));throw new Error(err.error||`Export returned HTTP ${response.status}.`);}
+      return response.blob();
+    }
+  });
   initApp();
 })();
