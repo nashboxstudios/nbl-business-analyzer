@@ -6,9 +6,9 @@
   <title>NBL FleetCommand</title>
   <meta name="theme-color" content="#35164E" />
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=143" />
-  <link rel="stylesheet" href="recruitment-test.css?v=143">
-  <link rel="stylesheet" href="ifta.css?v=143">
+  <link rel="stylesheet" href="styles.css?v=144" />
+  <link rel="stylesheet" href="recruitment-test.css?v=144">
+  <link rel="stylesheet" href="ifta.css?v=144">
 </head>
 <body>
 
@@ -34,7 +34,7 @@
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
         <div class="app-name">NBL FleetCommand</div>
         <div class="app-tagline">Operations Intelligence</div>
-        <div class="app-version">Version 143</div>
+        <div class="app-version">Version 144</div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-standalone nav-main-modules">
@@ -930,6 +930,16 @@
             <div class="motive-test-results" id="motiveTestResults"></div>
           </div>
 
+          <div class="panel motive-geofence-panel" id="motiveGeofencePanel">
+            <div class="panel-heading">
+              <div><h2>IVMR Location Sources</h2><p>Read Motive facility and stop definitions before verifying FedEx spot numbers and matching them to IVMR locations.</p></div>
+              <button class="button secondary" id="inspectMotiveGeofencesBtn" type="button">Inspect Motive Locations</button>
+            </div>
+            <p id="motiveGeofenceNote" role="status">Inspect the names, addresses and GPS boundaries available from Motive. This check does not update the IVMR location master.</p>
+            <pre id="motiveGeofenceErrors" class="motive-geofence-errors"></pre>
+            <div class="table-wrap hidden"><table id="motiveGeofenceTable" class="motive-table"><thead><tr><th>Location</th><th>Category</th><th>Address</th><th>GPS Boundary</th></tr></thead><tbody></tbody></table></div>
+          </div>
+
           <div class="panel motive-fleet-panel">
             <div class="panel-heading">
               <div><h2>Motive Fleet</h2><p>Current or last-known Motive readings. True odometer is preferred when Motive provides it.</p></div>
@@ -1640,9 +1650,9 @@
   </div>
 
   <script src="core.js?v=117"></script>
-  <script src="cloud.js?v=143"></script>
-  <script src="recruitment-test.js?v=143"></script>
-  <script src="ifta.js?v=143"></script>
-  <script src="app.js?v=143"></script>
+  <script src="cloud.js?v=144"></script>
+  <script src="recruitment-test.js?v=144"></script>
+  <script src="ifta.js?v=144"></script>
+  <script src="app.js?v=144"></script>
 </body>
 </html>

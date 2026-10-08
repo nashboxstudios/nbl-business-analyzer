@@ -100,7 +100,7 @@
     hr:defaultHrData(), hrLoaded:false, recruitmentSearch:'', recruitmentStatusFilter:'', recruitmentSort:{key:'',dir:'asc'}, hrSsn:{draftFull:'',legacyLast4:'',revealed:false,existingCandidate:false,accessResolver:null}, hrApplicationMismatch:{resolver:null},
     audit:{version:1,audits:[],findings:[],activeTab:'dashboard',selectedAuditId:''}, auditLoaded:false,
     dispatch:defaultDispatchData(), dispatchLoaded:false, dispatchSelectedDriverId:null,
-    motive:{backendAvailable:false,configured:false,keyHint:'',storage:'',vehicles:[],drivers:[],driversLoaded:false,driversLastSync:null,driversError:'',lastSync:null,test:null,loading:false},
+    motive:{backendAvailable:false,configured:false,keyHint:'',storage:'',vehicles:[],drivers:[],driversLoaded:false,driversLastSync:null,driversError:'',lastSync:null,test:null,loading:false,geofences:null,geofencesLoading:false,geofencesError:'',geofencesRequest:0},
     safety:{version:3,startDate:'',endDate:'',scorecards:[],performanceEvents:[],speedingEvents:[],assignments:{},dismissals:{},driverRecords:{},trendDriverId:'',loadedAt:null,loading:false,error:'',accessErrors:{},driverFilter:'all',eventTypeFilter:'all',statusFilter:'active',rankSort:{key:'adjusted',dir:'asc'}},
     ivmr:{startDate:'',endDate:'',rawTrips:[],trips:[],formatBuilt:false,loadedAt:null,loading:false,routeLoading:false,routeCancelRequested:false,routeStats:null,routeProgress:null,lastPdf:null,historyTest:{loading:false,result:null,error:''}},
     ivmrLocations:defaultIvmrLocationData(), ivmrLocationsLoaded:false,
@@ -302,6 +302,7 @@
     };
   }
   function resetCloudBackedState(){
+    state.motive.geofences=null; state.motive.geofencesError=''; state.motive.geofencesLoading=false; state.motive.geofencesRequest++;
     window.NBLIFTA?.reset();
     window.NBLRecruitmentTest?.reset();
     state.result=null; state.file=null; state.rawBytes=null; state.rawText=''; state.catalog=[]; state.currentStatementId=null;
@@ -6204,9 +6205,39 @@
     if(!state.motive.backendAvailable) return;
     try{
       await localApi('/api/motive/disconnect',{method:'POST',body:'{}'});
+      state.motive.geofences=null; state.motive.geofencesError=''; state.motive.geofencesLoading=false; state.motive.geofencesRequest++;
       state.motive.configured=false; state.motive.keyHint=''; state.motive.vehicles=[]; state.motive.drivers=[];state.motive.driversLoaded=false;state.motive.driversLastSync=null; state.motive.lastSync=null; state.motive.test=null;
       renderMotive(); showAlert('Motive disconnected on this computer.','success');
     }catch(err){ showAlert(`Could not disconnect Motive: ${escapeHtml(err.message)}`,'error'); }
+  }
+  async function inspectMotiveGeofences(){
+    if(!state.motive.configured||state.motive.geofencesLoading) return;
+    const request=++state.motive.geofencesRequest;
+    state.motive.geofencesLoading=true; state.motive.geofencesError=''; renderMotive();
+    try{
+      const result=await localApi('/api/motive/geofences',{timeoutMs:120000});
+      if(request!==state.motive.geofencesRequest) return;
+      if(!result.ok||!Array.isArray(result.geofences)) throw new Error('Motive returned an incomplete location response.');
+      state.motive.geofences=result;
+    }catch(err){
+      if(request===state.motive.geofencesRequest) state.motive.geofencesError=err.message||String(err);
+    }finally{
+      if(request===state.motive.geofencesRequest){ state.motive.geofencesLoading=false; renderMotive(); }
+    }
+  }
+  function renderMotiveGeofences(){
+    const panel=$('motiveGeofencePanel'); if(!panel) return;
+    const m=state.motive, result=m.geofences;
+    const allowed=!cloudConnected()||['owner','operations'].includes(currentRole());
+    panel.classList.toggle('hidden',!allowed);
+    $('inspectMotiveGeofencesBtn').disabled=!allowed||!m.configured||!m.backendAvailable||m.geofencesLoading;
+    $('inspectMotiveGeofencesBtn').textContent=m.geofencesLoading?'Checking Locations…':'Inspect Motive Locations';
+    const note=$('motiveGeofenceNote');
+    const warning=m.geofencesError||((result&&!result.complete)?'Some categories could not be read. The list below is partial.':'');
+    note.textContent=m.geofencesLoading?'Reading active Motive geofences…':(warning?`${warning}${result?' Showing the last returned list.':''}`:(result?`${result.count} active locations; ${result.with_boundaries} have GPS boundaries. Checked ${new Date(result.checked_at).toLocaleString()}.`:'Inspect the names, addresses and GPS boundaries available from Motive. This check does not update the IVMR location master.'));
+    $('motiveGeofenceErrors').textContent=(result?.errors||[]).map(x=>`${x.category}: ${x.error}`).join('\n');
+    $('motiveGeofenceTable').querySelector('tbody').innerHTML=(result?.geofences||[]).map(x=>`<tr><td><strong>${escapeHtml(x.name||'Unnamed')}</strong></td><td>${escapeHtml(x.category)}</td><td>${escapeHtml(x.address||'Address unavailable')}</td><td>${(x.location_points||[]).length?`${fmtNum(x.location_points.length)} GPS point(s)`:'Missing boundary'}</td></tr>`).join('')||(result?'<tr><td colspan="4">No active locations were returned in the categories successfully checked.</td></tr>':'');
+    $('motiveGeofenceTable').closest('.table-wrap').classList.toggle('hidden',!result);
   }
   async function testMotiveConnection(refreshAfter=false){
     if(!state.motive.configured){ showAlert('Save a Motive API key first.','warning'); return; }
@@ -6262,6 +6293,7 @@
   }
   function renderMotive(){
     if(!$('motiveScreen')) return;
+    renderMotiveGeofences();
     const m=state.motive, connected=m.backendAvailable&&m.configured;
     const matched=m.vehicles.filter(v=>maintenanceMatchForMotive(v)).length;
     const iftaCount=m.vehicles.filter(v=>v.ifta===true || String(v.ifta).toLowerCase()==='true').length;
@@ -6416,6 +6448,7 @@
   $('deleteDispatchLocationBtn')?.addEventListener('click',deleteDispatchLocation);
   $('saveMotiveKeyBtn')?.addEventListener('click',saveMotiveKey);
   $('disconnectMotiveBtn')?.addEventListener('click',disconnectMotive);
+  $('inspectMotiveGeofencesBtn')?.addEventListener('click',inspectMotiveGeofences);
   $('testMotiveBtn')?.addEventListener('click',()=>testMotiveConnection(false));
   $('refreshMotiveBtn')?.addEventListener('click',refreshMotiveFleet);
   $('syncMotiveMaintenanceBtn')?.addEventListener('click',syncMotiveToMaintenance);
