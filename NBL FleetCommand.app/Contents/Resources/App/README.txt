@@ -1,3 +1,17 @@
+NBL FleetCommand — Version 144
+
+Version 144 - Read-only Motive IVMR Location Inspection
+- Adds Inspect Motive Locations under Motive to read active geofence names,
+  addresses and GPS boundary availability across all documented categories.
+- Reads Motive using the existing server-side API key; no key reaches the browser.
+- Available to Owner and Operations. Other account roles cannot call the endpoint.
+- Does not modify Motive, the IVMR master, saved reports or email schedules.
+- Pagination, duplicates, partial category failures and malformed responses are handled explicitly.
+- This diagnostic does not imply that spot numbers or facility coordinates are verified.
+
+Validation: python3 tests/motive-geofences.py; node --check app.js;
+Python compilation and git diff --check.
+
 NBL FleetCommand — Version 141
 
 Version 141 - IVMR Workspace Cleanup

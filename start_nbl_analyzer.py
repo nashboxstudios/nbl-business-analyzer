@@ -133,6 +133,8 @@ def api_role_allowed(user, path, method='GET'):
     if path.startswith('/api/hr/'):
         return role == 'operations'
     if path.startswith('/api/motive/'):
+        if path == '/api/motive/geofences':
+            return role == 'operations'
         if path in ('/api/motive/config', '/api/motive/disconnect'):
             return False
         return role in ('operations', 'lead_driver')
@@ -400,6 +402,99 @@ def unwrap_item(item, key):
                 merged[k] = v
         return merged
     return item if isinstance(item, dict) else {}
+
+
+MOTIVE_GEOFENCE_CATEGORIES = (
+    'Terminal / Yard', 'Uncategorized', 'Fuel Station', 'Job Site',
+    'Maintenance Facility', 'Receiver / Consignee', 'Restricted Location',
+    'Shipper', 'Truck Stop / Rest Area', 'Weigh Station / Scale', 'Shipper / Receiver'
+)
+
+
+def fetch_motive_geofences(categories=MOTIVE_GEOFENCE_CATEGORIES):
+    """Read active location definitions without updating Motive or the IVMR master."""
+    def read_category(category):
+        found = []
+        seen_pages = set()
+        raw_seen = 0
+        for page in range(1, 51):
+            payload, _ = motive_request('/v1/geofences', {
+                'category': category, 'status': 'active', 'per_page': 100, 'page_no': page
+            })
+            container = payload.get('data', payload) if isinstance(payload, dict) else payload
+            raw = container.get('geofences') if isinstance(container, dict) else container
+            if not isinstance(raw, list):
+                raise RuntimeError('Motive returned an unexpected geofence response.')
+            signature = json.dumps(raw, sort_keys=True)
+            if raw and signature in seen_pages:
+                raise RuntimeError('Motive repeated a geofence page; results are incomplete.')
+            seen_pages.add(signature)
+            raw_seen += len(raw)
+            for entry in raw:
+                item = unwrap_item(entry, 'geofence')
+                if not item or not (item.get('id') or item.get('name')):
+                    raise RuntimeError('Motive returned an invalid geofence record.')
+                if item.get('status') not in (None, '', 'active'):
+                    continue
+                points = []
+                boundary = item.get('location_points') or []
+                if not isinstance(boundary, list):
+                    raise RuntimeError('Motive returned an invalid geofence boundary.')
+                for point in boundary:
+                    point = unwrap_item(point, 'location_point')
+                    lat = _float_or_none(point.get('lat', point.get('latitude')))
+                    lon = _float_or_none(point.get('lon', point.get('longitude')))
+                    if lat is not None and lon is not None and -90 <= lat <= 90 and -180 <= lon <= 180:
+                        points.append({'lat': lat, 'lon': lon})
+                found.append({
+                    'id': str(item.get('id') or ''), 'name': str(item.get('name') or '').strip(),
+                    'category': str(item.get('category') or category),
+                    'address': str(item.get('address') or '').strip(),
+                    'status': str(item.get('status') or 'active'), 'location_points': points
+                })
+            pagination = payload.get('pagination', {}) if isinstance(payload, dict) else {}
+            if not pagination and isinstance(container, dict):
+                pagination = container.get('pagination', {})
+            if not isinstance(pagination, dict):
+                pagination = {}
+            total = pagination.get('total', payload.get('total') if isinstance(payload, dict) else None)
+            if total is not None:
+                try:
+                    complete = raw_seen >= int(total)
+                except (TypeError, ValueError):
+                    raise RuntimeError('Motive returned invalid geofence pagination.')
+                if complete:
+                    return found
+                if not raw:
+                    raise RuntimeError('Motive ended geofence pagination before the reported total.')
+            elif len(raw) < 100:
+                return found
+        raise RuntimeError('Geofence pagination exceeded the safety limit; results are incomplete.')
+
+    # Check the main category first so denied access fails promptly, rather than
+    # being presented as an empty list of facility locations.
+    first = categories[0]
+    records = read_category(first)
+    errors = []
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        requests = {pool.submit(read_category, category): category for category in categories[1:]}
+        for future in as_completed(requests):
+            category = requests[future]
+            try:
+                records.extend(future.result())
+            except Exception as exc:
+                errors.append({'category': category, 'error': str(exc)})
+    unique = {}
+    for item in records:
+        key = item['id'] or (item['name'], item['address'], json.dumps(item['location_points'], sort_keys=True))
+        unique.setdefault(key, item)
+    locations = sorted(unique.values(), key=lambda item: (item['name'].lower(), item['id']))
+    return {
+        'ok': True, 'complete': not errors, 'geofences': locations,
+        'count': len(locations), 'with_boundaries': sum(bool(x['location_points']) for x in locations),
+        'categories_checked': len(categories), 'errors': sorted(errors, key=lambda x: x['category']),
+        'checked_at': datetime.now(timezone.utc).isoformat()
+    }
 
 
 def summarize_motive_safety_payload(payload, list_key, item_key):
@@ -3128,7 +3223,7 @@ class NBLHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == '/health':
-            return self.send_json({'ok': True, 'app': 'NBL FleetCommand', 'version': 143})
+            return self.send_json({'ok': True, 'app': 'NBL FleetCommand', 'version': 144})
         if parsed.path.startswith('/api/') and not require_nbl_api_access(self, parsed.path, 'GET'):
             return
         if parsed.path == '/api/ifta/mileage':
@@ -3151,6 +3246,8 @@ class NBLHandler(SimpleHTTPRequestHandler):
         if not parsed.path.startswith('/api/motive/'):
             return super().do_GET()
         try:
+            if parsed.path == '/api/motive/geofences':
+                return self.send_json(fetch_motive_geofences())
             if parsed.path == '/api/motive/status':
                 key = read_motive_key()
                 return self.send_json({
@@ -3453,13 +3550,13 @@ def main():
     # that is still running from hijacking a newer build's browser window.
     server = ThreadingHTTPServer((HOST, REQUESTED_PORT), NBLHandler)
     actual_port = int(server.server_address[1])
-    url = f'http://localhost:{actual_port}/index.html?v=143'
+    url = f'http://localhost:{actual_port}/index.html?v=144'
     if PORT_FILE:
         try:
             Path(PORT_FILE).write_text(url, encoding='utf-8')
         except Exception:
             pass
-    print('NBL FleetCommand v143 is running.')
+    print('NBL FleetCommand v144 is running.')
     print(f'Open: {url}')
     print('Motive API credentials use MOTIVE_API_KEY when provided; local builds fall back to the protected local key file.')
     print('Keep this process running while using the app.')
