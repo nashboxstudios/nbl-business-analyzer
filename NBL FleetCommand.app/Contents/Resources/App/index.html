@@ -6,8 +6,8 @@
   <title>NBL FleetCommand</title>
   <meta name="theme-color" content="#35164E" />
   <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=140" />
-  <link rel="stylesheet" href="recruitment-test.css?v=140">
+  <link rel="stylesheet" href="styles.css?v=141" />
+  <link rel="stylesheet" href="recruitment-test.css?v=141">
 </head>
 <body>
 
@@ -33,7 +33,7 @@
         <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
         <div class="app-name">NBL FleetCommand</div>
         <div class="app-tagline">Operations Intelligence</div>
-        <div class="app-version">Version 140</div>
+        <div class="app-version">Version 141</div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-standalone nav-main-modules">
@@ -789,8 +789,8 @@
 
           <div class="panel ivmr-filter-panel">
             <div class="ivmr-filter-grid ivmr-filter-grid-v21">
-              <div class="form-field"><label>Reporting Start Date</label><input id="ivmrStartDate" type="date"></div>
-              <div class="form-field"><label>Reporting End Date</label><input id="ivmrEndDate" type="date"></div>
+              <div class="form-field"><label>Reporting Start Date (Saturday)</label><input id="ivmrStartDate" type="date"></div>
+              <div class="form-field"><label>Reporting End Date (Friday)</label><input id="ivmrEndDate" type="date"></div>
               <div class="form-field"><label>Tractor Detail Filter</label><select id="ivmrTractorFilter"><option value="all">All tractors</option></select></div>
               <div class="form-field"><label>IC/ISP Entity Name</label><input id="ivmrEntityName" type="text" value="Nashbox Logistics Inc."></div>
               <div class="form-field"><label>IC/ISP Entity Number</label><input id="ivmrEntityNumber" type="text" placeholder="Enter entity number"></div>
@@ -798,27 +798,27 @@
             </div>
           </div>
 
-          <div class="panel ivmr-location-panel" id="ivmrLocationPanel">
+          <details class="panel ivmr-location-panel ivmr-collapsible-panel" id="ivmrLocationPanel">
+            <summary><h2>Origin / Destination Location Master</h2><span class="history-count" id="ivmrLocationCount">0 locations</span></summary>
             <div class="panel-heading">
-              <div><h2>Origin / Destination Location Master</h2><p>Recognized FedEx spot, facility and city locations used to populate the FL-001 Origin / Destination / City Spot Number / City column. GPS proximity is checked first; Motive location descriptions are a secondary match.</p></div>
-              <div class="row-actions"><span class="history-count" id="ivmrLocationCount">0 locations</span><button class="button primary compact" id="addIvmrLocationBtn">Add Location</button></div>
+              <p>Recognized FedEx spot, facility and city locations used to populate the FL-001 Origin / Destination / City Spot Number / City column. GPS proximity is checked first; Motive location descriptions are a secondary match.</p>
+              <button class="button primary compact" id="addIvmrLocationBtn">Add Location</button>
             </div>
             <div class="table-wrap"><table id="ivmrLocationTable" class="ivmr-detail-table"><thead></thead><tbody></tbody></table></div>
-          </div>
+          </details>
 
-          <div class="panel ivmr-history-test-panel">
+          <details class="panel ivmr-history-test-panel ivmr-collapsible-panel" id="ivmrHistoryTestPanel">
+            <summary><h2>Motive Tractor History Test</h2><span class="history-count" id="ivmrHistoryTestStatus">Not run</span></summary>
             <div class="panel-heading">
               <div>
                 <span class="eyebrow">Diagnostic</span>
-                <h2>Motive Tractor History Test</h2>
                 <p>Choose a tractor and date window to inspect its Motive history before rebuilding Highway / Route Traveled.</p>
               </div>
-              <div class="history-count" id="ivmrHistoryTestStatus">Not run</div>
             </div>
             <div class="ivmr-history-test-controls">
               <div class="form-field"><label>Tractor Number</label><input id="ivmrHistoryTractor" type="text" placeholder="Enter tractor number"></div>
-              <div class="form-field"><label>History Start Date</label><input id="ivmrHistoryStart" type="date" value="2026-09-01"></div>
-              <div class="form-field"><label>History End Date</label><input id="ivmrHistoryEnd" type="date" value="2026-09-11"></div>
+              <div class="form-field"><label>History Start Date</label><input id="ivmrHistoryStart" type="date"></div>
+              <div class="form-field"><label>History End Date</label><input id="ivmrHistoryEnd" type="date"></div>
               <div class="ivmr-history-test-actions">
                 <button class="button primary" id="runIvmrHistoryTestBtn">Run Motive History Test</button>
                 <button class="button secondary" id="downloadIvmrHistoryJsonBtn" disabled>Download Diagnostic JSON</button>
@@ -834,7 +834,7 @@
               <div class="panel-heading compact ivmr-history-raw-heading"><div><h3>Raw Motive Sample</h3><p>A sample spread across the requested period so we can verify timestamp, coordinates, speed, odometer, type and any Motive description.</p></div></div>
               <div class="table-wrap"><table id="ivmrHistoryRawTable" class="ivmr-detail-table"><thead></thead><tbody></tbody></table></div>
             </div>
-          </div>
+          </details>
 
           <div id="ivmrRouteProgress" class="panel ivmr-route-progress hidden"></div>
 
@@ -1612,8 +1612,8 @@
   </div>
 
   <script src="core.js?v=117"></script>
-  <script src="cloud.js?v=140"></script>
-  <script src="recruitment-test.js?v=140"></script>
-  <script src="app.js?v=140"></script>
+  <script src="cloud.js?v=141"></script>
+  <script src="recruitment-test.js?v=141"></script>
+  <script src="app.js?v=141"></script>
 </body>
 </html>

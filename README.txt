@@ -1,3 +1,12 @@
+NBL FleetCommand — Version 141
+
+Version 141 - IVMR Workspace Cleanup
+- Location Master and Motive Tractor History Test start collapsed.
+- Manage IVMR Locations expands the location master before scrolling to it.
+- Reporting and diagnostic dates default to the latest completed Saturday–Friday week.
+- Date selections remain editable for historical and partial-period reports.
+- Automatic email delivery is not configured in this release.
+
 NBL FleetCommand — Version 140
 
 Version 140 - Recruitment Sensitive Information Protection
