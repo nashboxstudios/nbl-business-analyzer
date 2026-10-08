@@ -104,6 +104,7 @@
     safety:{version:3,startDate:'',endDate:'',scorecards:[],performanceEvents:[],speedingEvents:[],assignments:{},dismissals:{},driverRecords:{},trendDriverId:'',loadedAt:null,loading:false,error:'',accessErrors:{},driverFilter:'all',eventTypeFilter:'all',statusFilter:'active',rankSort:{key:'adjusted',dir:'asc'}},
     ivmr:{startDate:'',endDate:'',rawTrips:[],trips:[],formatBuilt:false,loadedAt:null,loading:false,routeLoading:false,routeCancelRequested:false,routeStats:null,routeProgress:null,lastPdf:null,historyTest:{loading:false,result:null,error:''}},
     ivmrLocations:defaultIvmrLocationData(), ivmrLocationsLoaded:false,
+    ivmrDirectory:{loading:false,attempted:false,request:0,note:''},
     cloud:{connected:false,user:null,profile:null,membership:null,organization:null,snapshots:{},hasSnapshotData:false,lastSync:null,syncing:false,users:[],usersLoading:false,structured:{safety:false,dailyDispatch:false,maintenance:false,recruitment:false,finance:false,audit:false,meetings:false}},
     finance:{configured:false,unlocked:false,config:null,pendingScreen:null,autoLockTimer:null},
     payroll:{version:2,profiles:{},periods:{},dhMappings:{}}, payrollLoaded:false,
@@ -291,6 +292,7 @@
   function ivmrCloudSnapshot(){
     return {
       version:81,
+      facilityDirectorySource:cloneJson(state.cloud?.snapshots?.ivmr?.data?.facilityDirectorySource||null),
       locations:cloneJson(state.ivmrLocations||defaultIvmrLocationData()),
       current:{
         startDate:state.ivmr?.startDate||'',endDate:state.ivmr?.endDate||'',
@@ -302,6 +304,7 @@
     };
   }
   function resetCloudBackedState(){
+    state.ivmrDirectory={loading:false,attempted:false,request:state.ivmrDirectory.request+1,note:''};
     state.motive.geofences=null; state.motive.geofencesError=''; state.motive.geofencesLoading=false; state.motive.geofencesRequest++;
     window.NBLIFTA?.reset();
     window.NBLRecruitmentTest?.reset();
@@ -399,7 +402,7 @@
       if(moduleKey==='meetings'&&structured.meetings){await window.NBLCloud.saveMeetingData(orgId,cloneJson(state.meetings));state.cloud.lastSync=new Date().toISOString();updateCloudUI();return true;}
       const storageKey=moduleKey==='safety'?'audit':moduleKey;
       const storageData=cloudSnapshotForModule(storageKey);
-      const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,storageKey,storageData,'109');
+      const row=await window.NBLCloud.saveSnapshot(state.cloud.organization.id,storageKey,storageData,'109',storageKey==='ivmr'?(state.cloud.snapshots.ivmr?.updated_at||null):undefined);
       state.cloud.snapshots[storageKey]=row||{module_key:storageKey,data:storageData,source_version:'109',updated_at:new Date().toISOString()};
       if(moduleKey==='safety') state.cloud.snapshots.safety={module_key:'safety',data:cloudSnapshotForModule('safety'),source_version:'109',updated_at:state.cloud.snapshots[storageKey].updated_at};
       if(moduleKey==='settlement'){
@@ -1042,7 +1045,7 @@
     } else if(screen==='ivmr') {
       const i=state.ivmr;
       $('fileMeta').textContent=workspace ? `${label} • ${i.loadedAt?`IVMR ${fmtDate(i.startDate)} to ${fmtDate(i.endDate)}`:'choose a reporting period and load Motive IFTA data'}` : 'Connect NBL Cloud or choose your local data folder to begin.';
-      if(workspace) renderIvmr();
+      if(workspace){renderIvmr();if(!state.ivmrLocations.directorySourceDate&&!state.ivmrDirectory.attempted) updateIvmrDirectory(true);}
     } else if(screen==='motive') {
       const m=state.motive;
       $('fileMeta').textContent=!m.backendAvailable ? 'Motive integration requires the hosted NBL server or the included local launcher.' : (m.configured ? `Motive connected${m.keyHint?` • key ${m.keyHint}`:''}${m.lastSync?` • last fleet refresh ${new Date(m.lastSync).toLocaleString()}`:''}` : 'Motive API key is not configured on this server/computer.');
@@ -5273,6 +5276,9 @@
     const lat=toFloat(x.lat), lon=toFloat(x.lon), radius=toFloat(x.radius_miles);
     return {
       id:String(x.id||uid('ivmr_loc')),
+      address:String(x.address||'').trim(), directory_managed:!!x.directory_managed,
+      directory_date:String(x.directory_date||''), directory_facilities:cloneJson(Array.isArray(x.directory_facilities)?x.directory_facilities:[]),
+      boundaries:cloneJson(Array.isArray(x.boundaries)?x.boundaries:[]),
       spot:String(x.spot||x.location_name||'').trim(),
       city:String(x.city||'').trim(),
       state:String(x.state||'').trim().toUpperCase().slice(0,2),
@@ -5284,7 +5290,7 @@
   function normalizeIvmrLocationData(data){
     const raw=Array.isArray(data?.locations)?data.locations:[];
     const locations=raw.map(normalizedIvmrLocation).filter(x=>x.city||x.spot);
-    return {version:1,updatedAt:String(data?.updatedAt||''),locations};
+    return {version:2,updatedAt:String(data?.updatedAt||''),directorySourceDate:String(data?.directorySourceDate||''),locations};
   }
   async function loadIvmrLocationData(){
     if(!state.directoryHandle) return;
@@ -5318,6 +5324,7 @@
     $('ivmrLocationModalTitle').textContent=location?'Edit Location':'Add Location';
     $('ivmrLocationEditId').value=location?loc.id:'';
     $('ivmrLocationSpotInput').value=loc.spot||'';
+    $('ivmrLocationAddressInput').value=loc.address||'';
     $('ivmrLocationCityInput').value=loc.city||'';
     $('ivmrLocationStateInput').value=loc.state||'';
     $('ivmrLocationRadiusInput').value=loc.radius_miles||8;
@@ -5331,6 +5338,61 @@
     if(!$('ivmrLocationPreview')) return;
     const label=ivmrLocationLabel({spot:$('ivmrLocationSpotInput')?.value,city:$('ivmrLocationCityInput')?.value});
     $('ivmrLocationPreview').textContent=`Display format: ${label||'Spot / Location Name - City'}`;
+  }
+
+  function renderIvmrLocations(){
+    const directory=state.ivmrDirectory,locations=state.ivmrLocations.locations||[];
+    const search=String($('ivmrLocationSearch')?.value||'').trim().toLowerCase();
+    const filtered=locations.filter(loc=>!search||[loc.spot,loc.city,loc.state,loc.address,...(loc.aliases||[]),...(loc.directory_facilities||[]).map(f=>`${f.number} ${f.abbreviation} ${f.facility_name}`)].join(' ').toLowerCase().includes(search))
+      .sort((a,b)=>Number(a.directory_managed)-Number(b.directory_managed)||String(a.state||'').localeCompare(String(b.state||''))||String(a.city||'').localeCompare(String(b.city||''))||String(a.spot||'').localeCompare(String(b.spot||''),undefined,{numeric:true}));
+    $('ivmrLocationCount').textContent=`${locations.length} locations`;
+    $('ivmrDirectoryNote').textContent=directory.loading?'Updating facility directory…':(directory.note||(state.ivmrLocations.directorySourceDate?`FedEx directory dated ${state.ivmrLocations.directorySourceDate}. Existing numbers retained. Rebuild routes to use updated locations.`:'The FedEx directory will be imported when this module opens.'));
+    $('updateIvmrDirectoryBtn').disabled=directory.loading||state.ivmr.routeLoading;
+    $('addIvmrLocationBtn').disabled=directory.loading;
+    $('ivmrLocationSearchCount').textContent=`Showing ${Math.min(filtered.length,100)} of ${filtered.length} matches. Search by city, state, number, abbreviation or address.`;
+    const lt=$('ivmrLocationTable');
+    lt.querySelector('thead').innerHTML='<tr>'+['Display','State','Facility / Address','GPS Matching','Motive Aliases',''].map(h=>`<th>${h}</th>`).join('')+'</tr>';
+    lt.querySelector('tbody').innerHTML=filtered.slice(0,100).map(loc=>{
+      const gps=loc.boundaries?.length?`${loc.boundaries.length} Motive boundary(s)`:(loc.lat==null||loc.lon==null?'Coordinates needed':`${Number(loc.lat).toFixed(5)}, ${Number(loc.lon).toFixed(5)} • ${loc.radius_miles} mi`);
+      const names=[...new Set((loc.directory_facilities||[]).map(f=>f.facility_name))].join(' / ');
+      return `<tr><td><strong>${escapeHtml(ivmrLocationLabel(loc)||'—')}</strong>${loc.directory_managed?'<br><small>FedEx directory</small>':''}</td><td>${escapeHtml(loc.state||'—')}</td><td>${escapeHtml(names)}<br>${escapeHtml(loc.address||'Address unavailable')}</td><td>${escapeHtml(gps)}</td><td>${escapeHtml((loc.aliases||[]).join(', ')||'—')}</td><td><div class="row-actions"><button class="table-action" data-ivmr-location-edit="${escapeHtml(loc.id)}" ${directory.loading?'disabled':''}>Edit</button><button class="table-action danger" data-ivmr-location-delete="${escapeHtml(loc.id)}" ${directory.loading?'disabled':''}>Delete</button></div></td></tr>`;
+    }).join('')||'<tr><td colspan="6">No matching locations.</td></tr>';
+  }
+  async function updateIvmrDirectory(silent=false){
+    const control=state.ivmrDirectory;
+    if(control.loading||state.ivmr.routeLoading||(cloudConnected()&&currentRole()!=='owner')) return;
+    const request=++control.request,org=state.cloud?.organization?.id;
+    control.loading=true;control.attempted=true;control.note='';renderIvmrLocations();
+    const current=()=>state.ivmrDirectory.request===request&&state.cloud?.organization?.id===org;
+    try{
+      const directory=await localApi('/api/ivmr/facility-directory',{timeoutMs:30000});
+      if(!current())return;
+      let geofences=null,motiveWarning='';
+      if(state.motive.configured){
+        try{geofences=await localApi('/api/motive/geofences',{timeoutMs:120000});if(!geofences.complete)motiveWarning=' Motive location coverage is partial.';}
+        catch(err){motiveWarning=' Motive boundaries could not be read.';}
+      }
+      if(!current())return;
+      const merged=window.NBLIvmrDirectory.merge(state.ivmrLocations,directory);
+      const boundaries=window.NBLIvmrDirectory.attachBoundaries(merged.data,geofences?.geofences||[]);
+      const payload=normalizeIvmrLocationData({...boundaries.data,updatedAt:new Date().toISOString()});
+      if(cloudConnected()){
+        const snapshot=ivmrCloudSnapshot();snapshot.locations=payload;snapshot.current.formatBuilt=false;
+        const row=await window.NBLCloud.saveSnapshot(org,'ivmr',snapshot,'147',state.cloud.snapshots.ivmr?.updated_at||null);
+        if(!current())return;
+        state.cloud.snapshots.ivmr=row;
+      }else{
+        if(!state.directoryHandle)throw Error('Choose a data folder before updating locations.');
+        if(!(await requestPermission(state.directoryHandle,'readwrite')))throw Error('Folder write permission is required.');
+        const root=await state.directoryHandle.getDirectoryHandle('IVMR',{create:true});
+        await writeFile(root,'ivmr_locations.json',JSON.stringify(payload,null,2),'application/json');
+      }
+      if(!current())return;
+      state.ivmrLocations=payload;state.ivmr.formatBuilt=false;
+      control.note=`Imported ${directory.facilities.length} facility records: ${merged.stats.added} new locations; ${merged.stats.enriched} existing locations enriched; all ${merged.stats.preserved} existing numbers retained. ${boundaries.stats.matched} Motive boundaries matched.${motiveWarning} Rebuild routes to apply.`;
+      if(!silent)showAlert(escapeHtml(control.note),'success');
+    }catch(err){if(current()){control.note=`Directory update was not saved: ${err.message}`;if(!silent)showAlert(escapeHtml(control.note),'error');}}
+    finally{if(current()){control.loading=false;renderIvmr();}}
   }
 
   function clearIvmrLocationMatches(){
@@ -5620,10 +5682,10 @@
     const jurisdictions=new Set((state.ivmr.trips||[]).map(r=>String(r.jurisdiction||'').toUpperCase()).filter(Boolean));
     const missing=groups.filter(g=>g.missingMaster||g.missingDomicile).length;
     const routeCoverage=ivmrRouteCoverage();
-    $('loadIvmrBtn').disabled=!state.motive.backendAvailable||!state.motive.configured||state.ivmr.loading||state.ivmr.routeLoading;
-    if($('buildIvmrRoutesBtn')) { $('buildIvmrRoutesBtn').disabled=!loaded||!state.ivmr.trips.length||state.ivmr.loading||state.ivmr.routeLoading; $('buildIvmrRoutesBtn').textContent=state.ivmr.routeLoading?'Building Routes…':'Build Routes from Motive History'; }
+    $('loadIvmrBtn').disabled=state.ivmrDirectory.loading||!state.motive.backendAvailable||!state.motive.configured||state.ivmr.loading||state.ivmr.routeLoading;
+    if($('buildIvmrRoutesBtn')) { $('buildIvmrRoutesBtn').disabled=state.ivmrDirectory.loading||!loaded||!state.ivmr.trips.length||state.ivmr.loading||state.ivmr.routeLoading; $('buildIvmrRoutesBtn').textContent=state.ivmr.routeLoading?'Building Routes…':'Build Routes from Motive History'; }
     if($('cancelIvmrRoutesBtn')) { $('cancelIvmrRoutesBtn').classList.toggle('hidden',!state.ivmr.routeLoading); $('cancelIvmrRoutesBtn').disabled=!state.ivmr.routeLoading; }
-    $('exportAllIvmrBtn').disabled=!loaded||!groups.length||state.ivmr.loading||state.ivmr.routeLoading;
+    $('exportAllIvmrBtn').disabled=state.ivmrDirectory.loading||!loaded||!groups.length||state.ivmr.loading||state.ivmr.routeLoading;
     if($('ivmrRouteProgress')){
       const p=state.ivmr.routeProgress, el=$('ivmrRouteProgress');
       const visible=!!(p&&p.total); el.classList.toggle('hidden',!visible);
@@ -5643,16 +5705,7 @@
     $('ivmrTripCount').textContent=`${state.ivmr.trips.length} IVMR row${state.ivmr.trips.length===1?'':'s'}`;
     $('ivmrMissingDomicileCount').textContent=`${missing} missing`;
 
-    const locationRows=(state.ivmrLocations?.locations||[]).slice().sort((a,b)=>String(a.state||'').localeCompare(String(b.state||''))||String(a.city||'').localeCompare(String(b.city||''))||String(a.spot||'').localeCompare(String(b.spot||''),undefined,{numeric:true}));
-    if($('ivmrLocationCount')) $('ivmrLocationCount').textContent=`${locationRows.length} location${locationRows.length===1?'':'s'}`;
-    if($('ivmrLocationTable')){
-      const lt=$('ivmrLocationTable');
-      lt.querySelector('thead').innerHTML='<tr>'+['Display','State','Coordinates','Radius','Motive Aliases',''].map(h=>`<th>${h}</th>`).join('')+'</tr>';
-      lt.querySelector('tbody').innerHTML=locationRows.length?locationRows.map(loc=>{
-        const coords=loc.lat==null||loc.lon==null?'Description only':`${Number(loc.lat).toFixed(5)}, ${Number(loc.lon).toFixed(5)}`;
-        return `<tr><td><strong>${escapeHtml(ivmrLocationLabel(loc)||'—')}</strong></td><td>${escapeHtml(loc.state||'—')}</td><td>${escapeHtml(coords)}</td><td>${escapeHtml(String(loc.radius_miles||8))} mi</td><td>${escapeHtml((loc.aliases||[]).join(', ')||'—')}</td><td><div class="row-actions"><button class="table-action" data-ivmr-location-edit="${escapeHtml(loc.id)}">Edit</button><button class="table-action danger" data-ivmr-location-delete="${escapeHtml(loc.id)}">Delete</button></div></td></tr>`;
-      }).join(''):'<tr><td colspan="6" class="empty-table-cell">Add recognized locations to populate Origin / Destination on IVMR rows.</td></tr>';
-    }
+    renderIvmrLocations();
 
     const filter=$('ivmrTractorFilter'), current=filter.value||'all';
     filter.innerHTML='<option value="all">All tractors</option>'+groups.map(g=>`<option value="${escapeHtml(g.key)}">${escapeHtml(g.tractorNumber||'Unknown')}</option>`).join('');
@@ -6453,13 +6506,17 @@
   $('refreshMotiveBtn')?.addEventListener('click',refreshMotiveFleet);
   $('syncMotiveMaintenanceBtn')?.addEventListener('click',syncMotiveToMaintenance);
   $('manageIvmrLocationsBtn')?.addEventListener('click',()=>{const panel=$('ivmrLocationPanel'); if(panel){ panel.open=true; panel.scrollIntoView({behavior:'smooth',block:'start'}); }});
+  $('updateIvmrDirectoryBtn')?.addEventListener('click',()=>updateIvmrDirectory());
+  $('ivmrLocationSearch')?.addEventListener('input',renderIvmrLocations);
   $('addIvmrLocationBtn')?.addEventListener('click',()=>openIvmrLocationModal());
   $('ivmrLocationSpotInput')?.addEventListener('input',updateIvmrLocationPreview);
   $('ivmrLocationCityInput')?.addEventListener('input',updateIvmrLocationPreview);
   $('ivmrLocationForm')?.addEventListener('submit',async e=>{
     e.preventDefault();
+    if(state.ivmrDirectory.loading){showAlert('Wait for the directory update to finish.','warning');return;}
     const editId=$('ivmrLocationEditId').value;
     const loc=normalizedIvmrLocation({
+      ...(state.ivmrLocations.locations||[]).find(x=>x.id===editId), address:$('ivmrLocationAddressInput').value,
       id:editId||uid('ivmr_loc'), spot:$('ivmrLocationSpotInput').value, city:$('ivmrLocationCityInput').value,
       state:$('ivmrLocationStateInput').value, radius_miles:$('ivmrLocationRadiusInput').value,
       lat:$('ivmrLocationLatInput').value, lon:$('ivmrLocationLonInput').value, aliases:$('ivmrLocationAliasesInput').value
@@ -6469,7 +6526,7 @@
     const list=state.ivmrLocations?.locations||[];
     const idx=list.findIndex(x=>x.id===editId);
     if(idx>=0) list[idx]=loc; else list.push(loc);
-    state.ivmrLocations={version:1,locations:list};
+    state.ivmrLocations={...state.ivmrLocations,version:2,locations:list};
     await saveIvmrLocationData(true);
     clearIvmrLocationMatches();
     if(state.ivmr.loadedAt) await saveIvmrRouteCache();
@@ -6478,6 +6535,7 @@
   });
   document.addEventListener('click',async e=>{
     const edit=e.target.closest('[data-ivmr-location-edit]');
+    if(state.ivmrDirectory.loading&&(edit||e.target.closest('[data-ivmr-location-delete]')))return;
     if(edit){ const loc=(state.ivmrLocations?.locations||[]).find(x=>x.id===edit.dataset.ivmrLocationEdit); if(loc) openIvmrLocationModal(loc); return; }
     const del=e.target.closest('[data-ivmr-location-delete]');
     if(del){ const loc=(state.ivmrLocations?.locations||[]).find(x=>x.id===del.dataset.ivmrLocationDelete); if(!loc) return; if(!window.confirm(`Delete IVMR location ${ivmrLocationLabel(loc)}?`)) return; state.ivmrLocations.locations=state.ivmrLocations.locations.filter(x=>x.id!==loc.id); await saveIvmrLocationData(true); clearIvmrLocationMatches(); if(state.ivmr.loadedAt) await saveIvmrRouteCache(); renderIvmr(); }

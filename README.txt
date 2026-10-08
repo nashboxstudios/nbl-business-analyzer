@@ -1,3 +1,29 @@
+NBL FleetCommand — Version 147
+
+Version 147 - FedEx Directory for IVMR Locations
+- Imports the supplied FedEx Facility Directory dated February 14, 2025 on
+  the first Owner visit to IVMR. Update FedEx Directory refreshes it later.
+- Groups 2,172 facility records by physical address; co-located records remain
+  visible as references. Existing IDs, spot/name values, city labels, aliases,
+  coordinates and radii are preserved, including combined/custom numbers.
+- Adds facility addresses and a searchable master (100 matching rows at a time).
+- Reads optional Motive geofences and attaches only unique address matches.
+  Uses actual GPS polygons, rather than broad centroid radii, for those records.
+- City-only and ambiguous description matches do not invent facility numbers.
+- Source data is stored in the existing organization-scoped IVMR Supabase snapshot and read
+  through an Owner-authorized import API. Existing IVMR database permissions
+  continue to govern the saved source and master. Source contents are not in the public repository.
+  Direct file requests,
+  HEAD requests and directory listings are blocked.
+- Import saves are guarded against concurrent snapshot changes. Failed saves
+  retain the previous master and report; saved reports retain their rows and
+  require a route rebuild to apply updated locations.
+- No Google account/API, geocoding charges or email automation added.
+
+Validation: node tests/ivmr-directory.cjs; python3 tests/ivmr-locations.py;
+node tests/ivmr-directory-dom.cjs (jsdom); JavaScript/Python syntax checks;
+existing Motive/recruitment privacy/IFTA regression checks.
+
 NBL FleetCommand — Version 146
 
 Version 146 - Arranged Interview Summary

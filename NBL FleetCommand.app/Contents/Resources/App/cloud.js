@@ -165,7 +165,7 @@
     return rows[0];
   }
 
-  async function saveSnapshot(organizationId,moduleKey,data,sourceVersion='100'){
+  async function saveSnapshot(organizationId,moduleKey,data,sourceVersion='100',expectedUpdatedAt=undefined){
     const session=await getSession();
     const body=[{
       organization_id:organizationId,
@@ -175,6 +175,12 @@
       updated_by:session?.user?.id||null,
       updated_at:new Date().toISOString()
     }];
+    if(expectedUpdatedAt!==undefined){
+      const query=expectedUpdatedAt?'?'+new URLSearchParams({organization_id:`eq.${organizationId}`,module_key:`eq.${moduleKey}`,updated_at:`eq.${expectedUpdatedAt}`}):'';
+      const rows=await authFetch('/rest/v1/module_snapshots'+query,{method:expectedUpdatedAt?'PATCH':'POST',headers:{Prefer:'return=representation'},body:JSON.stringify(expectedUpdatedAt?body[0]:body)});
+      if(!rows?.[0])throw new Error('IVMR changed in another session. Reload before updating the directory.');
+      return rows[0];
+    }
     const query='?on_conflict=organization_id,module_key';
     const rows=await authFetch(`/rest/v1/module_snapshots${query}`,{
       method:'POST',

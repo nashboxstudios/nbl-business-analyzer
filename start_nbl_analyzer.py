@@ -5,6 +5,7 @@ from urllib.parse import urlparse, parse_qs, urlencode
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from datetime import date, timedelta, datetime, timezone
+import gzip
 import json, os, threading, webbrowser, math, re, time, base64, io, sys, struct, zlib, zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -1945,6 +1946,31 @@ def _route_corridor_signature(points, expected_miles=None):
     )
 
 
+def fetch_ivmr_facility_directory(user, authorization):
+    """Read confidential source data using the caller's RLS-scoped token."""
+    organization = (user.get('_nbl_membership') or {}).get('organization_id')
+    if not organization:
+        raise RuntimeError('Organization membership is required.')
+    query = urlencode({'organization_id': 'eq.'+str(organization), 'module_key': 'eq.ivmr', 'select': 'source:data->facilityDirectorySource', 'limit': '1'})
+    req = Request(SUPABASE_URL+'/rest/v1/module_snapshots?'+query, headers={
+        'apikey': SUPABASE_PUBLISHABLE_KEY, 'Authorization': authorization, 'Accept': 'application/json'
+    })
+    with urlopen(req, timeout=20) as response:
+        rows = json.load(response)
+    if not isinstance(rows, list) or len(rows) != 1:
+        raise RuntimeError('FedEx directory has not been configured for this organization.')
+    stored = rows[0].get('source')
+    if not isinstance(stored, dict):
+        raise RuntimeError('FedEx directory has not been configured for this organization.')
+    if stored.get('encoding') != 'gzip-base64':
+        raise RuntimeError('Invalid source encoding.')
+    decoded = gzip.decompress(base64.b64decode(stored['content'], validate=True))
+    data = json.loads(decoded)
+    if not isinstance(data.get('facilities'), list) or len(data['facilities']) != stored.get('facility_count'):
+        raise RuntimeError('Incomplete facility directory.')
+    return data
+
+
 def _normalize_ivmr_locations(locations):
     out = []
     if not isinstance(locations, list):
@@ -1981,6 +2007,9 @@ def _normalize_ivmr_locations(locations):
             'lon': _float_or_none(raw.get('lon')),
             'radius_miles': max(0.5, _float_or_none(raw.get('radius_miles')) or 8.0),
             'aliases': [str(x).strip() for x in alias_values if str(x).strip()],
+            'directory_managed': bool(raw.get('directory_managed')),
+            'address': str(raw.get('address') or ''),
+            'boundaries': raw.get('boundaries') if isinstance(raw.get('boundaries'), list) else [],
         })
     return out
 
@@ -1988,6 +2017,27 @@ def _normalize_ivmr_locations(locations):
 def _ivmr_desc_tokens(value):
     raw = re.sub(r'[^A-Za-z0-9 ]+', ' ', str(value or '')).lower()
     return [x for x in re.split(r'\s+', raw) if x]
+
+
+def _ivmr_point_in_boundary(lat, lon, boundary):
+    points = boundary.get('points') if isinstance(boundary, dict) else None
+    if not isinstance(points, list) or len(points) < 3:
+        return False
+    clean = []
+    for point in points:
+        if not isinstance(point, dict):
+            return False
+        y, x = _float_or_none(point.get('lat')), _float_or_none(point.get('lon'))
+        if y is None or x is None or not -90 <= y <= 90 or not -180 <= x <= 180:
+            return False
+        clean.append((x, y))
+    inside = False
+    for (x1, y1), (x2, y2) in zip(clean, clean[1:] + clean[:1]):
+        if min(x1, x2) <= lon <= max(x1, x2) and min(y1, y2) <= lat <= max(y1, y2) and abs((lon-x1)*(y2-y1)-(lat-y1)*(x2-x1)) < 1e-12:
+            return True
+        if (y1 > lat) != (y2 > lat) and lon < (x2-x1)*(lat-y1)/(y2-y1)+x1:
+            inside = not inside
+    return inside
 
 
 def _match_ivmr_origin(trip, selected_points, locations):
@@ -2015,7 +2065,22 @@ def _match_ivmr_origin(trip, selected_points, locations):
 
     nearest = None
     if slat is not None and slon is not None:
+        boundaries = [loc for loc in normalized if (not loc['state'] or loc['state'] == _state_code(trip.get('jurisdiction'))) and any(_ivmr_point_in_boundary(slat, slon, b) for b in loc['boundaries'])]
+        if boundaries:
+            labels = {loc['label'] for loc in boundaries}
+            if len(labels) == 1:
+                loc = boundaries[0]
+                return {'label': loc['label'], 'status': 'matched', 'method': 'motive_boundary', 'location_id': loc['id'], 'start_description': desc}
+            cities = {(loc['city'], loc['state']) for loc in boundaries}
+            if len(cities) == 1:
+                city, state = next(iter(cities))
+                return {'label': ', '.join(x for x in (city, state) if x), 'status': 'city_only', 'method': 'ambiguous_boundary', 'start_description': desc}
+            return {'label': '', 'status': 'review', 'method': 'ambiguous_boundary', 'start_description': desc}
         for loc in normalized:
+            # An imported centroid is for display. Its actual polygon, not a
+            # broad radius, determines whether a tractor is inside that facility.
+            if loc['boundaries']:
+                continue
             if loc['lat'] is None or loc['lon'] is None:
                 continue
             if loc['state'] and _state_code(trip.get('jurisdiction')) and loc['state'] != _state_code(trip.get('jurisdiction')):
@@ -2041,7 +2106,7 @@ def _match_ivmr_origin(trip, selected_points, locations):
     # conservative proxy for a stop/geofence boundary.
     alias_allowed = start_speed is None or start_speed <= 20 or (_float_or_none(trip.get('distance')) or 0) <= 0.05
     if desc_text and alias_allowed:
-        best = None
+        candidates = []
         for loc in normalized:
             if loc['state'] and _state_code(trip.get('jurisdiction')) and loc['state'] != _state_code(trip.get('jurisdiction')):
                 continue
@@ -2049,12 +2114,21 @@ def _match_ivmr_origin(trip, selected_points, locations):
                 a = ' '.join(_ivmr_desc_tokens(alias))
                 if not a:
                     continue
-                if a in desc_text:
-                    score = len(a)
-                    if best is None or score > best[0]:
-                        best = (score, loc)
-        if best is not None:
-            loc = best[1]
+                if (' ' + a + ' ') in (' ' + desc_text + ' '):
+                    city_alias = a == ' '.join(_ivmr_desc_tokens(loc['city']))
+                    specificity = (0 if loc['directory_managed'] else 1) if city_alias else 2
+                    candidates.append(((specificity, len(a)), loc))
+        if candidates:
+            score = max(x[0] for x in candidates)
+            best = {x[1]['id']: x[1] for x in candidates if x[0] == score}
+            city_peers = {x[1]['id']: x[1] for x in candidates if x[0][0] < 2 and (x[1]['city'].upper(), x[1]['state']) in {(loc['city'].upper(), loc['state']) for loc in best.values()}}
+            if len(best) > 1 or score[0] == 0 or (score[0] == 1 and len(city_peers) > 1):
+                cities = {(loc['city'], loc['state']) for loc in best.values()}
+                if len(cities) == 1:
+                    city, state = next(iter(cities))
+                    return {'label': ', '.join(x for x in (city, state) if x), 'status': 'city_only', 'method': 'directory_city', 'start_description': desc}
+                return {'label': '', 'status': 'review', 'method': 'ambiguous_description', 'start_description': desc}
+            loc = next(iter(best.values()))
             return {
                 'label':loc['label'], 'status':'matched', 'method':'motive_description',
                 'location_id':loc['id'], 'distance_miles':None,
@@ -3182,6 +3256,17 @@ def build_hr_road_test_pdf(payload):
 
 
 class NBLHandler(SimpleHTTPRequestHandler):
+    def send_head(self):
+        # Confidential source data is available only through the authenticated API.
+        if 'private-data' in Path(self.translate_path(self.path)).resolve().parts:
+            self.send_error(403, 'Source directory is private.')
+            return None
+        return super().send_head()
+
+    def list_directory(self, path):
+        self.send_error(403, 'Directory listing is disabled.')
+        return None
+
     def end_headers(self):
         # Revalidate the app document so new builds load their versioned assets.
         if urlparse(self.path).path in ('/', '/index.html'):
@@ -3223,9 +3308,18 @@ class NBLHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == '/health':
-            return self.send_json({'ok': True, 'app': 'NBL FleetCommand', 'version': 146})
-        if parsed.path.startswith('/api/') and not require_nbl_api_access(self, parsed.path, 'GET'):
-            return
+            return self.send_json({'ok': True, 'app': 'NBL FleetCommand', 'version': 147})
+        user = None
+        if parsed.path.startswith('/api/'):
+            user = require_nbl_api_access(self, parsed.path, 'GET')
+            if not user:
+                return
+        if parsed.path == '/api/ivmr/facility-directory':
+            try:
+                data = fetch_ivmr_facility_directory(user, str(self.headers.get('Authorization') or ''))
+                return self.send_json({'ok': True, **data})
+            except Exception:
+                return self.send_json({'ok': False, 'error': 'FedEx facility directory could not be loaded.'}, 500)
         if parsed.path == '/api/ifta/mileage':
             try:
                 from ifta_export import quarter_dates
@@ -3550,13 +3644,13 @@ def main():
     # that is still running from hijacking a newer build's browser window.
     server = ThreadingHTTPServer((HOST, REQUESTED_PORT), NBLHandler)
     actual_port = int(server.server_address[1])
-    url = f'http://localhost:{actual_port}/index.html?v=146'
+    url = f'http://localhost:{actual_port}/index.html?v=147'
     if PORT_FILE:
         try:
             Path(PORT_FILE).write_text(url, encoding='utf-8')
         except Exception:
             pass
-    print('NBL FleetCommand v146 is running.')
+    print('NBL FleetCommand v147 is running.')
     print(f'Open: {url}')
     print('Motive API credentials use MOTIVE_API_KEY when provided; local builds fall back to the protected local key file.')
     print('Keep this process running while using the app.')

@@ -1,0 +1,17 @@
+const assert=require('node:assert/strict'),fs=require('fs'),D=require('../ivmr-directory.js');
+const f=(number,name,city,address='100 Main Road')=>({number,facility_name:name,city,state:'TN',address1:address,address2:'',postal_code:'37000',abbreviation:'F'+number,facility_type:'STATION'});
+const directory={source_date:'2025-02-14',facilities:[f('371','NASHVILLE','NASHVILLE'),f('372','NASHVILLE LOCAL','NASHVILLE'),f('370','EAST MURFREESBORO','MURFREESBORO','200 Main Road'),f('377','MURFREESBORO','MURFREESBORO','300 Main Road'),f('999','NEW CITY','NEW CITY','400 Main Road')]};
+const master={updatedAt:'fixture',locations:[{id:'custom',spot:'900 - CUSTOM',city:'Nashville',state:'TN',aliases:['Nashville'],lat:36,lon:-86,radius_miles:7},{id:'combined',spot:'377,370',city:'Murfreesboro',state:'TN',aliases:['Murfreesboro'],lat:null,lon:null,radius_miles:8},{id:'missing',spot:'HUNTINGBURG EXPRESS',city:'Huntingburg',state:'IN',lat:null,lon:null,aliases:[]}]};
+const before=structuredClone(master),a=D.merge(master,directory);assert.deepEqual(master,before);
+assert.equal(a.stats.enriched,2);assert.equal(a.stats.added,1);
+for(let i=0;i<master.locations.length;i++)for(const key of ['id','spot','city','state','lat','lon','radius_miles','aliases'])assert.deepEqual(a.data.locations[i][key],master.locations[i][key]);
+assert.equal(a.data.locations[1].directory_facilities.length,2);assert.equal(a.data.locations[1].address.split('\n').length,2);
+assert.deepEqual(D.merge(a.data,directory).data,a.data,'repeat imports must not duplicate or mutate the master');
+const square=[{lat:36,lon:-86},{lat:36.01,lon:-86},{lat:36.01,lon:-85.99},{lat:36,lon:-85.99}];
+const b=D.attachBoundaries(a.data,[{id:'g1',name:'Fixture',address:'100 Main Rd, Nashville, TN, USA',location_points:square}]);
+assert.equal(b.stats.matched,1);assert.equal(b.data.locations[0].lat,36);assert.equal(b.data.locations[0].lon,-86);assert.equal(b.data.locations[0].spot,'900 - CUSTOM');
+assert.equal(D.attachBoundaries(b.data,[{id:'g1',address:'100 Main Road, Nashville, TN, USA',location_points:square}]).data.locations[0].boundaries.length,1);
+assert.equal(D.attachBoundaries(a.data,[{id:'g2',address:'100 Main Road, Knoxville, TN, USA',location_points:square}]).stats.matched,0);
+assert.equal(D.attachBoundaries(a.data,[{id:'g3',address:'100 Main Road, Nashville, TN',location_points:[]}]).stats.matched,0);
+const ambiguous=D.merge({locations:[]},{source_date:'fixture',facilities:[f('111','ONE','NASHVILLE'),f('222','TWO','NASHVILLE')]});assert.equal(ambiguous.data.locations.length,1);assert.equal(ambiguous.data.locations[0].spot,'');
+console.log('PASS directory merge, custom/combined number preservation, shared addresses, unmatched entries, idempotency, boundary attachment and input immutability');
