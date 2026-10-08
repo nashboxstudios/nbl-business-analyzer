@@ -5381,10 +5381,20 @@
   function ivmrJurisdictionText(g){
     return [...g.jurisdictionMap.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([j,m])=>`${j} ${fmtIvmrMiles(m)}`).join(' • ') || '—';
   }
+  function ivmrCompletedWeek(now=new Date()){
+    // Use the last fully completed Friday, including when today is Friday.
+    const end=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+    end.setDate(end.getDate()-((end.getDay()+2)%7||7));
+    const start=new Date(end); start.setDate(start.getDate()-6);
+    return {start:isoLocal(start),end:isoLocal(end)};
+  }
   function setIvmrDefaultDates(){
     if(!$('ivmrStartDate')||!$('ivmrEndDate')) return;
-    if(!$('ivmrStartDate').value){ const d=new Date(); d.setDate(1); $('ivmrStartDate').value=isoLocal(d); }
-    if(!$('ivmrEndDate').value) $('ivmrEndDate').value=todayIso();
+    const week=ivmrCompletedWeek();
+    if(!$('ivmrStartDate').value) $('ivmrStartDate').value=week.start;
+    if(!$('ivmrEndDate').value) $('ivmrEndDate').value=week.end;
+    if($('ivmrHistoryStart')&&!$('ivmrHistoryStart').value) $('ivmrHistoryStart').value=week.start;
+    if($('ivmrHistoryEnd')&&!$('ivmrHistoryEnd').value) $('ivmrHistoryEnd').value=week.end;
   }
   async function saveIvmrSnapshot(){
     if(!state.ivmr.loadedAt) return;
@@ -6409,7 +6419,7 @@
   $('testMotiveBtn')?.addEventListener('click',()=>testMotiveConnection(false));
   $('refreshMotiveBtn')?.addEventListener('click',refreshMotiveFleet);
   $('syncMotiveMaintenanceBtn')?.addEventListener('click',syncMotiveToMaintenance);
-  $('manageIvmrLocationsBtn')?.addEventListener('click',()=>{$('ivmrLocationPanel')?.scrollIntoView({behavior:'smooth',block:'start'});});
+  $('manageIvmrLocationsBtn')?.addEventListener('click',()=>{const panel=$('ivmrLocationPanel'); if(panel){ panel.open=true; panel.scrollIntoView({behavior:'smooth',block:'start'}); }});
   $('addIvmrLocationBtn')?.addEventListener('click',()=>openIvmrLocationModal());
   $('ivmrLocationSpotInput')?.addEventListener('input',updateIvmrLocationPreview);
   $('ivmrLocationCityInput')?.addEventListener('input',updateIvmrLocationPreview);
