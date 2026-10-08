@@ -44,5 +44,19 @@ with patch.object(backend,'motive_request',return_value=({'ifta_trips':[{'ifta_t
     try:backend.fetch_ifta_window(*quarter_dates(2026,3),max_pages=1,fuel_type='Diesel')
     except RuntimeError as exc:assert 'incomplete' in str(exc)
     else:raise AssertionError('Silent truncated report')
-    assert call.call_args.args[1]['fuel_type']=='Diesel'
+    assert call.call_args.args[1]['fuel_type']=='diesel'
+# Emulate the case-sensitive Motive validation that rejected the production query.
+def strict_motive(path, params):
+    assert path=='/v1/ifta/trips'
+    assert params.get('fuel_type')=='diesel', 'Motive HTTP 400: fuel_type does not have a valid value'
+    return {'ifta_trips':[], 'total':0},200
+with patch.object(backend,'motive_request',side_effect=strict_motive) as call:
+    assert backend.fetch_ifta_trips(*quarter_dates(2026,3),fuel_type='Diesel')==[]
+    assert call.call_count==4
+    assert all(c.args[1]['fuel_type']=='diesel' for c in call.call_args_list)
+    backend.fetch_ifta_window(*quarter_dates(2026,3),fuel_type=' DIESEL ')
+with patch.object(backend,'motive_request',return_value=({'ifta_trips':[]},200)) as call:
+    backend.fetch_ifta_window(*quarter_dates(2026,3))
+    assert 'fuel_type' not in call.call_args.args[1], 'IVMR must retain its existing unfiltered request'
+print('PASS lowercase Motive fuel identifiers across all quarter windows and unchanged IVMR query')
 print('PASS exact template headers, numeric cells, protection/hidden sheets preserved, sanitized asset, invalid export rejection, owner-only API and incomplete pagination failure')

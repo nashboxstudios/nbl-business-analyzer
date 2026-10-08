@@ -2516,7 +2516,8 @@ def fetch_ifta_window(start_day, end_day, vehicle_ids=None, per_page=100, max_pa
         if vehicle_ids:
             params['vehicle_ids[]'] = [int(v) for v in vehicle_ids]
         if fuel_type:
-            params['fuel_type'] = fuel_type
+            # Motive validates lowercase API identifiers, not worksheet display labels.
+            params['fuel_type'] = str(fuel_type).strip().lower()
         payload, _ = motive_request('/v1/ifta/trips', params)
         items = ifta_trip_list(payload)
         out.extend(items)
@@ -3127,7 +3128,7 @@ class NBLHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == '/health':
-            return self.send_json({'ok': True, 'app': 'NBL FleetCommand', 'version': 142})
+            return self.send_json({'ok': True, 'app': 'NBL FleetCommand', 'version': 143})
         if parsed.path.startswith('/api/') and not require_nbl_api_access(self, parsed.path, 'GET'):
             return
         if parsed.path == '/api/ifta/mileage':
@@ -3452,13 +3453,13 @@ def main():
     # that is still running from hijacking a newer build's browser window.
     server = ThreadingHTTPServer((HOST, REQUESTED_PORT), NBLHandler)
     actual_port = int(server.server_address[1])
-    url = f'http://localhost:{actual_port}/index.html?v=142'
+    url = f'http://localhost:{actual_port}/index.html?v=143'
     if PORT_FILE:
         try:
             Path(PORT_FILE).write_text(url, encoding='utf-8')
         except Exception:
             pass
-    print('NBL FleetCommand v142 is running.')
+    print('NBL FleetCommand v143 is running.')
     print(f'Open: {url}')
     print('Motive API credentials use MOTIVE_API_KEY when provided; local builds fall back to the protected local key file.')
     print('Keep this process running while using the app.')
