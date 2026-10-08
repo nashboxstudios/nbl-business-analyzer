@@ -129,28 +129,35 @@ function sortCandidates(candidates,key='name',direction='asc',today){
  });
 }
 // Keep the overview factual: eligibility and individual criminal answers are recorded explicitly.
-function interviewSummaryFields(candidate){
+const INTERVIEW_SUMMARY_KEYS=['location','cdlExperience','fedexExperience','pay','shift','doubles','safety','criminal','sexOffender'];
+function interviewSummaryFields(candidate,recordedOnly=false){
  const c=normalize(candidate),s=c.testPipeline.screening,h=c.hiringSummary;
  const compact=v=>String(v??'').replace(/\s+/g,' ').trim();
  const shown=v=>compact(v)||'Not recorded';
  const joined=(...values)=>[...new Set(values.map(compact).filter(Boolean))].join('; ');
  const record=(answer,notes)=>joined(answer==='No'?'None reported':answer==='Yes'?'Reported':answer,notes);
- return [
+ const fields=[
   ['Preferred location',shown(c.location)],['CDL experience',shown(joined(s.experienceRequirement,s.experience))],['FedEx experience',shown(h.fedexExperience)],
-  ['Pay discussed',shown(s.payExpectation)],['shift discussed',shown(joined(s.possibleShifts,s.availability))],['doubles',shown(joined(c.doubles,s.doublesNotes))],
-  ['safety',shown(record(s.safety,s.safetyNotes))],['felony/misdemeanor',shown(record(s.criminal,s.criminalNotes))],['sex offender',shown(record(s.sexOffender,s.sexOffenderNotes))]
+  ['Pay discussed',shown(s.payExpectation)],['Shift discussed',shown(joined(s.possibleShifts,s.availability))],['Doubles experience',shown(joined(c.doubles,s.doublesNotes))],
+  ['Safety record',shown(record(s.safety,s.safetyNotes))],['Felony / misdemeanor',shown(record(s.criminal,s.criminalNotes))],['Sex offender',shown(record(s.sexOffender,s.sexOffenderNotes))]
  ];
+ const overrides=h.interviewSummaryOverrides||{};
+ return fields.map(([label,value],i)=>[label,!recordedOnly&&Object.hasOwn(overrides,INTERVIEW_SUMMARY_KEYS[i])?shown(overrides[INTERVIEW_SUMMARY_KEYS[i]]):value]);
 }
 function interviewSummary(candidate){
  const custom=String(candidate.hiringSummary?.interviewSummary??'').replace(/\s+/g,' ').trim();
  const fields=interviewSummaryFields(candidate).map(([label,value])=>`${label}: ${value}`);
  return custom||fields.slice(0,3).join('; ')+'. '+fields.slice(3).join('; ')+'.';
 }
+function summaryFieldsDoubles(candidate){
+ const h=candidate.hiringSummary||{};
+ return Object.hasOwn(h.interviewSummaryOverrides||{},'doubles')?String(h.interviewSummaryOverrides.doubles||'').split(';')[0].trim():candidate.doubles;
+}
 const INTERVIEW_SUMMARY_LIMIT=600;
 function summaryHtml(candidate,logoUrl='assets/nashbox-logistics-logo.png',format='letter'){
  const phone=format==='phone';
  const overview=interviewSummary(candidate);
- if(overview.length>INTERVIEW_SUMMARY_LIMIT)throw new Error('The Interview Summary is too long. Review and shorten it in Hiring Summary to 600 characters or fewer before exporting.');
+ if(overview.length>INTERVIEW_SUMMARY_LIMIT)throw new Error('The Interview Summary is too long. Shorten the summary answers in Hiring Summary to keep the overview within 600 characters before exporting.');
  const c=normalize(candidate),p=c.testPipeline,s=p.screening,b=p.background,e=escapeHtml;
  const shown=v=>v===undefined||v===null||String(v).trim()===''?'Not recorded':String(v);
  const date=v=>{if(!v)return 'Not recorded';const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(v);return m?`${m[2]}/${m[3]}/${m[1]}`:v;};
@@ -159,9 +166,10 @@ function summaryHtml(candidate,logoUrl='assets/nashbox-logistics-logo.png',forma
  const facts=rows=>`<dl class="facts">${rows.map(x=>fact(...x)).join('')}</dl>`;
  const question=(title,prompt,answer,details)=>`<article class="question"><h3>${e(title)}</h3>${prompt?`<p class="prompt">${e(prompt)}</p>`:''}<p class="answer">${value(answer)}</p>${details?`<p class="detail">${e(details)}</p>`:''}</article>`;
  const yesNo=v=>v?'Yes':'Not recorded';
- const doublesColor=c.doubles==='No'?'#a92323':c.doubles==='Yes With Experience'?'#157344':'#946800';
- const summaryFields=interviewSummaryFields(c).map(([label,v])=>`<strong>${e(label)}:</strong> ${label==='doubles'?`<span class="status">${e(v)}</span>`:e(v)}`);
- const overviewHtml=String(c.hiringSummary.interviewSummary||'').trim()?e(overview):summaryFields.slice(0,3).join('; ')+'. '+summaryFields.slice(3).join('; ')+'.';
+ const doublesAnswer=summaryFieldsDoubles(c);
+ const doublesColor=doublesAnswer==='No'?'#a92323':doublesAnswer==='Yes With Experience'?'#157344':doublesAnswer==='Yes No Experience'?'#946800':'#5B2A86';
+ const summaryFields=interviewSummaryFields(c);
+ const overviewHtml=String(c.hiringSummary.interviewSummary||'').trim()?`<p class="interview-overview">${e(overview)}</p>`:`<dl class="summary-form">${summaryFields.map(([label,v],i)=>`<div class="summary-row"><dt>${e(label)}</dt><dd${INTERVIEW_SUMMARY_KEYS[i]==='doubles'?' class="status"':''}>${e(v)}</dd></div>`).join('')}</dl>`;
  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ops Manager Hiring Summary - ${e(c.name)}</title><style>
  *{box-sizing:border-box}:root{--purple:#5B2A86;--purple-dark:#35164E;--orange:#F15A24;--text:#30283A;--muted:#756C7D;--line:#E7E0EA}body{margin:0;background:#F8F6FA;color:var(--text);font:14px/1.5 Arial,sans-serif}
  .toolbar{max-width:900px;margin:22px auto 12px;display:flex;align-items:center;gap:14px;padding:0 12px}.toolbar button{padding:11px 18px;border:0;border-radius:8px;background:var(--orange);color:#fff;font:inherit;font-weight:bold;cursor:pointer}.toolbar span{font-size:12px;color:var(--muted)}
@@ -171,11 +179,12 @@ function summaryHtml(candidate,logoUrl='assets/nashbox-logistics-logo.png',forma
  @media(max-width:600px){body{font-size:16px}.answer,dd{font-size:16px}.prompt{font-size:14px}.report{padding:24px 18px}.report-header{gap:12px}.report-header img{width:48px;height:48px}.facts{grid-template-columns:1fr}h1{font-size:24px}.toolbar{flex-wrap:wrap}}
  @media print{@page{size:letter;margin:16mm}body{background:#fff;font-size:11pt}.toolbar{display:none}.report{max-width:none;box-shadow:none;padding:0;margin:0}.report-header{break-inside:avoid}.facts{grid-template-columns:1fr 1fr}h1{font-size:23pt}h2{font-size:14pt}.question h3{font-size:11pt}.answer,dd{font-size:11pt}.prompt{font-size:9pt}.report-section{margin-top:18px}h1,h2,h3{break-after:avoid}.fact{break-inside:avoid;padding:8px 10px}.facts{gap:8px 16px}.question{padding-bottom:10px;margin-bottom:10px}.interview-meta{margin-bottom:14px}.instructions{font-size:9pt}.footnote{margin-top:16px;padding-top:10px}}
 
+ .summary-form{margin:0}.summary-row{display:grid;grid-template-columns:165px minmax(0,1fr);gap:14px;padding:9px 12px;border-bottom:1px solid var(--line);break-inside:avoid}.summary-row:nth-child(odd){background:#F8F6FA;print-color-adjust:exact;-webkit-print-color-adjust:exact}.summary-row dt{font-size:14px;text-transform:none;letter-spacing:0;color:var(--purple-dark)}.summary-row dd{font-size:14px;margin:0;line-height:1.4}.summary-row dt,.summary-row dd{overflow-wrap:anywhere}@media(max-width:600px){.summary-row{grid-template-columns:112px minmax(0,1fr);gap:10px;padding:8px}.summary-row dd{font-size:16px}}@media print{.summary-row dt,.summary-row dd{font-size:11pt}.summary-row{padding:8px 10px}}.phone-report .summary-row{grid-template-columns:112px minmax(0,1fr);gap:9px;padding:6px 8px}.phone-report .summary-row dt{font-size:14px}.phone-report .summary-row dd{font-size:15px}@media print{.phone-report .summary-row{grid-template-columns:103px minmax(0,1fr);padding:5px 7px}.phone-report .summary-row dt{font-size:10pt}.phone-report .summary-row dd{font-size:11pt}}
  .interview-overview{font-size:15px;line-height:1.65;margin:0;overflow-wrap:anywhere}.supporting-details{margin-top:28px}.screening-replies{display:grid;grid-template-columns:1fr 1fr;gap:10px 18px}.screening-replies .question{margin:0}.screening-replies .question:last-child{grid-column:1/-1}@media(max-width:600px){.screening-replies{grid-template-columns:1fr}}@media print{.facts{grid-template-columns:repeat(3,1fr)}.screening-replies{grid-template-columns:1fr 1fr}.supporting-details{break-before:page;margin-top:0}.interview-overview{font-size:11pt;line-height:1.6}}
  .phone-report .report{max-width:408px;padding:20px 16px}.phone-report .facts{grid-template-columns:1fr}.phone-report .screening-replies{grid-template-columns:1fr}.phone-report .report-header{gap:12px}.phone-report .report-header img{width:48px;height:48px}.phone-report h1{font-size:24px}.phone-report .answer,.phone-report dd{font-size:16px}.phone-report .prompt{font-size:14px}.phone-report .toolbar{max-width:408px;flex-wrap:wrap}
- @media print{@page phone{size:108mm 192mm;margin:8mm}.phone-report{page:phone}.phone-report .report{max-width:none;padding:0}.phone-report .facts{grid-template-columns:1fr;gap:8px}.phone-report h1{font-size:20pt}.phone-report h2{font-size:15pt;padding:8px 10px}.phone-report .question h3{font-size:12pt}.phone-report .answer,.phone-report dd{font-size:12pt}.phone-report .prompt,.phone-report .detail{font-size:10.5pt}.phone-report .instructions{font-size:10pt}.phone-report .report-header{margin-bottom:16px;padding-bottom:12px}.phone-report .brand{font-size:9pt}.phone-report .subtitle{font-size:10.5pt}.phone-report dt{font-size:9pt}.phone-report .fact{padding:6px 10px}.phone-report .facts{gap:6px}.phone-report .screening-replies{gap:6px}.phone-report .question{padding-bottom:6px}.phone-report .question h3{margin-bottom:3px}.phone-report .report-section{margin-top:12px}.phone-report .supporting-details>section:last-of-type{break-before:page;margin-top:0}.phone-report .interview-meta{break-inside:avoid}}
+ @media print{@page phone{size:108mm 240mm;margin:8mm}.phone-report{page:phone}.phone-report .report{max-width:none;padding:0}.phone-report .facts{grid-template-columns:1fr;gap:8px}.phone-report h1{font-size:20pt}.phone-report h2{font-size:15pt;padding:8px 10px}.phone-report .question h3{font-size:12pt}.phone-report .answer,.phone-report dd{font-size:12pt}.phone-report .prompt,.phone-report .detail{font-size:10.5pt}.phone-report .instructions{font-size:10pt}.phone-report .report-header{margin-bottom:16px;padding-bottom:12px}.phone-report .brand{font-size:9pt}.phone-report .subtitle{font-size:10.5pt}.phone-report dt{font-size:9pt}.phone-report .fact{padding:6px 10px}.phone-report .facts{gap:6px}.phone-report .screening-replies{gap:6px}.phone-report .question{padding-bottom:6px}.phone-report .question h3{margin-bottom:3px}.phone-report .report-section{margin-top:12px}.phone-report .supporting-details>section:last-of-type{break-before:page;margin-top:0}.phone-report .interview-meta{break-inside:avoid}}
  </style></head><body${phone?' class="phone-report"':''}><div class="toolbar"><button type="button" onclick="window.print()">${phone?'Print / Save Phone PDF':'Print / Save PDF'}</button><span>${phone?'Phone format · Single column · ':''}Share this summary with the Ops Manager.</span></div><main class="report"><header class="report-header"><img src="${e(logoUrl)}" alt="Nashbox Logistics"><div class="header-copy"><div class="brand">NASHBOX LOGISTICS</div><p class="report-label">Recruitment${phone?' · Prepared '+e(new Date().toLocaleDateString('en-US')):''}</p><h1>${value(c.name)}</h1><p class="subtitle">Hiring Summary for the Ops Manager</p></div></header>
- <section class="report-section interview-summary"><h2>Interview Summary</h2><p class="interview-overview">${overviewHtml}</p></section><div class="supporting-details">
+ <section class="report-section interview-summary"><h2>Interview Summary</h2>${overviewHtml}</section><div class="supporting-details">
  <section class="report-section"><h2>Candidate Details</h2>${facts([['Name',c.name],['Phone',c.phone],['FedEx ID',c.fedexId]])}</section>
  <section class="report-section"><h2>Background &amp; Drug Screen</h2>${facts([['FADV status',b.fadvStatus],['Drug screen status',b.drugStatus],['Manager ready for Ops',yesNo(b.readyForOps)]])}${b.notes?question('Background / drug-screen notes','',b.notes):''}</section>
  <section class="report-section"><h2>Screening Interview</h2><div class="interview-meta">${facts([['Interview date',date(s.date)],['Interviewer',s.interviewer],['Screening decision',s.decision]])}</div>
@@ -187,7 +196,7 @@ function summaryHtml(candidate,logoUrl='assets/nashbox-logistics-logo.png',forma
  ${s.notes?question('Screening Interview Notes','',s.notes):''}</div></section>${phone?'':`<p class="footnote">Prepared ${e(new Date().toLocaleDateString('en-US'))} · Missing answers are shown as “Not recorded”.</p>`}</div></main></body></html>`;
 }
 
-const engine={STAGES,normalize,reconcile,validate,scheduleKey,recordOpsAgreements,SCREENING_QUESTIONS,APPLICATION_PROCESS,interviewSummary,INTERVIEW_SUMMARY_LIMIT,summaryHtml,TABLE_COLUMNS,daysInProcess,sortCandidates,GROUPS,candidateGroup,duplicateMatches};
+const engine={STAGES,normalize,reconcile,validate,scheduleKey,recordOpsAgreements,SCREENING_QUESTIONS,APPLICATION_PROCESS,interviewSummary,interviewSummaryFields,INTERVIEW_SUMMARY_KEYS,INTERVIEW_SUMMARY_LIMIT,summaryHtml,TABLE_COLUMNS,daysInProcess,sortCandidates,GROUPS,candidateGroup,duplicateMatches};
 if(typeof module!=='undefined'&&module.exports)module.exports=engine;
 if(!root.document)return;
 const esc=x=>String(x??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
@@ -239,8 +248,8 @@ function profile(openSections=[]){
  const section=(title,html)=>`<details class="rt-section"${openSections.includes(title)?' open':''}><summary>${esc(title)}</summary><div class="rt-grid">${html}</div></details>`;
  const documentList=general=>Object.entries(draft.documents).filter(([,d])=>d?.path&&(d.bucket==='nbl-recruitment-general-documents')===general).map(([k,d])=>`<div class="rt-doc"><span>${esc(d.label||d.fileName||k)}</span><button type="button" data-rt-view="${esc(k)}">View</button>${readOnly?'':`<button type="button" data-rt-remove="${esc(k)}">Remove from profile</button>`}</div>`).join('')||'<p>No documents.</p>';
  if(readOnly)return `<div class="rt-modal-header"><div><small>Recruitment · Operational view</small><h2>${esc(draft.name)}</h2></div><button type="button" class="button secondary" id="rtClose">Close</button></div><div id="rtMessage" aria-live="polite"></div><p>Read-only access. Personal identifiers, screening answers, background reports, pay, and sensitive documents are restricted.</p>${section('Candidate Details',`<p>Name: ${esc(draft.name)}</p><p>Location: ${esc(draft.location)}</p><p>FedEx ID: ${esc(draft.fedexId||'—')}</p><p>Start date: ${esc(draft.startDate||'—')}</p>`)}${section('Schedule & Stage',`<p>Stage: ${esc(p.stage)}</p><p>Due: ${esc(p.dueDate||'—')}</p><p>Assigned to: ${esc(p.assignedTo||'—')}</p><p>Days: ${esc(p.ops.agreedDays||'—')}</p><p>Dispatch: ${esc(p.ops.dispatchAgreement||'—')}</p><p>Doubles: ${esc(p.ops.doublesAgreement||draft.doubles||'—')}</p>`)}${section('Onboarding',Object.entries(p.onboarding).map(([k,v])=>`<p>${esc(k)}: ${esc(v)}</p>`).join(''))}${section('Training',`<p>Start: ${esc(p.training.startDate||'—')}</p><p>Trainer: ${esc(p.training.trainer||'—')}</p><p>Result: ${esc(p.training.result||'—')}</p><p>Completed: ${esc(p.training.completedDate||'—')}</p>`)}${section('General Documents',documentList(true))}`;
- const overview=interviewSummary(draft);
- const summary=f('hiringSummary.interviewSummary','Interview Summary (optional concise wording)','textarea')+`<p class="rt-wide rt-help">Leave blank to build the overview from recorded answers. Review all nine topics: preferred location, CDL requirement, FedEx experience, pay, shift, doubles, safety, felony/misdemeanor and sex-offender record. Use one or two short sentences, up to ${INTERVIEW_SUMMARY_LIMIT} characters. Review custom wording whenever screening answers change.</p><p class="rt-wide rt-help" id="rtSummaryPreview"><strong>Current overview (${overview.length}/${INTERVIEW_SUMMARY_LIMIT} characters):</strong> ${esc(overview)}</p><button type="button" class="button secondary" id="rtSummaryEdit">Edit current overview</button><button type="button" class="button secondary" id="rtSummary">Print / Save PDF</button><button type="button" class="button secondary" id="rtSummaryPhone">Phone PDF</button>`;
+ const summaryRows=interviewSummaryFields(draft);
+ const summary=`<p class="rt-wide rt-help">Built from the recorded answers. Edit any row to customize it for the Ops Manager. Unedited rows update when the recorded answers change. Keep each answer brief.</p><div class="rt-wide rt-summary-form" id="rtSummaryPreview">${summaryRows.map(([label,value],i)=>`<label class="rt-summary-row" for="rt_summary_${INTERVIEW_SUMMARY_KEYS[i]}"><span>${esc(label)}</span><textarea id="rt_summary_${INTERVIEW_SUMMARY_KEYS[i]}" rows="2" data-rt-summary-key="${INTERVIEW_SUMMARY_KEYS[i]}">${esc(value)}</textarea></label>`).join('')}</div><p class="rt-wide rt-help" id="rtSummaryMode" aria-live="polite"></p><div class="rt-wide" id="rtSummaryLegacy"${draft.hiringSummary.interviewSummary?'':' hidden'}>${f('hiringSummary.interviewSummary','Previous custom wording (used until restored)','textarea')}<p class="rt-help">Use recorded answers to switch this earlier wording to the arranged form. Your original interview answers are retained.</p></div><button type="button" class="button secondary" id="rtSummaryReset">Use recorded answers</button><button type="button" class="button secondary" id="rtSummary">Print / Save PDF</button><button type="button" class="button secondary" id="rtSummaryPhone">Phone PDF</button>`;
  const importer=`<div class="rt-wide rt-import-box"><h3>Import First Advantage Application</h3><p>Choose the driver’s First Advantage PDF to fill detected name, contact, current address, DOB, FedEx ID, and CDL details. Review the imported values, then Save Draft.</p><label class="rt-field" for="rtImportFile"><span>First Advantage PDF (up to 15 MB)</span><input type="file" id="rtImportFile" accept=".pdf,application/pdf"></label><button type="button" class="button secondary" id="rtImport">Read First Advantage PDF</button></div>`;
  const histories=p.history.slice().reverse().map(h=>`<li>${esc(new Date(h.at).toLocaleString())} — ${esc(h.action)}${h.by?' · '+esc(h.by):''}</li>`).join('');
  return `<form id="rtForm"><div class="rt-modal-header"><div><small>Recruitment</small><h2>${esc(draft.name||'New Candidate')}</h2>${draft._cloudUpdatedAt?'<small>'+esc(createdLabel(draft))+'</small>':''}</div><button type="button" class="button secondary" id="rtClose" aria-label="Close candidate">Close</button></div><div id="rtMessage" aria-live="polite"></div><div id="rtDuplicateWarning" class="rt-duplicate-warning" role="status" aria-live="polite" hidden></div>
@@ -320,17 +329,32 @@ function bindProfile(){
  showDuplicateWarning();if(el('rtDelete'))el('rtDelete').onclick=deleteCandidate;
  el('rtClose').onclick=close;el('rtForm').onsubmit=e=>{e.preventDefault();save(false);};el('rtAdvance').onclick=()=>save(true);
  el('rtForm').querySelectorAll('[data-rt-field]').forEach(x=>x.addEventListener('change',()=>{
-  const path=x.dataset.rtField;put(draft,path,x.type==='checkbox'?x.checked:x.value);showDuplicateWarning();
+  const path=x.dataset.rtField;put(draft,path,x.type==='checkbox'?x.checked:x.value);showDuplicateWarning();refreshSummaryForm();
   if(OPS_FIELDS.some(k=>path==='testPipeline.ops.'+k)){
    delete draft.testPipeline.ops.confirmedSchedule;
    message('Agreement notes changed. Record the candidate’s current agreement, then Save Draft or Move to Next Stage.');
   }
  }));
  el('rtForm').querySelectorAll('[data-rt-field]').forEach(x=>{if(identityFields.includes(x.dataset.rtField))x.addEventListener('input',()=>{put(draft,x.dataset.rtField,x.value);showDuplicateWarning();});});
- el('rtSummaryEdit').onclick=()=>{collect();const input=el('rt_hiringSummary_interviewSummary');input.value=interviewSummary(draft);put(draft,'hiringSummary.interviewSummary',input.value);input.focus();};
- el('rt_hiringSummary_interviewSummary').addEventListener('input',()=>{collect();const overview=interviewSummary(draft);el('rtSummaryPreview').textContent=`Current overview (${overview.length}/${INTERVIEW_SUMMARY_LIMIT} characters): ${overview}`;});
+ el('rtModal').querySelectorAll('[data-rt-summary-key]').forEach(input=>input.addEventListener('input',()=>{
+  const key=input.dataset.rtSummaryKey,index=INTERVIEW_SUMMARY_KEYS.indexOf(key),recorded=interviewSummaryFields(draft,true)[index][1];
+  const overrides=draft.hiringSummary.interviewSummaryOverrides=draft.hiringSummary.interviewSummaryOverrides||{};
+  if(input.value.trim()===recorded)delete overrides[key];else overrides[key]=input.value;
+  refreshSummaryForm(input);
+ }));
+ el('rtSummaryReset').onclick=()=>{draft.hiringSummary.interviewSummaryOverrides={};draft.hiringSummary.interviewSummary='';el('rt_hiringSummary_interviewSummary').value='';el('rtSummaryLegacy').hidden=true;refreshSummaryForm();};
+ refreshSummaryForm();
  el('rtSummary').onclick=()=>summary(collect());el('rtSummaryPhone').onclick=()=>summary(collect(),'phone');el('rtImportFile').onchange=()=>importPdf();el('rtRoadPdf').onclick=roadPdf;el('rtUpload').onclick=upload;el('rtImport').onclick=importPdf;
  el('rtForm').querySelectorAll('[data-rt-remove]').forEach(x=>x.onclick=()=>{collect();delete draft.documents[x.dataset.rtRemove];redrawProfile();message('Reference removed from draft. Save Draft to keep this change.');});
+}
+function refreshSummaryForm(activeInput){
+ const fields=interviewSummaryFields(draft),overrides=draft.hiringSummary.interviewSummaryOverrides||{};
+ el('rtModal').querySelectorAll('[data-rt-summary-key]').forEach((input,i)=>{
+  if(input!==activeInput)input.value=fields[i][1];
+  input.closest('label').classList.toggle('rt-summary-edited',Object.hasOwn(overrides,input.dataset.rtSummaryKey));
+ });
+ const count=INTERVIEW_SUMMARY_KEYS.filter(key=>Object.hasOwn(overrides,key)).length;
+ el('rtSummaryMode').textContent=`${draft.hiringSummary.interviewSummary?'Previous custom wording':count?`${count} customized ${count===1?'answer':'answers'}`:'Using recorded answers'} · ${interviewSummary(draft).length}/${INTERVIEW_SUMMARY_LIMIT} characters. Save Draft to keep changes.`;
 }
 function close(){if(busy){message('Wait for the current save to finish.');return;}el('rtModal')?.close();draft=null;}
 function lock(value){busy=value;el('rtForm')?.querySelectorAll('input,select,textarea,button').forEach(x=>x.disabled=value||(x.id==='rtAdvance'&&draft?.testPipeline.stage==='Regular Employee'));}
@@ -425,7 +449,7 @@ async function roadPdf(){
  lock(true);try{const res=await fetch('/api/hr/road-test',{method:'POST',headers:await authHeaders(),body:JSON.stringify({candidate:{name:c.name,fedex_id:c.fedexId||'',cdl_number:c.cdlNumber||'',cdl_issuing_state:c.cdlIssuingState||''},road_test:{date:r.date,time_from:r.timeFrom,time_to:r.timeTo,test_admin_name:r.testAdminName,test_admin_fedex_id:r.testAdminFedexId,certificate_number:r.certificateNumber,tractor_number:r.tractorNumber,trailer_number:r.trailerNumber,candidate_signature_png:createRoadTestSignaturePng(c.name),admin_signature_png:createRoadTestSignaturePng(r.testAdminName)}})});if(!res.ok){const data=await res.json();throw new Error(data.error||'Road test export failed.');}const url=URL.createObjectURL(await res.blob()),a=document.createElement('a');a.href=url;a.download='Road_Test_'+c.name.replace(/[^a-z0-9]/gi,'_')+'.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);message('Road test form exported. Save Draft to keep edited form fields.');}catch(e){message(e.message,true);}finally{lock(false);}
 }
 function summary(c,format='letter'){
- let html;try{html=summaryHtml(c,new URL('assets/nashbox-logistics-logo.png',document.baseURI).href,format);}catch(e){message(e.message,true);const input=el('rt_hiringSummary_interviewSummary');input.closest('details').open=true;input.focus();return;}
+ let html;try{html=summaryHtml(c,new URL('assets/nashbox-logistics-logo.png',document.baseURI).href,format);}catch(e){message(e.message,true);const input=c.hiringSummary?.interviewSummary?el('rt_hiringSummary_interviewSummary'):el('rt_summary_location');input.closest('details').open=true;input.focus();return;}
  const tab=root.open('about:blank','_blank');if(!tab){message('Allow popups to print the summary.',true);return;}
  tab.opener=null;tab.document.write(html);tab.document.close();
 }

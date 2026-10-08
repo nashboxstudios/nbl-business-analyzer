@@ -1,3 +1,12 @@
+NBL FleetCommand — Version 146
+
+Version 146 - Arranged Interview Summary
+- Builds nine labeled summary rows from the recorded answers by default.
+- Interviewers can customize individual summary rows without changing source answers.
+- Unedited rows refresh automatically; Use recorded answers restores the defaults.
+- Keeps the arranged summary on page 1 with supporting details on later pages.
+- Preserves earlier custom paragraph wording until the interviewer restores defaults.
+
 NBL FleetCommand — Version 145
 
 Version 145 - Compact Ops Manager Hiring Summary

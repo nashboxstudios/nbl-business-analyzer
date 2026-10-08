@@ -55,7 +55,7 @@ const sandbox={window:{},localStorage:{getItem:()=>JSON.stringify(session)},URLS
 // Overview uses only recorded answers, carries review notes, and appears once before supporting details.
 const overviewCandidate=E.normalize({name:'Jordan Example',location:'Test Terminal',doubles:'Yes With Experience',hiringSummary:{fedexExperience:'2 years'},testPipeline:{screening:{experienceRequirement:'Meets 1 in 3',experience:'18 months',payExpectation:'$30/hr',possibleShifts:'Nights',availability:'Mon-Fri',doublesNotes:'6 months',safety:'Yes',safetyNotes:'One incident under review',criminal:'No',sexOffender:'Yes',sexOffenderNotes:'Review pending'}}});
 const before=JSON.stringify(overviewCandidate),overview=E.interviewSummary(overviewCandidate);
-for(const value of ['Test Terminal','Meets 1 in 3','18 months','2 years','$30/hr','Nights','Mon-Fri','6 months','One incident under review','felony/misdemeanor: None reported','sex offender: Reported; Review pending'])assert(overview.includes(value),value);
+for(const value of ['Test Terminal','Meets 1 in 3','18 months','2 years','$30/hr','Nights','Mon-Fri','6 months','One incident under review','Felony / misdemeanor: None reported','Sex offender: Reported; Review pending'])assert(overview.includes(value),value);
 for(const format of ['letter','phone']){
  const html=E.summaryHtml(overviewCandidate,undefined,format),details=html.split('<div class="supporting-details">')[1];
  assert(html.indexOf('<h2>Interview Summary</h2>')<html.indexOf('<h2>Candidate Details</h2>'));
@@ -63,8 +63,18 @@ for(const format of ['letter','phone']){
  assert(html.includes('.supporting-details{break-before:page'));
 }
 assert.equal(JSON.stringify(overviewCandidate),before,'Export never changes candidate data');
-const missing=E.interviewSummary({name:'Blank'});assert(missing.includes('sex offender: Not recorded'));assert(!missing.includes('None reported'));
+const missing=E.interviewSummary({name:'Blank'});assert(missing.includes('Sex offender: Not recorded'));assert(!missing.includes('None reported'));
 assert(!E.interviewSummary({testPipeline:{screening:{experience:'10 years'}}}).includes('Meets'),'No inferred experience eligibility');
 assert.throws(()=>E.summaryHtml({...overviewCandidate,hiringSummary:{interviewSummary:'x'.repeat(601)}}),/too long/);
 assert.equal(E.interviewSummary({...overviewCandidate,hiringSummary:{interviewSummary:'  Reviewed concise summary.  '}}),'Reviewed concise summary.');
 assert(E.summaryHtml({...overviewCandidate,hiringSummary:{interviewSummary:'<img src=x>'}}).includes('&lt;img src=x&gt;'));
+
+const customized={...overviewCandidate,hiringSummary:{...overviewCandidate.hiringSummary,interviewSummaryOverrides:{pay:'$35/hr discussed',safety:'Incident details reviewed',ignored:'IGNORE'}}};
+assert.equal(E.interviewSummaryFields(customized)[3][1],'$35/hr discussed');
+assert.equal(E.interviewSummaryFields(customized,true)[3][1],'$30/hr');
+assert.equal(E.interviewSummaryFields({...customized,testPipeline:{...customized.testPipeline,screening:{...customized.testPipeline.screening,payExpectation:'$40/hr',possibleShifts:'Days'}}})[3][1],'$35/hr discussed');
+assert.equal(E.interviewSummaryFields({...customized,testPipeline:{...customized.testPipeline,screening:{...customized.testPipeline.screening,possibleShifts:'Days'}}})[4][1],'Days; Mon-Fri');
+assert(!E.interviewSummary(customized).includes('IGNORE'));
+assert(E.summaryHtml(customized).includes('<dl class="summary-form">'));
+assert(E.summaryHtml({...customized,hiringSummary:{interviewSummaryOverrides:{location:'<script>bad</script>'}}}).includes('&lt;script&gt;bad&lt;/script&gt;'));
+assert.equal(overviewCandidate.testPipeline.screening.payExpectation,'$30/hr');
