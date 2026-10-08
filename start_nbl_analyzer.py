@@ -2503,7 +2503,7 @@ def fetch_hos_workdays(pay_start, pay_end):
     }
 
 
-def fetch_ifta_window(start_day, end_day, vehicle_ids=None, per_page=100, max_pages=200):
+def fetch_ifta_window(start_day, end_day, vehicle_ids=None, per_page=100, max_pages=200, fuel_type=None):
     out = []
     page = 1
     while page <= max_pages:
@@ -2515,6 +2515,8 @@ def fetch_ifta_window(start_day, end_day, vehicle_ids=None, per_page=100, max_pa
         }
         if vehicle_ids:
             params['vehicle_ids[]'] = [int(v) for v in vehicle_ids]
+        if fuel_type:
+            params['fuel_type'] = fuel_type
         payload, _ = motive_request('/v1/ifta/trips', params)
         items = ifta_trip_list(payload)
         out.extend(items)
@@ -2524,10 +2526,12 @@ def fetch_ifta_window(start_day, end_day, vehicle_ids=None, per_page=100, max_pa
         if not items or (isinstance(total, (int, float)) and len(out) >= int(total)):
             break
         page += 1
+    else:
+        raise RuntimeError('Motive IFTA pagination limit reached; the mileage report is incomplete. Retry a shorter reporting window.')
     return out
 
 
-def fetch_ifta_trips(start_day, end_day, vehicle_ids=None):
+def fetch_ifta_trips(start_day, end_day, vehicle_ids=None, fuel_type=None):
     """Fetch a reporting period in small windows to tolerate Motive date-duration limits."""
     if not start_day or not end_day or end_day < start_day:
         raise RuntimeError('Enter a valid IVMR start and end date.')
@@ -2538,7 +2542,7 @@ def fetch_ifta_trips(start_day, end_day, vehicle_ids=None):
     # 28-day windows are deliberately conservative because Motive may enforce date-duration limits.
     while cursor <= end_day:
         window_end = min(end_day, cursor + timedelta(days=27))
-        raw.extend(fetch_ifta_window(cursor, window_end, vehicle_ids=vehicle_ids))
+        raw.extend(fetch_ifta_window(cursor, window_end, vehicle_ids=vehicle_ids, fuel_type=fuel_type))
         cursor = window_end + timedelta(days=1)
     # De-duplicate across adjacent windows and pagination, retaining stable raw details.
     deduped, seen = [], set()
@@ -3123,9 +3127,18 @@ class NBLHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == '/health':
-            return self.send_json({'ok': True, 'app': 'NBL FleetCommand', 'version': 141})
+            return self.send_json({'ok': True, 'app': 'NBL FleetCommand', 'version': 142})
         if parsed.path.startswith('/api/') and not require_nbl_api_access(self, parsed.path, 'GET'):
             return
+        if parsed.path == '/api/ifta/mileage':
+            try:
+                from ifta_export import quarter_dates
+                qs = parse_qs(parsed.query)
+                start, end = quarter_dates((qs.get('year') or [''])[0], (qs.get('quarter') or [''])[0])
+                trips = fetch_ifta_trips(start, end, fuel_type='Diesel')
+                return self.send_json({'ok': True, 'start_date': start.isoformat(), 'end_date': end.isoformat(), 'units': 'miles', 'trips': trips})
+            except Exception as exc:
+                return self.send_json({'ok': False, 'error': str(exc)}, 422)
         if parsed.path == '/api/admin/users':
             try:
                 auth = str(self.headers.get('Authorization') or '').strip()
@@ -3357,6 +3370,15 @@ class NBLHandler(SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path.startswith('/api/') and not require_nbl_api_access(self, parsed.path, 'POST'):
             return
+        if parsed.path == '/api/ifta/export':
+            try:
+                from ifta_export import build_ifta_xlsx, quarter_dates
+                data = self.read_json()
+                quarter_dates(data.get('year'), data.get('quarter'))
+                body = build_ifta_xlsx(data)
+                return self.send_bytes(body, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', file_name=f"IFTA_{int(data['year'])}-Q{int(data['quarter'])}.xlsx")
+            except Exception as exc:
+                return self.send_json({'ok': False, 'error': str(exc)}, 422)
         if parsed.path in ('/api/admin/users/create', '/api/admin/users/update'):
             try:
                 auth = str(self.headers.get('Authorization') or '').strip()
@@ -3430,13 +3452,13 @@ def main():
     # that is still running from hijacking a newer build's browser window.
     server = ThreadingHTTPServer((HOST, REQUESTED_PORT), NBLHandler)
     actual_port = int(server.server_address[1])
-    url = f'http://localhost:{actual_port}/index.html?v=141'
+    url = f'http://localhost:{actual_port}/index.html?v=142'
     if PORT_FILE:
         try:
             Path(PORT_FILE).write_text(url, encoding='utf-8')
         except Exception:
             pass
-    print('NBL FleetCommand v141 is running.')
+    print('NBL FleetCommand v142 is running.')
     print(f'Open: {url}')
     print('Motive API credentials use MOTIVE_API_KEY when provided; local builds fall back to the protected local key file.')
     print('Keep this process running while using the app.')

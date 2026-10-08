@@ -122,11 +122,47 @@
   }
 
   async function getSnapshots(organizationId){
-    const qs=new URLSearchParams({organization_id:`eq.${organizationId}`,select:'module_key,data,source_version,updated_at',order:'module_key.asc'});
+    const qs=new URLSearchParams({organization_id:`eq.${organizationId}`,module_key:'not.like.ifta:%',select:'module_key,data,source_version,updated_at',order:'module_key.asc'});
     const rows=await authFetch(`/rest/v1/module_snapshots?${qs}`);
     const out={};
     for(const row of rows||[]) out[row.module_key]=row;
     return out;
+  }
+
+  function iftaModuleKey(key){
+    if(!/^(20\d{2}|2100)-Q[1-4]$/.test(String(key)))throw new Error('Invalid IFTA quarter.');
+    return 'ifta:'+key;
+  }
+  async function getIftaFuelCatalog(organizationId){
+    const catalog=[];
+    // Page settlement rows explicitly; payroll records and REST row limits must
+    // never silently truncate a historical quarterly fuel report.
+    for(let offset=0;offset<100000;offset+=500){
+      const qs=new URLSearchParams({organization_id:`eq.${organizationId}`,record_type:'eq.settlement_statement',select:'record_key,payload',order:'record_key.asc',limit:'500',offset:String(offset)});
+      const rows=await authFetch(`/rest/v1/nbl_fc_finance_records?${qs}`);
+      for(const row of rows||[])catalog.push({id:row.record_key,fileName:row.payload?.fileName||row.record_key,settlementDate:row.payload?.settlementDate||'',result:{fuelPurchases:row.payload?.result?.fuelPurchases||[]}});
+      if(!rows||rows.length<500)return catalog;
+    }
+    throw new Error('Settlement catalog exceeded the IFTA retrieval limit. No partial report was calculated.');
+  }
+  async function getIftaReport(organizationId,key){
+    const qs=new URLSearchParams({organization_id:`eq.${organizationId}`,module_key:`eq.${iftaModuleKey(key)}`,select:'data,updated_at'});
+    const rows=await authFetch(`/rest/v1/module_snapshots?${qs}`);
+    return rows?.[0]||null;
+  }
+  async function saveIftaReport(organizationId,key,data,expectedUpdatedAt=null){
+    const moduleKey=iftaModuleKey(key),session=await getSession();
+    const body={data,source_version:'ifta-1',updated_by:session?.user?.id||null,updated_at:new Date().toISOString()};
+    let rows;
+    if(expectedUpdatedAt){
+      const qs=new URLSearchParams({organization_id:`eq.${organizationId}`,module_key:`eq.${moduleKey}`,updated_at:`eq.${expectedUpdatedAt}`});
+      rows=await authFetch(`/rest/v1/module_snapshots?${qs}`,{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify(body)});
+      if(!rows?.length)throw new Error('This quarter changed in another session. Reload it before saving.');
+    }else{
+      rows=await authFetch('/rest/v1/module_snapshots',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({...body,organization_id:organizationId,module_key:moduleKey})});
+    }
+    if(!rows?.[0])throw new Error('IFTA report was not saved.');
+    return rows[0];
   }
 
   async function saveSnapshot(organizationId,moduleKey,data,sourceVersion='100'){
@@ -405,6 +441,7 @@
   }
 
   window.NBLCloud={
+    getIftaReport,saveIftaReport,getIftaFuelCatalog,
     url:SUPABASE_URL,
     publishableKey:SUPABASE_PUBLISHABLE_KEY,
     signIn,signOut,getSession,getMembership,getProfile,saveProfile,updatePassword,getSnapshots,saveSnapshot,getSafetyData,saveSafetyData,getDailyDispatchBoards,saveDailyDispatchBoard,getMaintenanceData,saveMaintenanceData,saveMaintenanceFaults,getRecruitmentData,saveRecruitmentData,deleteRecruitmentCandidate,getRecruitmentTestData,saveRecruitmentTestCandidate,deleteRecruitmentTestCandidate,getFinanceData,saveDriverPayData,saveSettlementData,saveSettlementChanges,getAuditData,saveAuditData,getMeetingData,saveMeetingData,uploadRecruitmentDocument,getRecruitmentDocumentUrl,deleteRecruitmentDocument,clearSession
