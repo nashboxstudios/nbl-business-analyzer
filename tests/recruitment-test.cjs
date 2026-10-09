@@ -78,3 +78,16 @@ assert(!E.interviewSummary(customized).includes('IGNORE'));
 assert(E.summaryHtml(customized).includes('<dl class="summary-form">'));
 assert(E.summaryHtml({...customized,hiringSummary:{interviewSummaryOverrides:{location:'<script>bad</script>'}}}).includes('&lt;script&gt;bad&lt;/script&gt;'));
 assert.equal(overviewCandidate.testPipeline.screening.payExpectation,'$30/hr');
+
+assert.equal(E.SCREENING_QUESTIONS.sexOffender,'Are you registered in any sex-offender registry?');
+for(const format of ['letter','phone']){
+ const c={...overviewCandidate,testPipeline:{...overviewCandidate.testPipeline,screening:{...overviewCandidate.testPipeline.screening,notes:'Existing interviewer notes.\nSecond line <script>unsafe</script>'}}};
+ const html=E.summaryHtml(c,undefined,format);
+ assert(html.indexOf('<h3>Interviewer Notes</h3>')<html.indexOf('<dl class="summary-form">'));
+ assert.equal(html.split('Existing interviewer notes.').length-1,1,'One exported notes space');
+ assert(html.includes('Second line &lt;script&gt;unsafe&lt;/script&gt;'));
+ assert(!html.includes('Screening Interview Notes'));
+ assert.equal(E.interviewSummary(c),overview,'Notes do not consume the overview character allowance');
+ assert(E.summaryHtml({...c,testPipeline:{...c.testPipeline,screening:{...c.testPipeline.screening,notes:'Notes '.repeat(150)}}},undefined,format).includes('Notes Notes'),'Optional notes do not block export');
+}
+assert(E.summaryHtml({name:'Blank'}).includes('No additional notes'));

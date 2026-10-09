@@ -1,3 +1,11 @@
+NBL FleetCommand — Version 148
+
+Version 148 - Interviewer Notes and Registry Question
+- Moves the existing optional interview notes to the first field in Hiring Summary.
+- Includes Interviewer Notes first in the PDF summary without repeating them later.
+- Keeps existing notes and separates them from the overview character allowance.
+- Screening asks: Are you registered in any sex-offender registry?
+
 NBL FleetCommand — Version 147
 
 Version 147 - FedEx Directory for IVMR Locations
