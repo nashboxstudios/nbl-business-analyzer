@@ -3650,7 +3650,7 @@ def main():
             Path(PORT_FILE).write_text(url, encoding='utf-8')
         except Exception:
             pass
-    print('NBL FleetCommand v148 is running.')
+    print('NBL FleetCommand v149 is running.')
     print(f'Open: {url}')
     print('Motive API credentials use MOTIVE_API_KEY when provided; local builds fall back to the protected local key file.')
     print('Keep this process running while using the app.')
@@ -3671,3 +3671,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

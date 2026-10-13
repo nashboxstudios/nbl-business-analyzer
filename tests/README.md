@@ -1,3 +1,10 @@
+Safety dismissal verification (v149)
+
+Run `node tests/safety-dismissals.cjs` to verify Motive-only dismissal status,
+coaching-status precedence, exact status matching, legacy local-override exclusion,
+active speeding counts, Top 3 Incidents, score adjustments, saved driver snapshots,
+and PDF incident selection. Tests use synthetic events only.
+
 Recruitment verification (v140)
 
 V140 adds `recruitment-privacy.py` for synthetic SSN extraction and server role
@@ -72,3 +79,4 @@ refresh exclusion, and stale writes blocked. Engine, table, and full app DOM
 suites passed. A rolled-back authenticated cloud fixture verified scoped
 updates, retained recovery data, stale update rejection, and outsider isolation;
 no real candidate was deleted. No schema or permission changes are required.
+
