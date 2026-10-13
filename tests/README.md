@@ -1,3 +1,9 @@
+Safety dismissal compatibility (v150)
+
+Run `node tests/safety-dismissals.cjs` for modern/legacy Motive dismissal values,
+conflicting status fields, invalid/coached/pending active events, unidentified-driver
+dismissals, returned-status tooltips, saved status evidence, and PDF/count consistency.
+
 Safety dismissal verification (v149)
 
 Run `node tests/safety-dismissals.cjs` to verify Motive-only dismissal status,
