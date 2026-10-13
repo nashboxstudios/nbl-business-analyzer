@@ -1,3 +1,14 @@
+NBL FleetCommand — Version 150
+
+Version 150 - Motive Safety Dismissal Compatibility
+- Recognizes explicit Motive Dismissed/Dismiss values and the documented legacy Uncoachable safety coaching status.
+- Does not infer dismissals from Invalid, false-positive flags, Not Coachable, or legacy FleetCommand overrides.
+- Honors an explicit Motive dismissal even when another returned status field differs.
+- Includes unidentified-driver incidents in the same status rule.
+- Shows the returned Motive status fields in the event status tooltip and retains them in newly captured incident records for troubleshooting.
+- Reload Safety Data to refresh the selected period; no database migration is required.
+- Compatibility source: https://go.gomotive.com/rs/264-HRT-423/images/%5BWebinar%5D_New_DRIVE_Risk_Score.pdf (page 34).
+
 NBL FleetCommand — Version 149
 
 Version 149 - Motive-Only Safety Dismissals
