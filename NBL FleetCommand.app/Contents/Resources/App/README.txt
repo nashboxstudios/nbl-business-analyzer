@@ -1,3 +1,13 @@
+NBL FleetCommand — Version 149
+
+Version 149 - Motive-Only Safety Dismissals
+- Excludes safety events only when Motive explicitly reports a Dismissed status.
+- Uses Motive coaching status when present; Invalid, false positive, Coached, Coachable, and Pending Review do not dismiss an event.
+- Ignores legacy FleetCommand dismissal overrides and removes the local Dismiss/Restore controls.
+- Applies the same rule to active counts, Top 3 Incidents, saved driver snapshots, local score adjustments, and newly generated safety PDFs.
+- Reload Safety Data for a selected period to refresh its previously saved incident classifications.
+- No database migration is required.
+
 NBL FleetCommand — Version 148
 
 Version 148 - Interviewer Notes and Registry Question
@@ -1306,3 +1316,4 @@ Version 80 - Multi-User Access + Owner Finance Lock
 - Non-owner profiles cannot see finance modules, Finance Security, statement upload controls, or the local data-folder bridge.
 - Added My Profile for display name and password changes.
 - Online user creation uses SUPABASE_SECRET_KEY only on the Railway server; the secret is never sent to the browser. A legacy SUPABASE_SERVICE_ROLE_KEY is still accepted as a fallback for older deployments.
+

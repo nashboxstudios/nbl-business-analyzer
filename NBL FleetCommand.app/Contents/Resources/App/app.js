@@ -6100,8 +6100,15 @@
   const SAFETY_BEHAVIOR_WEIGHTS={mobile_device_usage:10,cell_phone:10,close_following:9,stop_sign_violation:7,seat_belt_violation:6,speeding:6,distraction:5,hard_braking:4,hard_brake:4,hard_cornering:2,hard_corner:2,hard_acceleration:1,hard_accel:1};
   function safetyNormalizedType(value){return String(value||'unknown').trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');}
   function safetyBehaviorWeight(item){const type=safetyNormalizedType(safetyEventType(item.event,item.source));return SAFETY_BEHAVIOR_WEIGHTS[type]??3;}
-  function safetyMotiveDismissed(event){const values=[event?.status,event?.coaching_status,event?.review_status,event?.event_status,event?.metadata?.status,event?.metadata?.coaching_status];return values.some(v=>/dismiss|false.?positive|invalid/i.test(String(v||'')))||event?.dismissed===true||event?.is_dismissed===true;}
-  function safetyDismissal(item){const key=safetyEventId(item.event,item.source);if(safetyMotiveDismissed(item.event))return {dismissed:true,source:'Motive'};const local=state.safety.dismissals?.[key];return local?.dismissed?{...local,source:'FleetCommand'}:{dismissed:false,source:''};}
+  function safetyMotiveDismissed(event){
+    // Motive's coaching status is authoritative when supplied. Validation status
+    // (for example "invalid") and legacy FleetCommand flags are not dismissals.
+    const coaching=[event?.coaching_status,event?.metadata?.coaching_status].find(v=>typeof v==='string'&&v.trim());
+    if(coaching!=null)return coaching.trim().toLowerCase()==='dismissed';
+    const status=[event?.status,event?.review_status,event?.event_status,event?.metadata?.status].find(v=>typeof v==='string'&&v.trim());
+    return status!=null&&status.trim().toLowerCase()==='dismissed';
+  }
+  function safetyDismissal(item){return safetyMotiveDismissed(item.event)?{dismissed:true,source:'Motive'}:{dismissed:false,source:''};}
   function safetyScoreBand(score){score=Number(score);if(!Number.isFinite(score))return 'Not Scored';if(score>=96)return 'Excellent';if(score>=85)return 'Needs Improvement';return 'Critical';}
   function safetyBandColor(score){const band=safetyScoreBand(score);return band==='Excellent'?'#18804B':band==='Needs Improvement'?'#C58A00':band==='Critical'?'#B42318':'#756C7D';}
   function safetyScorecardMiles(row){const km=Number(row?.total_kilometers);return Number.isFinite(km)&&km>0?km*0.621371:0;}
@@ -6135,7 +6142,7 @@
     const options=['<option value="">Select driver…</option>',...pool.map(d=>`<option value="${escapeHtml(d.id)}" ${assigned?.id===d.id?'selected':''}>${escapeHtml(d.name)}</option>`)].join('');
     return `<div class="safety-assignment"><select data-safety-assignment="${escapeHtml(key)}">${options}</select><button class="button secondary" type="button" data-save-safety-assignment="${escapeHtml(key)}">Save</button></div>${assigned?`<small class="safety-assigned-note">FleetCommand assignment • official Motive score unchanged</small>`:''}`;
   }
-  function safetyDismissalHtml(item){const dismissal=safetyDismissal(item),key=safetyEventId(item.event,item.source);if(dismissal.source==='Motive')return '<span class="status-pill neutral">Dismissed in Motive</span>';return `<button class="button ${dismissal.dismissed?'secondary':'danger-outline'} safety-dismiss-btn" type="button" data-safety-dismiss="${escapeHtml(key)}">${dismissal.dismissed?'Restore':'Dismiss'}</button>${dismissal.dismissed?'<small>Dismissed in FleetCommand</small>':''}`;}
+  function safetyDismissalHtml(item){return safetyDismissal(item).dismissed?'<span class="status-pill neutral">Dismissed in Motive</span>':'<span class="status-pill neutral">Not dismissed</span>';}
   async function loadSafetyData(silent=false){
     safetyDefaultDates();const start=$('safetyStartDate')?.value||state.safety.startDate,end=$('safetyEndDate')?.value||state.safety.endDate;
     if(!state.motive.configured){if(!silent)showAlert('Connect Motive before loading Safety data.','warning');return false;}
@@ -6155,14 +6162,6 @@
     const item=safetyAllEvents().find(x=>safetyEventId(x.event,x.source)===key),incident=item?safetyIncidentRecord(item):null;if(incident)incident.assignmentSource='FleetCommand';
     const previous=state.safety.assignments?.[key]||null;state.safety.assignments[key]={id:driver.id,name:driver.name,employeeId:driver.employeeId||'',assignedAt:new Date().toISOString(),assignedBy:state.cloud?.user?.id||'',incident};
     const history={eventKey:key,actionType:previous?'reassign':'assign',actionData:{from:previous?{id:previous.id,name:previous.name}:null,to:{id:driver.id,name:driver.name}}};const saved=await refreshCurrentSafetySnapshots(history);renderSafety();if(!saved)return;showAlert(`${escapeHtml(driver.name)} assigned to this event. Assignment and driver record saved to NBL Cloud. Motive's official score is unchanged.`,'success');
-  }
-  async function toggleSafetyDismissal(key){
-    const item=safetyAllEvents().find(x=>safetyEventId(x.event,x.source)===key);if(!item)return;
-    if(safetyMotiveDismissed(item.event)){showAlert('This event is already dismissed in Motive and is automatically excluded in FleetCommand.','warning');return;}
-    const currently=!!state.safety.dismissals?.[key]?.dismissed;
-    if(!state.safety.dismissals)state.safety.dismissals={};
-    state.safety.dismissals[key]={dismissed:!currently,updatedAt:new Date().toISOString(),updatedBy:state.cloud?.user?.id||''};
-    const history={eventKey:key,actionType:currently?'restore':'dismiss',actionData:{dismissed:!currently}};const saved=await refreshCurrentSafetySnapshots(history);renderSafety();if(!saved)return;showAlert(`Event ${currently?'restored':'dismissed'} in FleetCommand. Estimated Adjusted Scores and driver records have been saved.`,'success');
   }
   function safetySortValue(row,key,all){const adjusted=safetyAdjustedScore(row,all);if(key==='driver')return safetyDriverName(row.driver).toLowerCase();if(key==='official')return Number(row.score);if(key==='adjusted')return adjusted.score;if(key==='miles')return safetyScorecardMiles(row);if(key==='events')return all.filter(x=>safetyEventDriver(x.event,x.source)?.id===safetyDriverId(row.driver)).length;return adjusted.score;}
   function safetySortableHeading(label,key,sort){const active=sort.key===key,arrow=active?(sort.dir==='asc'?' ▲':' ▼'):'';return `<th><button class="safety-sort" type="button" data-safety-sort="${key}">${label}${arrow}</button></th>`;}
@@ -6402,7 +6401,6 @@
   $('safetyTrendDriver')?.addEventListener('change',e=>{state.safety.trendDriverId=e.target.value;renderSafety();});
   $('safetyScreen')?.addEventListener('click',e=>{
     const save=e.target.closest('[data-save-safety-assignment]');if(save){saveSafetyAssignment(save.dataset.saveSafetyAssignment);return;}
-    const dismiss=e.target.closest('[data-safety-dismiss]');if(dismiss){toggleSafetyDismissal(dismiss.dataset.safetyDismiss);return;}
     const sort=e.target.closest('[data-safety-sort]');if(sort){const key=sort.dataset.safetySort,current=state.safety.rankSort||{key:'adjusted',dir:'asc'};state.safety.rankSort={key,dir:current.key===key?(current.dir==='asc'?'desc':'asc'):(key==='driver'?'asc':'desc')};renderSafety();return;}
     const exportBtn=e.target.closest('[data-safety-driver-export]');if(exportBtn){exportSafetyDriverPdf(exportBtn.dataset.safetyDriverExport);return;}
     const trend=e.target.closest('[data-safety-driver-trend]');if(trend){state.safety.trendDriverId=trend.dataset.safetyDriverTrend;renderSafety();$('safetyScoreTrendChart')?.scrollIntoView({behavior:'smooth',block:'center'});return;}
@@ -6709,3 +6707,4 @@
   });
   initApp();
 })();
+
