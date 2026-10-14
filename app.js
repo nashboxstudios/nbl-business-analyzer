@@ -100,7 +100,7 @@
     hr:defaultHrData(), hrLoaded:false, recruitmentSearch:'', recruitmentStatusFilter:'', recruitmentSort:{key:'',dir:'asc'}, hrSsn:{draftFull:'',legacyLast4:'',revealed:false,existingCandidate:false,accessResolver:null}, hrApplicationMismatch:{resolver:null},
     audit:{version:1,audits:[],findings:[],activeTab:'dashboard',selectedAuditId:''}, auditLoaded:false,
     dispatch:defaultDispatchData(), dispatchLoaded:false, dispatchSelectedDriverId:null,
-    motive:{backendAvailable:false,configured:false,keyHint:'',storage:'',vehicles:[],drivers:[],driversLoaded:false,driversLastSync:null,driversError:'',lastSync:null,test:null,loading:false,geofences:null,geofencesLoading:false,geofencesError:'',geofencesRequest:0},
+    motive:{backendAvailable:false,configured:false,keyHint:'',storage:'',vehicles:[],drivers:[],driversLoaded:false,driversLoading:false,driversLastSync:null,driversError:'',lastSync:null,test:null,loading:false,geofences:null,geofencesLoading:false,geofencesError:'',geofencesRequest:0},
     safety:{version:3,startDate:'',endDate:'',scorecards:[],performanceEvents:[],speedingEvents:[],assignments:{},dismissals:{},driverRecords:{},trendDriverId:'',loadedAt:null,loading:false,error:'',accessErrors:{},driverFilter:'all',eventTypeFilter:'all',statusFilter:'active',rankSort:{key:'adjusted',dir:'asc'}},
     ivmr:{startDate:'',endDate:'',rawTrips:[],trips:[],formatBuilt:false,loadedAt:null,loading:false,routeLoading:false,routeCancelRequested:false,routeStats:null,routeProgress:null,lastPdf:null,historyTest:{loading:false,result:null,error:''}},
     ivmrLocations:defaultIvmrLocationData(), ivmrLocationsLoaded:false,
@@ -924,6 +924,7 @@
 
   function setScreen(screen) {
     if(!canAccessScreen(screen)) screen=firstAccessibleScreen();
+    const enteringDispatch=screen==='dispatch'&&state.currentScreen!==screen;
     state.currentScreen = screen;
     ensureScreenCloudData(screen);
     document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.screen===screen));
@@ -1034,7 +1035,7 @@
     } else if(screen==='dispatch') {
       const ds=dispatchCoverageStats();
       $('fileMeta').textContent=workspace ? `${label} • ${dispatchActiveLocationName()} dispatch • ${ds.covered}/${ds.required} weekly run assignments covered` : 'Connect NBL Cloud or choose your local data folder to begin.';
-      if(workspace) renderDispatch();
+      if(workspace){if(enteringDispatch)refreshMotiveDriverDirectory();renderDispatch();}
     } else if(screen==='daily-dispatch') {
       const date=$('dailyDispatchDateInput')?.value||todayIso(),saved=state.dispatch.dailyBoards?.[date];
       $('fileMeta').textContent=workspace ? `${label} • ${fmtDate(date)} daily dispatch${saved?.savedAt?' • saved':' • not yet saved'}` : 'Connect NBL Cloud or choose your local data folder to begin.';
@@ -3884,7 +3885,7 @@
     const parts=String(name||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().split(/\s+/).filter(Boolean).filter(x=>!suffixes.has(x));
     return parts.length>1?`${parts[0]} ${parts.at(-1)}`:(parts[0]||'');
   }
-  function motiveDriverEmployeeId(driver){ return String(driver?.employee_id||driver?.driver_company_id||driver?.company_id||driver?.employeeId||'').trim(); }
+  function motiveDriverEmployeeId(driver){ return String(driver?.employee_id||driver?.driver_company_id||driver?.employeeId||'').trim(); }
   function motiveDriverIsActive(driver){ return !!driver&&String(driver.status||'').trim().toLowerCase()==='active'; }
   function motiveMatchesForDriver(driver){
     if(!driver)return [];
@@ -3897,18 +3898,16 @@
     return name?directory.filter(m=>dispatchNameKey(m.name||[m.first_name,m.last_name].filter(Boolean).join(' '))===name):[];
   }
   function driverIsEligibleForWork(driver){
-    if(!driver)return false;
+    if(!driver||!state.motive.driversLoaded||state.motive.driversLoading||state.motive.driversError)return false;
     const matches=motiveMatchesForDriver(driver);
-    if(matches.length)return matches.length===1&&motiveDriverIsActive(matches[0]);
-    const id=String(driver.fedexId||motiveDriverEmployeeId(driver)||'').trim(),linked=id?(state.dispatch?.drivers||[]).filter(d=>String(d.fedexId||'').trim()===id):[];
-    if(driver.active===false||linked.some(d=>d.active===false))return false;
-    const statuses=[driver.motiveStatus,driver.status,...linked.map(d=>d.motiveStatus)].filter(Boolean);
-    if(statuses.some(status=>String(status).trim().toLowerCase()!=='active'))return false;
-    // A completed directory is authoritative. Unmatched/onboarding drivers are
-    // not eligible until Motive confirms an active account.
-    if(state.motive.driversLoaded)return false;
-    if(state.motive.configured)return statuses.some(status=>String(status).trim().toLowerCase()==='active');
-    return true;
+    // Saved roster flags, Recruitment and settlements cannot confirm current status.
+    return matches.length===1&&motiveDriverIsActive(matches[0]);
+  }
+  function dispatchDriverDirectoryMessage(){
+    if(state.motive.driversLoading)return 'Checking active drivers in Motive…';
+    if(state.motive.driversError)return 'Motive driver status unavailable. Use Refresh Motive to try again.';
+    if(!state.motive.driversLoaded)return 'Active Motive drivers have not been verified. Use Refresh Motive to load them.';
+    return `Active Motive drivers verified ${new Date(state.motive.driversLastSync).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`;
   }
   function clearInactiveLiveDispatchAssignments(){
     const inactive=new Set((state.dispatch.drivers||[]).filter(d=>{const matches=motiveMatchesForDriver(d);return matches.length?!(matches.length===1&&motiveDriverIsActive(matches[0])):d.active===false||!!d.motiveStatus&&String(d.motiveStatus).trim().toLowerCase()!=='active';}).map(d=>d.id));let changed=false;
@@ -3922,20 +3921,24 @@
   let motiveDirectoryRefresh=null;
   async function refreshMotiveDriverDirectory(){
     if(motiveDirectoryRefresh)return motiveDirectoryRefresh;
+    state.motive.driversLoading=true;
     motiveDirectoryRefresh=(async()=>{
       try{
         const data=await localApi('/api/motive/drivers');
         if(!data?.ok||!Array.isArray(data.drivers))throw new Error('Motive returned an incomplete driver directory.');
-        state.motive.drivers=data.drivers;state.motive.driversLoaded=true;state.motive.driversLastSync=new Date().toISOString();state.motive.driversError='';
+        state.motive.drivers=data.drivers;state.motive.driversLoaded=true;state.motive.driversLoading=false;state.motive.driversLastSync=new Date().toISOString();state.motive.driversError='';
         const changed=syncSharedDriverRoster();
         if(changed&&state.dispatchLoaded&&canAccessModuleKey('dispatch',true))await saveDispatchData(true);
         return true;
       }catch(err){state.motive.driversError=err.message||String(err);return false;}
     })();
-    try{return await motiveDirectoryRefresh;}finally{motiveDirectoryRefresh=null;}
+    try{return await motiveDirectoryRefresh;}finally{
+      motiveDirectoryRefresh=null;state.motive.driversLoading=false;
+      renderDispatch();
+      if($('dispatchDriverRosterModal')&&!$('dispatchDriverRosterModal').classList.contains('hidden'))renderDispatchDriverRosterModal();
+    }
   }
   async function verifyMotiveDriversForWork(){
-    if(!state.motive.configured)return true;
     if(await refreshMotiveDriverDirectory())return true;
     showAlert('Driver status could not be verified in Motive. Refresh Motive and try again.','warning');return false;
   }
@@ -3944,6 +3947,7 @@
     return dispatchLocations().find(l=>text.includes(String(l.name||'').toLowerCase()))?.id||dispatchLocations()[0]?.id||'nashville';
   }
   function syncSharedDriverRoster(){
+    if(state.motive.driversLoading||state.motive.driversError)return clearInactiveLiveDispatchAssignments();
     state.dispatch.drivers=Array.isArray(state.dispatch.drivers)?state.dispatch.drivers:[];
     const roster=state.dispatch.drivers, byFedex=new Map(), byName=new Map(),byMotive=new Map(); let changed=false;
     const index=driver=>{const id=String(driver.fedexId||'').trim(),nk=dispatchNameKey(driver.name);if(id)byFedex.set(id,driver);if(nk&&!byName.has(nk))byName.set(nk,driver);if(driver.motiveDriverId)byMotive.set(String(driver.motiveDriverId),driver);};
@@ -3999,16 +4003,17 @@
     fillDispatchLocationSelect($('dispatchNewDriverLocation'),$('dispatchNewDriverLocation')?.value||dispatchActiveLocationId());
     const settlement=availableDispatchDrivers(), table=$('dispatchSettlementDriversTable');
     if(table){
+      const selected=new Set([...table.querySelectorAll('[data-settlement-driver-select]:checked')].map(el=>el.dataset.settlementDriverSelect));
       table.querySelector('thead').innerHTML='<tr>'+['Select','Driver','FedEx ID','Source / Last Seen','Status'].map(h=>`<th>${h}</th>`).join('')+'</tr>';
-      table.querySelector('tbody').innerHTML=settlement.length?settlement.map(d=>{const existing=dispatchExistingSettlementDriver(d);return `<tr><td><input type="checkbox" data-settlement-driver-select="${escapeHtml(d.key)}" ${existing?'disabled':''}></td><td><strong>${escapeHtml(d.name)}</strong></td><td>${escapeHtml(d.fedexId||'—')}</td><td>${escapeHtml(d.sourceLabel)}${d.lastSeen?` • ${fmtDate(d.lastSeen)}`:''}</td><td>${existing?`<span class="status-pill yes">In Dispatch • ${escapeHtml(dispatchDriverLocationName(existing))}</span>`:'<span class="status-pill neutral">Available to add</span>'}</td></tr>`;}).join(''):'<tr><td colspan="5" class="empty-table-cell">No hired Recruitment drivers or settlement drivers found yet.</td></tr>';
+      table.querySelector('tbody').innerHTML=settlement.length?settlement.map(d=>{const existing=dispatchExistingSettlementDriver(d);return `<tr><td><input type="checkbox" data-settlement-driver-select="${escapeHtml(d.key)}" ${existing?'disabled':selected.has(d.key)?'checked':''}></td><td><strong>${escapeHtml(d.name)}</strong></td><td>${escapeHtml(d.fedexId||'—')}</td><td>${escapeHtml(d.sourceLabel)}${d.lastSeen?` • ${fmtDate(d.lastSeen)}`:''}</td><td>${existing?`<span class="status-pill yes">In Dispatch • ${escapeHtml(dispatchDriverLocationName(existing))}</span>`:'<span class="status-pill neutral">Available to add</span>'}</td></tr>`;}).join(''):`<tr><td colspan="5" class="empty-table-cell">${escapeHtml(state.motive.driversLoaded&&!state.motive.driversError&&!state.motive.driversLoading?'No active Motive drivers found.':dispatchDriverDirectoryMessage())}</td></tr>`;
     }
     const roster=$('dispatchCurrentRosterTable');
     if(roster){
       roster.querySelector('thead').innerHTML='<tr>'+['Driver','FedEx ID','Status','Location','Schedule','Source','Actions'].map(h=>`<th>${h}</th>`).join('')+'</tr>';
-      roster.querySelector('tbody').innerHTML=(state.dispatch.drivers||[]).slice().sort((a,b)=>Number(dispatchDriverIsActive(b))-Number(dispatchDriverIsActive(a))||dispatchDriverLocationName(a).localeCompare(dispatchDriverLocationName(b))||a.name.localeCompare(b.name)).map(d=>`<tr class="${dispatchDriverIsActive(d)?'':'dispatch-driver-inactive'}"><td><strong>${escapeHtml(d.name)}</strong></td><td>${escapeHtml(d.fedexId||'—')}</td><td>${dispatchDriverIsActive(d)?'<span class="status-pill yes">Active</span>':`<span class="status-pill baseline">Inactive${d.motiveStatus?` • ${escapeHtml(d.motiveStatus)}`:''}</span>`}</td><td><span class="dispatch-location-pill">${escapeHtml(dispatchDriverLocationName(d))}</span></td><td>${escapeHtml(d.availabilityLabel||dispatchAvailabilityLabel(d.availability||[]))}</td><td>${escapeHtml(d.source||'Manual')}</td><td class="dispatch-roster-row-actions"><button class="button secondary" type="button" data-edit-dispatch-driver="${escapeHtml(d.id)}" ${dispatchDriverIsActive(d)?'':'disabled'}>Edit</button><button class="button danger-outline" type="button" data-delete-dispatch-driver="${escapeHtml(d.id)}">Remove</button></td></tr>`).join('')||'<tr><td colspan="7" class="empty-table-cell">No dispatch drivers have been added.</td></tr>';
+      roster.querySelector('tbody').innerHTML=(state.dispatch.drivers||[]).filter(dispatchDriverIsActive).sort((a,b)=>dispatchDriverLocationName(a).localeCompare(dispatchDriverLocationName(b))||a.name.localeCompare(b.name)).map(d=>`<tr><td><strong>${escapeHtml(d.name)}</strong></td><td>${escapeHtml(d.fedexId||'—')}</td><td><span class="status-pill yes">Active in Motive</span></td><td><span class="dispatch-location-pill">${escapeHtml(dispatchDriverLocationName(d))}</span></td><td>${escapeHtml(d.availabilityLabel||dispatchAvailabilityLabel(d.availability||[]))}</td><td>${escapeHtml(d.source||'Manual')}</td><td class="dispatch-roster-row-actions"><button class="button secondary" type="button" data-edit-dispatch-driver="${escapeHtml(d.id)}">Edit</button><button class="button danger-outline" type="button" data-delete-dispatch-driver="${escapeHtml(d.id)}">Remove</button></td></tr>`).join('')||`<tr><td colspan="7" class="empty-table-cell">${escapeHtml(state.motive.driversLoaded&&!state.motive.driversError&&!state.motive.driversLoading?'No dispatch drivers are active in Motive.':dispatchDriverDirectoryMessage())}</td></tr>`;
     }
   }
-  function openDispatchDriverRosterModal(){ renderDispatchDriverRosterModal(); openModal('dispatchDriverRosterModal'); }
+  function openDispatchDriverRosterModal(){ refreshMotiveDriverDirectory();renderDispatchDriverRosterModal();openModal('dispatchDriverRosterModal'); }
   function selectAllSettlementDispatchDrivers(){ document.querySelectorAll('#dispatchSettlementDriversTable [data-settlement-driver-select]:not(:disabled)').forEach(cb=>cb.checked=true); }
   async function importSelectedSettlementDrivers(){
     if(!await verifyMotiveDriversForWork())return;const selected=[...document.querySelectorAll('#dispatchSettlementDriversTable [data-settlement-driver-select]:checked')].map(cb=>cb.dataset.settlementDriverSelect); if(!selected.length){showAlert('Select at least one available driver to add.','warning');return;}
@@ -4043,7 +4048,12 @@
   }
   function openDispatchTractorRosterModal(){ renderDispatchTractorRosterModal(); openModal('dispatchTractorRosterModal'); }
   function selectAllMotiveDispatchTractors(){ document.querySelectorAll('#dispatchMotiveTractorsTable [data-motive-tractor-select]:not(:disabled)').forEach(cb=>cb.checked=true); }
-  async function refreshDispatchMotiveFleet(){ await refreshMotiveFleet(true); syncDispatchTractorMetadataFromMotive(); renderDispatch(); renderDispatchTractorRosterModal(); showAlert(`Motive fleet refreshed: <strong>${state.motive.vehicles.length}</strong> vehicle${state.motive.vehicles.length===1?'':'s'} loaded.`,'success'); }
+  async function refreshDispatchMotiveFleet(){
+    if(state.motive.configured)await refreshMotiveFleet(true);else await refreshMotiveDriverDirectory();
+    const driversOk=state.motive.driversLoaded&&!state.motive.driversError;
+    syncDispatchTractorMetadataFromMotive();renderDispatch();renderDispatchTractorRosterModal();
+    showAlert(driversOk&&!state.motive.driversError?'Active Motive drivers refreshed.':'Motive driver status could not be verified. Driver choices are unavailable until Refresh Motive succeeds.',driversOk&&!state.motive.driversError?'success':'warning');
+  }
   async function importSelectedMotiveTractors(){
     const selected=[...document.querySelectorAll('#dispatchMotiveTractorsTable [data-motive-tractor-select]:checked')].map(cb=>cb.dataset.motiveTractorSelect); if(!selected.length){showAlert('Select at least one Motive tractor to add.','warning');return;}
     const loc=$('dispatchMotiveTractorLocationInput')?.value||dispatchActiveLocationId(); let added=0;
@@ -4193,8 +4203,8 @@
     $('dispatchPotential').textContent=`Best possible: ${best.covered}/${best.required} weekly assignments`;
     $('dispatchCards').innerHTML=[['Location',loc?.name||'—',''],['Drivers',fmtNum(activeDrivers.length),''],['Tractors',fmtNum(activeTractors.length),activeTractors.length<peakRuns?'danger':''],['Peak Runs / Day',fmtNum(peakRuns),''],['Tractor Capacity',peakRuns?`${tractorBalance>=0?'+':''}${tractorBalance} vs peak`:'—',tractorBalance<=0?'danger':(peakRuns?'success':'')],['Coverage',st.required?`${Math.round(st.coverage*100)}%`:'—',st.open?'danger':'success'],['Open Run-Days',fmtNum(st.open),st.open?'danger':'success'],['Weekly Miles',econ.milesComplete?fmtNum(econ.weeklyMiles):'Enter route miles',''],['Lost Miles',econ.milesComplete?fmtNum(econ.lostMiles):'Enter route miles',econ.lostMiles?'danger':'success']].map(x=>`<div class="summary-card ${x[2]}"><span>${x[0]}</span><strong>${x[1]}</strong></div>`).join('');
     $('dispatchSaveState').textContent=state.dispatch.updatedAt?`Saved ${new Date(state.dispatch.updatedAt).toLocaleString()}`:'Starting plan • not yet modified';
-    $('dispatchDriverPool').innerHTML=activeDrivers.length?activeDrivers.map(d=>dispatchDriverCardHtml(d,false)).join(''):'<div class="dispatch-empty-driver-pool"><strong>No drivers assigned here yet.</strong><span>Click Manage Drivers to add hired Recruitment drivers, settlement drivers, or a new driver.</span></div>';
-    $('dispatchMotiveState').textContent=state.motive.configured?(state.motive.lastSync?`Motive refreshed ${new Date(state.motive.lastSync).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`:'Motive connected'):'Motive not connected';
+    $('dispatchDriverPool').innerHTML=activeDrivers.length?activeDrivers.map(d=>dispatchDriverCardHtml(d,false)).join(''):`<div class="dispatch-empty-driver-pool"><strong>No verified active drivers at this location.</strong><span>${escapeHtml(state.motive.driversLoaded&&!state.motive.driversError&&!state.motive.driversLoading?'Use Manage Drivers to assign active Motive drivers to this location.':dispatchDriverDirectoryMessage())}</span></div>`;
+    $('dispatchMotiveState').textContent=dispatchDriverDirectoryMessage();
     $('dispatchTractorPool').innerHTML=activeTractors.length?activeTractors.slice().sort((a,b)=>String(a.tractorNumber||'').localeCompare(String(b.tractorNumber||''),undefined,{numeric:true})).map(t=>{const v=dispatchMotiveVehicleForTractor(t),odo=v?motiveOdometer(v):t.odometer,status=String(v?.status||t.motiveStatus||'').trim();return `<div class="dispatch-tractor-card"><strong>Tractor ${escapeHtml(t.tractorNumber||'—')}</strong><span>${escapeHtml(t.makeModel||dispatchMotiveMakeModel(v)||'—')}</span><span>${escapeHtml(t.vin||v?.vin||'VIN —')}</span><span class="dispatch-tractor-odo">${odo==null?'Odometer —':`${fmtNum(odo)} mi`}</span><span class="dispatch-tractor-status ${status?'ok':'warn'}">${escapeHtml(status||'Motive status unavailable')}</span><span class="dispatch-tractor-location">${escapeHtml(dispatchTractorLocationName(t))}</span></div>`;}).join(''):'<div class="dispatch-empty-driver-pool"><strong>No tractors assigned here yet.</strong><span>Click Manage Tractors to pull tractors from Motive and assign them to this location.</span></div>';
     const parts=[];parts.push('<div class="dispatch-corner">Run / Origin</div>');for(const d of st.perDay){const cls=d.covered===d.required?'full':'gap';parts.push(`<div class="dispatch-day-head ${cls}"><strong>${d.name}</strong><small>${d.covered}/${d.required} covered</small></div>`);}
     if(!activeRuns.length){parts.push(`<div class="dispatch-no-runs"><strong>No runs at ${escapeHtml(loc?.name||'this location')} yet.</strong><span>Click + Add Run to create the first route.</span></div>`);}else{
@@ -6245,8 +6255,10 @@
     try{
       const data=await localApi('/api/motive/status');
       state.motive.backendAvailable=true; state.motive.configured=!!data.configured; state.motive.keyHint=data.key_hint||''; state.motive.storage=data.storage||'';if(state.motive.configured){await refreshMotiveDriverDirectory();renderDispatch();renderDailyDispatch();renderSafety();}
+      else{state.motive.driversLoaded=false;state.motive.driversError='Motive is not connected.';renderDispatch();}
     }catch(err){
       state.motive.backendAvailable=false; state.motive.configured=false; state.motive.keyHint=''; state.motive.storage='';
+      state.motive.driversError=err.message||String(err);renderDispatch();
     }
     renderMotive();
   }
@@ -6312,13 +6324,11 @@
     if(!state.motive.configured){ if(!silent) showAlert('Connect Motive first.','warning'); return; }
     state.motive.loading=true; renderMotive();
     try{
-      const [vehicleData,driverResult]=await Promise.all([
+      const [vehicleData,driversOk]=await Promise.all([
         localApi('/api/motive/vehicles'),
-        localApi('/api/motive/drivers').then(data=>({data,error:null})).catch(error=>({data:null,error}))
+        refreshMotiveDriverDirectory()
       ]);
       state.motive.vehicles=Array.isArray(vehicleData.vehicles)?vehicleData.vehicles:[];
-      if(driverResult.data) {if(!driverResult.data.ok||!Array.isArray(driverResult.data.drivers))throw new Error('Motive returned an incomplete driver directory.');state.motive.drivers=driverResult.data.drivers;state.motive.driversLoaded=true;state.motive.driversLastSync=new Date().toISOString();state.motive.driversError='';}
-      if(driverResult.error)state.motive.driversError=driverResult.error.message||String(driverResult.error);
       state.motive.lastSync=new Date().toISOString();
       if(state.dispatchLoaded){
         syncDispatchTractorMetadataFromMotive();
@@ -6326,7 +6336,7 @@
         if(rosterChanged&&canAccessModuleKey('dispatch',true)) await saveDispatchData(true);
         renderDispatch(); renderDailyDispatch();
       }
-      if(!silent) showAlert(`Loaded <strong>${state.motive.vehicles.length}</strong> vehicle${state.motive.vehicles.length===1?'':'s'} and <strong>${state.motive.drivers.length}</strong> driver${state.motive.drivers.length===1?'':'s'} from Motive.${driverResult.error?' Driver status could not be refreshed; the last known roster was retained.':''}`,driverResult.error?'warning':'success');
+      if(!silent) showAlert(`Loaded <strong>${state.motive.vehicles.length}</strong> vehicle${state.motive.vehicles.length===1?'':'s'} from Motive.${driversOk?` ${state.motive.drivers.filter(motiveDriverIsActive).length} active drivers verified.`:' Driver status could not be verified; driver choices are unavailable until Refresh Motive succeeds.'}`,driversOk?'success':'warning');
     }catch(err){ if(!silent) showAlert(`Could not load the Motive fleet: ${escapeHtml(err.message)}`,'error'); }
     finally{ state.motive.loading=false; renderMotive(); }
   }

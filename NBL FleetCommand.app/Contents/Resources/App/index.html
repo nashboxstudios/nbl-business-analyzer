@@ -5,16 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>NBL FleetCommand</title>
   <meta name="theme-color" content="#35164E" />
-  <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=64" />
-  <link rel="stylesheet" href="styles.css?v=150" />
-  <link rel="stylesheet" href="recruitment-test.css?v=150">
-  <link rel="stylesheet" href="ifta.css?v=150">
+  <link rel="icon" type="image/png" href="assets/nbl-favicon.png?v=151" />
+  <link rel="stylesheet" href="styles.css?v=151" />
+  <link rel="stylesheet" href="recruitment-test.css?v=151">
+  <link rel="stylesheet" href="ifta.css?v=151">
 </head>
 <body>
 
   <div class="cloud-login-overlay" id="cloudLoginOverlay">
     <div class="cloud-login-card">
-      <img class="cloud-login-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
+      <img class="cloud-login-logo" src="assets/nashbox-logistics-logo.png?v=151" alt="Nashbox Logistics">
       <span class="eyebrow">NBL Cloud</span>
       <h1>NBL FleetCommand</h1>
       <p>Sign in with your NBL account to access the online workspace.</p>
@@ -31,10 +31,10 @@
   <div class="app-shell">
     <aside class="sidebar" id="appSidebar">
       <div class="brand">
-        <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=45" alt="Nashbox Logistics">
+        <img class="nbl-logo" src="assets/nashbox-logistics-logo.png?v=151" alt="Nashbox Logistics">
         <div class="app-name">NBL FleetCommand</div>
         <div class="app-tagline">Operations Intelligence</div>
-        <div class="app-version">Version 150</div>
+        <div class="app-version">Version 151</div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-standalone nav-main-modules">
@@ -1352,7 +1352,7 @@
       <div class="modal-heading"><div><span class="eyebrow">Dispatch Driver Roster</span><h2>Manage Dispatch Drivers</h2></div><button class="icon-btn" data-close-modal="dispatchDriverRosterModal">×</button></div>
       <div class="dispatch-roster-section">
         <div class="panel-heading compact-heading">
-          <div><h3>Available Drivers</h3><p>Select any driver marked Hired in Recruitment or found in a stored settlement statement. Drivers already in the roster are identified automatically.</p></div>
+          <div><h3>Available Drivers</h3><p>Only drivers confirmed active in Motive are available. Recruitment and settlement records supply driver details; drivers already in the roster are identified automatically.</p></div>
           <div class="dispatch-roster-actions"><button type="button" class="button secondary" id="selectAllSettlementDriversBtn">Select All Available</button><button type="button" class="button primary" id="importSettlementDriversBtn">Add Selected Drivers</button></div>
         </div>
         <div class="form-grid two dispatch-import-location-row">
@@ -1363,7 +1363,7 @@
       </div>
 
       <div class="dispatch-roster-section dispatch-manual-driver-section">
-        <div class="panel-heading compact-heading"><div><h3>Add New Driver Manually</h3><p>Use this for new hires or drivers who have not appeared on a settlement statement yet.</p></div></div>
+        <div class="panel-heading compact-heading"><div><h3>Add New Driver Manually</h3><p>The driver must already have an active Motive account. Enter the matching FedEx ID or full name.</p></div></div>
         <form id="dispatchNewDriverForm">
           <div class="form-grid three">
             <div class="form-field"><label>Driver Name</label><input id="dispatchNewDriverName" type="text" required placeholder="Full name"></div>
@@ -1378,7 +1378,7 @@
       </div>
 
       <div class="dispatch-roster-section">
-        <div class="panel-heading compact-heading"><div><h3>Current Dispatch Roster</h3><p>Location assignments determine which driver pool appears on each dispatch tab.</p></div></div>
+        <div class="panel-heading compact-heading"><div><h3>Current Dispatch Roster</h3><p>Only drivers confirmed active in Motive appear here. Location assignments determine the driver pool on each dispatch tab.</p></div></div>
         <div class="table-wrap dispatch-roster-table-wrap"><table id="dispatchCurrentRosterTable" class="dispatch-roster-table"><thead></thead><tbody></tbody></table></div>
       </div>
       <div class="modal-actions"><button type="button" class="button dark" data-close-modal="dispatchDriverRosterModal">Done</button></div>
@@ -1653,12 +1653,12 @@
     </div>
   </div>
 
-  <script src="core.js?v=117"></script>
-  <script src="cloud.js?v=150"></script>
-  <script src="recruitment-test.js?v=150"></script>
-  <script src="ifta.js?v=150"></script>
-  <script src="ivmr-directory.js?v=150"></script>
-  <script src="app.js?v=150"></script>
+  <script src="core.js?v=151"></script>
+  <script src="cloud.js?v=151"></script>
+  <script src="recruitment-test.js?v=151"></script>
+  <script src="ifta.js?v=151"></script>
+  <script src="ivmr-directory.js?v=151"></script>
+  <script src="app.js?v=151"></script>
 </body>
 </html>
 
