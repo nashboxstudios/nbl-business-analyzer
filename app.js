@@ -967,8 +967,8 @@
     $('pageTitle').textContent=titles[screen]||'NBL FleetCommand';
     $('saveBtn').classList.toggle('hidden',folderScreen || financeLocked);
     $('exportBtn').classList.toggle('hidden',folderScreen || financeLocked);
-    if($('uploadStatementBtn')) $('uploadStatementBtn').classList.toggle('hidden',(cloudConnected()&&!isOwnerAccount()) || financeLocked || screen==='financial-analysis' || screen==='dashboard');
-    if($('emptyUploadStatementBtn')) $('emptyUploadStatementBtn').classList.toggle('hidden',(cloudConnected()&&!isOwnerAccount()) || financeLocked || screen==='financial-analysis');
+    if($('uploadStatementBtn')) $('uploadStatementBtn').classList.toggle('hidden',(cloudConnected()&&!isOwnerAccount()) || financeLocked || screen!=='summary');
+    if($('emptyUploadStatementBtn')) $('emptyUploadStatementBtn').classList.toggle('hidden',(cloudConnected()&&!isOwnerAccount()) || financeLocked || screen!=='summary');
     if(financeLocked) $('fileMeta').textContent='Owner-only protected module • Unlock with your Finance Access Code.';
     if(screen==='dashboard') {
       const boards=Object.values(state.dispatch.dailyBoards||{}).filter(x=>x?.savedAt).length;
@@ -1726,13 +1726,20 @@
   function dashboardMilesSvg(weeks){
     if(!weeks.length) return '<div class="dashboard-empty">No completed-week mileage data is available yet.</div>';
     const W=920,H=280,p={l:58,r:22,t:20,b:48},max=Math.max(1,...weeks.map(x=>x.total));
-    const x=i=>p.l+(weeks.length===1?0:(W-p.l-p.r)*i/(weeks.length-1)), y=v=>p.t+(H-p.t-p.b)*(1-v/max);
+    const plotW=W-p.l-p.r;
+    const x=i=>p.l+(weeks.length===1?plotW/2:plotW*i/(weeks.length-1)), y=v=>p.t+(H-p.t-p.b)*(1-v/max);
     const ticks=[0,.25,.5,.75,1];
     const path=key=>weeks.map((w,i)=>`${i?'L':'M'} ${x(i).toFixed(1)} ${y(w[key]).toFixed(1)}`).join(' ');
     const lines=ticks.map(t=>`<line x1="${p.l}" y1="${y(max*t)}" x2="${W-p.r}" y2="${y(max*t)}" class="grid"/><text x="${p.l-9}" y="${y(max*t)+4}" text-anchor="end">${escapeHtml(max*t>=1000?`${Math.round(max*t/1000)}k`:fmtNum(max*t))}</text>`).join('');
     const step=Math.max(1,Math.ceil(weeks.length/8));
     const labels=weeks.map((w,i)=>i%step===0||i===weeks.length-1?`<text x="${x(i)}" y="${H-17}" text-anchor="middle">${escapeHtml(new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric'}).format(w.end))}</text>`:'').join('');
-    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Weekly total, linehaul, and spot miles"><g>${lines}${labels}<path d="${path('total')}" class="series total"/><path d="${path('linehaul')}" class="series linehaul"/><path d="${path('spot')}" class="series spot"/></g></svg>`;
+    const hitWidth=Math.max(6,plotW/Math.max(1,weeks.length));
+    const hoverTargets=weeks.map((w,i)=>{
+      const weekLabel=new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',year:'numeric'}).format(w.end);
+      const title=`Week ending ${weekLabel}&#10;Total: ${fmtNum(w.total)} miles&#10;Linehaul: ${fmtNum(w.linehaul)} miles&#10;Spot: ${fmtNum(w.spot)} miles`;
+      return `<rect x="${Math.max(p.l,x(i)-hitWidth/2).toFixed(1)}" y="${p.t}" width="${hitWidth.toFixed(1)}" height="${H-p.t-p.b}" fill="transparent" style="pointer-events:all;cursor:crosshair"><title>${escapeHtml(title)}</title></rect>`;
+    }).join('');
+    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Weekly total, linehaul, and spot miles"><g>${lines}${labels}<path d="${path('total')}" class="series total"/><path d="${path('linehaul')}" class="series linehaul"/><path d="${path('spot')}" class="series spot"/>${hoverTargets}</g></svg>`;
   }
   function dashboardOutOfService(tractor){
     const v=typeof motiveVehicleForMaintenanceTractor==='function'?motiveVehicleForMaintenanceTractor(tractor):null;
